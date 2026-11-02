@@ -10,11 +10,12 @@ import {
   Vector3,
   type MeshToonMaterial,
 } from 'three';
-import { balance } from '../core/balance';
+import { balance, type CharacterDef } from '../core/balance';
 import type { Actions } from '../input/actions';
 import { addOutline, toonMaterial } from '../render/toon';
 import type { Physics } from '../world/physics';
 import { terrainHeight } from '../world/terrain';
+import type { Avatar } from './avatar';
 import { Stamina } from './stamina';
 
 const cfg = balance.player;
@@ -38,6 +39,11 @@ export class Player {
   private readonly coat: MeshToonMaterial;
   private readonly weapon = new Mesh(new BoxGeometry(0.08, 0.08, 1.1), toonMaterial('#eef0f5'));
   private readonly wing = new Mesh(new BoxGeometry(2.4, 0.04, 0.7), toonMaterial('#f6efe0'));
+  private readonly placeholder = new Group();
+  private readonly avatars = new Map<string, Avatar>();
+  private avatar: Avatar | null = null;
+  private characterId = '';
+  private clock = 0;
   private grounded = false;
   private dashTime = 0;
   private dashCooldown = 0;
@@ -72,15 +78,30 @@ export class Player {
     this.weapon.position.set(0.42, 0.85, -0.45);
     this.wing.position.y = 1.9;
     this.wing.visible = false;
-    this.view.add(torso, head, hair, this.weapon, this.wing);
+    this.placeholder.add(torso, head, hair, this.weapon);
+    this.view.add(this.placeholder, this.wing);
   }
 
   get alive(): boolean {
     return this.hp > 0;
   }
 
-  setColor(color: string): void {
-    this.coat.color.set(color);
+  setCharacter(character: CharacterDef): void {
+    this.coat.color.set(character.color);
+    this.characterId = character.id;
+    this.showActiveBody();
+  }
+
+  addAvatar(id: string, avatar: Avatar): void {
+    this.avatars.set(id, avatar);
+    this.view.add(avatar.root);
+    this.showActiveBody();
+  }
+
+  private showActiveBody(): void {
+    this.avatar = this.avatars.get(this.characterId) ?? null;
+    for (const [id, avatar] of this.avatars) avatar.root.visible = id === this.characterId;
+    this.placeholder.visible = this.avatar === null;
   }
 
   playSwing(): void {
@@ -101,6 +122,7 @@ export class Player {
     this.verticalSpeed = 0;
     this.gliding = false;
     this.dashTime = 0;
+    for (const avatar of this.avatars.values()) avatar.resetPhysics();
   }
 
   revive(position: Vector3): void {
@@ -202,6 +224,16 @@ export class Player {
     this.view.position.y += this.grounded ? Math.abs(Math.sin(this.walkPhase)) * 0.06 * Math.min(1, speed) : 0;
     this.view.rotation.y = Math.atan2(-this.facing.x, -this.facing.z);
     this.view.rotation.x = this.gliding ? -0.5 : 0;
+    this.clock += dt;
+    this.avatar?.update(dt, {
+      time: this.clock,
+      stride: this.walkPhase * 0.75,
+      pace: Math.min(1, speed / cfg.sprintSpeed),
+      airborne: !this.grounded,
+      gliding: this.gliding,
+      dashing: this.dashTime > 0,
+      swing: this.swing,
+    });
     this.weapon.rotation.y = this.swing * 2.4 - 1.2 * Math.min(this.swing * 4, 1);
     this.wing.visible = this.gliding;
     this.view.visible = this.invulnerable <= 0 || Math.floor(this.invulnerable * 30) % 2 === 0;

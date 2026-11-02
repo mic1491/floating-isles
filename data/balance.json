@@ -44,6 +44,8 @@
       "id": "fire",
       "element": "fire",
       "color": "#ff7a45",
+      "model": "assets/characters/ember_wing.vrm",
+      "weaponColor": "#ff6a3c",
       "attack": 12,
       "skill": { "damage": 30, "cooldown": 6, "radius": 4.5 },
       "burst": { "damage": 75, "radius": 8 }

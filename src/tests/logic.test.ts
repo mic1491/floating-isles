@@ -4,6 +4,7 @@ import { exploration, ExplorationProgress, puzzleResponds } from '../exploration
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
 import { FogGrid } from '../map/fogGrid';
 import { mapConfig, MapProgress } from '../map/mapProgress';
+import { computePose, type Motion } from '../player/avatarPose';
 import { Stamina } from '../player/stamina';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
@@ -229,5 +230,33 @@ describe('MapProgress', () => {
       expect(edgeRatio(point.x, point.z), point.id).toBeLessThan(0.88);
       expect(terrainHeight(point.x, point.z), point.id).toBeGreaterThan(1);
     }
+  });
+});
+
+describe('computePose', () => {
+  const still: Motion = { time: 0, stride: 0, pace: 0, airborne: false, gliding: false, dashing: false, swing: 0 };
+
+  it('stands with both arms down and mirrored', () => {
+    const { bones } = computePose(still);
+    expect(bones.leftUpperArm[2]).toBeLessThan(-1);
+    expect(bones.rightUpperArm[2]).toBeGreaterThan(1);
+    expect(bones.leftUpperLeg[0]).toBeCloseTo(0);
+  });
+
+  it('swings legs in opposition while running', () => {
+    const { bones } = computePose({ ...still, stride: Math.PI / 2, pace: 1 });
+    expect(bones.leftUpperLeg[0]).toBeLessThan(0);
+    expect(bones.rightUpperLeg[0]).toBeCloseTo(-bones.leftUpperLeg[0]);
+  });
+
+  it('opens the arms to glide', () => {
+    const { bones } = computePose({ ...still, airborne: true, gliding: true });
+    expect(Math.abs(bones.leftUpperArm[2])).toBeLessThan(0.3);
+  });
+
+  it('raises the sword arm, then brings it down', () => {
+    const start = computePose({ ...still, swing: 1 }).bones.rightUpperArm[0];
+    const end = computePose({ ...still, swing: 0.01 }).bones.rightUpperArm[0];
+    expect(start).toBeLessThan(end);
   });
 });

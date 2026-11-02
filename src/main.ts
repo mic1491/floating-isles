@@ -12,6 +12,7 @@ import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
 import { Party } from './party/party';
+import { Avatar } from './player/avatar';
 import { Player } from './player/player';
 import { GameRenderer } from './render/renderer';
 import { SAVE_VERSION } from './save/saveData';
@@ -91,7 +92,14 @@ const boot = async (): Promise<void> => {
   scene.add(player.view);
 
   const party = new Party(save.activeCharacter);
-  player.setColor(party.active.color);
+  player.setCharacter(party.active);
+  for (const member of party.members) {
+    if (!member.model) continue;
+    // The placeholder keeps the game playable while a model downloads, or if it fails.
+    Avatar.load(`${import.meta.env.BASE_URL}${member.model}`, member.weaponColor ?? member.color)
+      .then((avatar) => player.addAvatar(member.id, avatar))
+      .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));
+  }
 
   const actions = new Actions();
   const orbit = new OrbitCamera(camera, physics, player.body);
@@ -223,7 +231,7 @@ const boot = async (): Promise<void> => {
     }
 
     if (actions.switchTo !== null && party.trySwitch(actions.switchTo)) {
-      player.setColor(party.active.color);
+      player.setCharacter(party.active);
     }
     party.update(dt);
     player.update(dt, actions, orbit.yaw);
