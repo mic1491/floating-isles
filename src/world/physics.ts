@@ -9,8 +9,12 @@ export class Physics {
     return new Physics();
   }
 
-  addTrimesh(vertices: Float32Array, indices: Uint32Array): void {
-    this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices));
+  addTrimesh(vertices: Float32Array, indices: Uint32Array): RAPIER.Collider {
+    return this.world.createCollider(RAPIER.ColliderDesc.trimesh(vertices, indices));
+  }
+
+  removeCollider(collider: RAPIER.Collider): void {
+    this.world.removeCollider(collider, false);
   }
 
   addBox(center: Vector3, half: Vector3, rotationY = 0): void {

@@ -48,7 +48,7 @@ export class Hud {
 
     const partyBar = div('party', root);
     party.members.forEach((member, i) => {
-      const slot = div('slot', partyBar, `${i + 1} ${t(`element.${member.element}`)}`);
+      const slot = div('slot', partyBar, `${i + 1} ${t(`character.${member.element}`)}`);
       slot.style.setProperty('--accent', member.color);
       slot.addEventListener('pointerdown', (event) => {
         event.stopPropagation();

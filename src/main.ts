@@ -14,11 +14,12 @@ import { SAVE_VERSION } from './save/saveData';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
 import { t } from './ui/i18n';
-import { Grass } from './world/grass';
+import { TerrainStreamer } from './world/chunks';
+import { GrassField } from './world/grass';
 import { Physics } from './world/physics';
 import { createProps } from './world/props';
 import { Sky } from './world/sky';
-import { createTerrain, terrainHeight } from './world/terrain';
+import { terrainHeight } from './world/terrain';
 
 const AUTOSAVE_SECONDS = 10;
 const RESPAWN_DELAY = 1.2;
@@ -67,13 +68,16 @@ const boot = async (): Promise<void> => {
   const sky = new Sky(scene, save.timeOfDay);
 
   let tier: QualityTier = touch ? 'low' : 'high';
-  const grass = new Grass(qualitySettings('high').grassCount);
-  scene.add(createTerrain(physics), createProps(physics), grass.mesh);
-  physics.step(1 / 60);
-
   const [sx, sy, sz] = save.position;
   const spawnPoint = new Vector3(0, terrainHeight(0, 0) + 0.1, 0);
   const start = new Vector3(sx, Math.max(sy, terrainHeight(sx, sz) + 0.1), sz);
+
+  const terrain = new TerrainStreamer(scene, physics);
+  terrain.loadAround(start);
+  const grass = new GrassField(scene);
+  scene.add(createProps(physics));
+  physics.step(1 / 60);
+
   const player = new Player(physics, start);
   player.hp = save.hp > 0 ? save.hp : balance.player.maxHp;
   scene.add(player.view);
@@ -87,7 +91,9 @@ const boot = async (): Promise<void> => {
 
   const applyQuality = () => {
     graphics.setQuality(tier, sky.sun);
-    grass.setCount(qualitySettings(tier).grassCount);
+    const settings = qualitySettings(tier);
+    grass.configure(settings.grassRadius, settings.grassDensity);
+    terrain.setRadius(settings.chunkRadius);
   };
   applyQuality();
 
@@ -135,6 +141,9 @@ const boot = async (): Promise<void> => {
     const dt = Math.min((now - last) / 1000, MAX_FRAME);
     last = now;
 
+    terrain.update(player.position);
+    grass.update(dt, player.position);
+
     if (!menu.playing) {
       orbit.update(dt, actions, player.position);
       sky.update(0, player.position);
@@ -169,7 +178,6 @@ const boot = async (): Promise<void> => {
     }
 
     sky.update(dt, player.position);
-    grass.update(dt);
     hud.update(player, party);
     actions.endFrame();
     graphics.render();
@@ -183,7 +191,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass } });
   }
 };
 

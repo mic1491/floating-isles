@@ -3,6 +3,7 @@ import {
   CircleGeometry,
   Color,
   DirectionalLight,
+  Fog,
   HemisphereLight,
   Mesh,
   Scene,
@@ -92,6 +93,7 @@ export class Sky {
   private readonly horizon = new Color();
   private readonly sunColor = new Color();
   private readonly sunDirection = new Vector3();
+  private readonly fog = new Fog('#ffffff', 110, 520);
   private readonly dome: ShaderMaterial;
   private readonly clouds: ShaderMaterial;
   private readonly cloudMesh: Mesh;
@@ -132,6 +134,7 @@ export class Sky {
     shadow.right = shadow.top = 36;
     shadow.far = 180;
 
+    scene.fog = this.fog;
     scene.add(dome, this.cloudMesh, this.sun, this.sun.target, this.hemi);
     this.apply(new Vector3());
   }
@@ -151,6 +154,7 @@ export class Sky {
     this.zenith.set(a.zenith).lerp(new Color(b.zenith), mix);
     this.horizon.set(a.horizon).lerp(new Color(b.horizon), mix);
     this.sunColor.set(a.sun).lerp(new Color(b.sun), mix);
+    this.fog.color.copy(this.horizon);
 
     // The sun arcs overhead by day; the same light becomes a low moon at night.
     const angle = (this.timeOfDay - 0.25) * Math.PI * 2;

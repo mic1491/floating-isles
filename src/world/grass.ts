@@ -2,16 +2,22 @@ import {
   BufferGeometry,
   Color,
   DoubleSide,
+  Euler,
   Float32BufferAttribute,
   InstancedMesh,
   Matrix4,
   Quaternion,
   Vector3,
-  Euler,
   type IUniform,
+  type MeshToonMaterial,
+  type Scene,
 } from 'three';
 import { toonMaterial } from '../render/toon';
-import { isOnIsland, ISLAND_RADIUS, slopeAt, terrainHeight } from './terrain';
+import { cellsAround, cellOf } from './streaming';
+import { flowerMask, isGrassy, terrainHeight } from './terrain';
+
+const TILE_SIZE = 12;
+const TILES_PER_FRAME = 1;
 
 const bladeGeometry = (): BufferGeometry => {
   const geometry = new BufferGeometry();
@@ -35,16 +41,24 @@ const seeded = (seed: number) => () => {
 };
 
 const SHADES = ['#9ad56b', '#b4e07a', '#cbe885', '#86c964'].map((c) => new Color(c));
-const PETALS = ['#ffffff', '#ffd9ec', '#ffe9a8'].map((c) => new Color(c));
+const PETALS = ['#ffffff', '#ffd9ec', '#ffb8dc', '#ffe9a8'].map((c) => new Color(c));
 
-export class Grass {
-  readonly mesh: InstancedMesh;
+const pick = (palette: Color[], roll: number): Color => palette.at(Math.floor(roll * palette.length))!;
+
+/** Tiles of instanced grass kept around the player and recycled as they walk. */
+export class GrassField {
+  private readonly geometry = bladeGeometry();
+  private readonly material: MeshToonMaterial;
   private readonly time: IUniform<number> = { value: 0 };
+  private readonly active = new Map<string, InstancedMesh>();
+  private readonly pool: InstancedMesh[] = [];
+  private blades = 0;
+  private tileRadius = 0;
 
-  constructor(capacity: number) {
-    const material = toonMaterial('#ffffff');
-    material.side = DoubleSide;
-    material.onBeforeCompile = (shader) => {
+  constructor(private readonly scene: Scene) {
+    this.material = toonMaterial('#ffffff');
+    this.material.side = DoubleSide;
+    this.material.onBeforeCompile = (shader) => {
       shader.uniforms.windTime = this.time;
       shader.vertexShader = `uniform float windTime;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
@@ -60,44 +74,71 @@ export class Grass {
         'vec3 normal = normalize(vNormal); vec3 nonPerturbedNormal = normal;',
       );
     };
-    this.mesh = new InstancedMesh(bladeGeometry(), material, capacity);
-    this.mesh.frustumCulled = false;
-    this.mesh.receiveShadow = true;
+  }
 
-    const random = seeded(7);
+  get tileCount(): number {
+    return this.active.size;
+  }
+
+  configure(radius: number, density: number): void {
+    for (const mesh of this.active.values()) this.scene.remove(mesh);
+    this.active.clear();
+    this.pool.length = 0;
+    this.tileRadius = Math.ceil(radius / TILE_SIZE);
+    this.blades = Math.round(density * TILE_SIZE * TILE_SIZE);
+  }
+
+  update(dt: number, focus: Vector3): void {
+    this.time.value += dt;
+    const fx = cellOf(focus.x, TILE_SIZE);
+    const fz = cellOf(focus.z, TILE_SIZE);
+    for (const [key, mesh] of this.active) {
+      const [ix, iz] = key.split(',').map(Number);
+      if (Math.hypot(ix - fx, iz - fz) <= this.tileRadius + 1) continue;
+      this.scene.remove(mesh);
+      this.pool.push(mesh);
+      this.active.delete(key);
+    }
+    let budget = TILES_PER_FRAME;
+    for (const cell of cellsAround(focus.x, focus.z, TILE_SIZE, this.tileRadius)) {
+      if (budget === 0) break;
+      if (this.active.has(cell.key) || Math.hypot(cell.ix - fx, cell.iz - fz) > this.tileRadius) continue;
+      this.active.set(cell.key, this.buildTile(cell.ix, cell.iz));
+      budget--;
+    }
+  }
+
+  private buildTile(ix: number, iz: number): InstancedMesh {
+    const mesh = this.pool.pop() ?? new InstancedMesh(this.geometry, this.material, this.blades);
+    mesh.receiveShadow = true;
+    const random = seeded(Math.imul(ix, 73856093) ^ Math.imul(iz, 19349663));
     const matrix = new Matrix4();
     const position = new Vector3();
     const rotation = new Quaternion();
     const euler = new Euler();
     const scale = new Vector3();
     let placed = 0;
-    for (let tries = 0; placed < capacity && tries < capacity * 6; tries++) {
-      const angle = random() * Math.PI * 2;
-      const radius = Math.sqrt(random()) * ISLAND_RADIUS;
-      const x = Math.cos(angle) * radius;
-      const z = Math.sin(angle) * radius;
-      if (!isOnIsland(x, z) || slopeAt(x, z) > 0.6) continue;
-      position.set(x, terrainHeight(x, z) - 0.02, z);
-      rotation.setFromEuler(euler.set(0, random() * Math.PI, 0));
+    for (let i = 0; i < this.blades; i++) {
+      const x = (ix + random()) * TILE_SIZE;
+      const z = (iz + random()) * TILE_SIZE;
+      const spin = random();
       const size = 0.55 + random() * 0.6;
-      scale.set(size, size, size);
-      this.mesh.setMatrixAt(placed, matrix.compose(position, rotation, scale));
-      const petal = random() < 0.05;
-      const palette = petal ? PETALS : SHADES;
-      this.mesh.setColorAt(placed, palette[Math.floor(random() * palette.length) % palette.length]);
+      const roll = random();
+      const shade = random();
+      if (!isGrassy(x, z)) continue;
+      position.set(x, terrainHeight(x, z) - 0.02, z);
+      rotation.setFromEuler(euler.set(0, spin * Math.PI, 0));
+      scale.setScalar(size);
+      mesh.setMatrixAt(placed, matrix.compose(position, rotation, scale));
+      const petal = roll < 0.04 + flowerMask(x, z) * 0.42;
+      mesh.setColorAt(placed, pick(petal ? PETALS : SHADES, shade));
       placed++;
     }
-    this.mesh.count = placed;
-    this.mesh.instanceMatrix.needsUpdate = true;
-    if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-  }
-
-  /** Grass is placed in shuffled order, so a lower quality just draws fewer instances. */
-  setCount(count: number): void {
-    this.mesh.count = Math.min(count, this.mesh.instanceMatrix.count);
-  }
-
-  update(dt: number): void {
-    this.time.value += dt;
+    mesh.count = placed;
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+    this.scene.add(mesh);
+    return mesh;
   }
 }

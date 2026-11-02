@@ -3,6 +3,8 @@ import { reactionOf } from '../combat/reactions';
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
 import { Stamina } from '../player/stamina';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
+import { cellsAround } from '../world/streaming';
+import { edgeRatio, ISLAND_RADIUS, terrainHeight } from '../world/terrain';
 
 describe('reactionOf', () => {
   it('maps every element pair in both orders', () => {
@@ -75,5 +77,34 @@ describe('migrateSave', () => {
     expect(save.position).toEqual([1, 2, 3]);
     expect(save.hp).toBe(40);
     expect(save.timeOfDay).toBe(defaultSave().timeOfDay);
+  });
+});
+
+describe('cellsAround', () => {
+  it('returns the full square, nearest cell first', () => {
+    const cells = cellsAround(10, 10, 64, 1);
+    expect(cells).toHaveLength(9);
+    expect(cells[0].key).toBe('0,0');
+  });
+
+  it('handles negative coordinates', () => {
+    expect(cellsAround(-1, -1, 64, 0)[0].key).toBe('-1,-1');
+  });
+});
+
+describe('terrainHeight', () => {
+  it('keeps the middle above the clouds and drops off the edge', () => {
+    expect(terrainHeight(0, 0)).toBeGreaterThan(0);
+    expect(terrainHeight(ISLAND_RADIUS * 2, 0)).toBeLessThan(-30);
+  });
+
+  it('flattens to a low shore before the cliff', () => {
+    for (const angle of [0, 1, 2, 3, 4, 5]) {
+      let radius = 0;
+      while (edgeRatio(Math.cos(angle) * radius, Math.sin(angle) * radius) < 0.91) radius += 1;
+      const height = terrainHeight(Math.cos(angle) * radius, Math.sin(angle) * radius);
+      expect(height).toBeGreaterThan(1);
+      expect(height).toBeLessThan(5);
+    }
   });
 });
