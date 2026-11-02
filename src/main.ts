@@ -9,6 +9,8 @@ import { exploration, ExplorationProgress } from './exploration/progress';
 import { Actions } from './input/actions';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
+import { MapProgress } from './map/mapProgress';
+import { WaypointField } from './map/waypointField';
 import { Party } from './party/party';
 import { Player } from './player/player';
 import { GameRenderer } from './render/renderer';
@@ -16,6 +18,7 @@ import { SAVE_VERSION } from './save/saveData';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
 import { t } from './ui/i18n';
+import { MapView } from './ui/mapView';
 import { TerrainStreamer } from './world/chunks';
 import { GrassField } from './world/grass';
 import { Physics } from './world/physics';
@@ -45,6 +48,8 @@ const showStart = (ui: HTMLElement, touch: boolean, canvas: HTMLCanvasElement) =
   ui.append(start);
   const menu = {
     playing: false,
+    /** Set while the map holds the pointer, so losing the lock does not reopen the title. */
+    keepPlaying: false,
     set(playing: boolean) {
       menu.playing = playing;
       start.classList.toggle('hidden', playing);
@@ -52,7 +57,9 @@ const showStart = (ui: HTMLElement, touch: boolean, canvas: HTMLCanvasElement) =
   };
   if (touch) addEventListener('pointerdown', () => menu.set(true), { once: true });
   else {
-    document.addEventListener('pointerlockchange', () => menu.set(document.pointerLockElement === canvas));
+    document.addEventListener('pointerlockchange', () => {
+      if (!menu.keepPlaying) menu.set(document.pointerLockElement === canvas);
+    });
     document.addEventListener('pointerlockerror', () => menu.set(true));
   }
   return menu;
@@ -71,7 +78,6 @@ const boot = async (): Promise<void> => {
 
   let tier: QualityTier = touch ? 'low' : 'high';
   const [sx, sy, sz] = save.position;
-  const spawnPoint = new Vector3(0, terrainHeight(0, 0) + 0.1, 0);
   const start = new Vector3(sx, Math.max(sy, terrainHeight(sx, sz) + 0.1), sz);
 
   const terrain = new TerrainStreamer(scene, physics);
@@ -126,6 +132,39 @@ const boot = async (): Promise<void> => {
     },
   });
 
+  const mapProgress = new MapProgress(save.fog, save.waypoints, save.markers);
+  const groundAt = (x: number, z: number) => {
+    const point = new Vector3(x, terrainHeight(x, z) + 0.3, z);
+    terrain.loadAround(point);
+    return point;
+  };
+  const waypoints = new WaypointField(scene, mapProgress, () => {
+    hud.toast(t('found.waypoint'));
+    void persist();
+  });
+  const map = new MapView(ui, mapProgress, progress, {
+    opened: () => {
+      menu.keepPlaying = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    },
+    closed: () => {
+      if (!touch) void Promise.resolve(canvas.requestPointerLock()).catch(() => undefined);
+      queueMicrotask(() => (menu.keepPlaying = false));
+    },
+    teleport: (point) => {
+      player.teleport(groundAt(point.x, point.z));
+      hud.fade();
+      map.hide();
+      void persist();
+    },
+    setTime: (timeOfDay) => {
+      sky.timeOfDay = timeOfDay;
+      sky.update(0, player.position);
+      void persist();
+    },
+    changed: () => void persist(),
+  });
+
   const combat = new Combat(scene, player, party, {
     damage: (at, amount, color) => hud.floatText(at, String(amount), color),
     reaction: (at, reaction) => hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true),
@@ -144,6 +183,9 @@ const boot = async (): Promise<void> => {
       discovered: progress.discovered,
       coins: progress.coins,
       shards: progress.shards,
+      fog: mapProgress.fog.encode(),
+      waypoints: mapProgress.unlockedIds,
+      markers: mapProgress.markers,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -162,7 +204,9 @@ const boot = async (): Promise<void> => {
     terrain.update(player.position);
     grass.update(dt, player.position);
 
-    if (!menu.playing) {
+    if (actions.mapPressed && menu.playing) map.toggle();
+
+    if (!menu.playing || map.open) {
       orbit.update(dt, actions, player.position);
       sky.update(0, player.position);
       actions.endFrame();
@@ -186,6 +230,8 @@ const boot = async (): Promise<void> => {
     combat.update(dt, actions, camera);
     field.update(dt, player.position, actions.interactPressed);
     hud.setPrompt(field.canInteract);
+    waypoints.update(dt, player.position);
+    map.update(dt, player.position, player.facing);
     physics.step(dt);
     orbit.update(dt, actions, player.position);
 
@@ -193,7 +239,8 @@ const boot = async (): Promise<void> => {
       deadTimer += dt;
       if (deadTimer >= RESPAWN_DELAY) {
         deadTimer = 0;
-        player.revive(spawnPoint);
+        const nearest = mapProgress.nearestUnlocked(player.position.x, player.position.z);
+        player.revive(groundAt(nearest.x, nearest.z));
       }
     }
 
@@ -211,7 +258,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress } });
   }
 };
 

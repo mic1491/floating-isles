@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { reactionOf } from '../combat/reactions';
 import { exploration, ExplorationProgress, puzzleResponds } from '../exploration/progress';
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
+import { FogGrid } from '../map/fogGrid';
+import { mapConfig, MapProgress } from '../map/mapProgress';
 import { Stamina } from '../player/stamina';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
@@ -81,6 +83,13 @@ describe('migrateSave', () => {
     expect(save.discovered).toEqual([]);
   });
 
+  it('adds empty map progress to a version 3 save', () => {
+    const save = migrateSave({ ...defaultSave(), version: 3, coins: 80 });
+    expect(save.version).toBe(SAVE_VERSION);
+    expect(save.coins).toBe(80);
+    expect(save.waypoints).toEqual([]);
+  });
+
   it('keeps exploration progress in a current save', () => {
     const save = migrateSave({ ...defaultSave(), discovered: ['chest-ruins'], coins: 50 });
     expect(save.discovered).toEqual(['chest-ruins']);
@@ -156,6 +165,69 @@ describe('exploration', () => {
         const nearest = Math.min(...exploration.points.map((p) => Math.hypot(p.x - x, p.z - z)));
         expect(nearest, `${x},${z}`).toBeLessThanOrEqual(50);
       }
+    }
+  });
+});
+
+describe('FogGrid', () => {
+  it('reveals around a point and only reports new cells once', () => {
+    const fog = new FogGrid();
+    expect(fog.reveal(0, 0, 30).length).toBeGreaterThan(0);
+    expect(fog.reveal(0, 0, 30)).toEqual([]);
+    expect(fog.isRevealed(50, 50)).toBe(true);
+    expect(fog.isRevealed(0, 0)).toBe(false);
+  });
+
+  it('survives a round trip and ignores damaged data', () => {
+    const fog = new FogGrid();
+    fog.reveal(-40, 60, 25);
+    const copy = FogGrid.decode(fog.encode());
+    expect(copy.encode()).toBe(fog.encode());
+    expect(FogGrid.decode('').isRevealed(50, 50)).toBe(false);
+    expect(FogGrid.decode('not base64!').isRevealed(50, 50)).toBe(false);
+  });
+
+  it('keeps cells beyond the map hidden', () => {
+    expect(new FogGrid().reveal(1000, 1000, 30)).toEqual([]);
+  });
+});
+
+describe('MapProgress', () => {
+  const fresh = () => new MapProgress('', [], []);
+
+  it('always starts with the starter waypoint', () => {
+    const starter = mapConfig.waypoints.find((p) => p.starter)!;
+    expect(fresh().isUnlocked(starter.id)).toBe(true);
+  });
+
+  it('finds the nearest unlocked waypoint, skipping locked ones', () => {
+    const map = fresh();
+    const far = mapConfig.waypoints.at(-1)!;
+    expect(map.nearestUnlocked(far.x, far.z).id).not.toBe(far.id);
+    map.unlock(far.id);
+    expect(map.nearestUnlocked(far.x, far.z).id).toBe(far.id);
+  });
+
+  it('announces an unlock only once', () => {
+    const map = fresh();
+    expect(map.unlock('wp-west-coast')).toBe(true);
+    expect(map.unlock('wp-west-coast')).toBe(false);
+  });
+
+  it('adds, removes and caps markers', () => {
+    const map = fresh();
+    map.toggleMarker(10, 10);
+    expect(map.markers).toHaveLength(1);
+    map.toggleMarker(12, 11);
+    expect(map.markers).toHaveLength(0);
+    for (let i = 0; i < mapConfig.maxMarkers + 5; i++) map.toggleMarker(i * 20, 0);
+    expect(map.markers).toHaveLength(mapConfig.maxMarkers);
+  });
+
+  it('places every waypoint on solid ground', () => {
+    for (const point of mapConfig.waypoints) {
+      expect(edgeRatio(point.x, point.z), point.id).toBeLessThan(0.88);
+      expect(terrainHeight(point.x, point.z), point.id).toBeGreaterThan(1);
     }
   });
 });

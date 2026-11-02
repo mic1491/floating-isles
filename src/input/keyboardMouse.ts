@@ -17,6 +17,7 @@ export const bindKeyboardMouse = (canvas: HTMLCanvasElement, actions: Actions): 
     if (event.code === 'KeyE') actions.skillPressed = true;
     if (event.code === 'KeyQ') actions.burstPressed = true;
     if (event.code === 'KeyF') actions.interactPressed = true;
+    if (event.code === 'KeyM') actions.mapPressed = true;
     if (event.code.startsWith('Digit')) {
       const slot = Number(event.code.slice(5)) - 1;
       if (slot >= 0 && slot < balance.characters.length) actions.switchTo = slot;

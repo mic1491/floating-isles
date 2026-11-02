@@ -29,6 +29,7 @@ export class Hud {
   private readonly explore: HTMLElement;
   private readonly prompt: HTMLElement;
   private readonly toasts: HTMLElement;
+  private readonly fadeLayer: HTMLElement;
 
   constructor(
     root: HTMLElement,
@@ -40,6 +41,7 @@ export class Hud {
   ) {
     this.floats = div('floats', root);
     this.hurtFlash = div('hurt-flash', root);
+    this.fadeLayer = div('fade', root);
 
     const bars = div('bars', root);
     const hp = div('bar hp', bars);
@@ -117,6 +119,12 @@ export class Hud {
   toast(text: string): void {
     const node = div('toast', this.toasts, text);
     node.addEventListener('animationend', () => node.remove());
+  }
+
+  fade(): void {
+    this.fadeLayer.classList.remove('on');
+    void this.fadeLayer.offsetWidth;
+    this.fadeLayer.classList.add('on');
   }
 
   flashHurt(): void {

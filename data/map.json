@@ -1,0 +1,15 @@
+{
+  "revealRadius": 30,
+  "unlockRange": 5,
+  "adjustTimeRange": 8,
+  "maxMarkers": 20,
+  "markerRemoveRange": 6,
+  "waypoints": [
+    { "id": "wp-origin", "x": 5, "z": 5, "starter": true },
+    { "id": "wp-ruins-west", "x": -56, "z": -6 },
+    { "id": "wp-east-rise", "x": 74, "z": -26 },
+    { "id": "wp-south-field", "x": 10, "z": 88 },
+    { "id": "wp-north-shore", "x": -20, "z": -86 },
+    { "id": "wp-west-coast", "x": -100, "z": 48 }
+  ]
+}
