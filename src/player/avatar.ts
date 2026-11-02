@@ -1,5 +1,5 @@
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
-import { Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computePose, type BoneName, type Motion } from './avatarPose';
 import { addOutline, toonMaterial } from '../render/toon';
@@ -10,7 +10,7 @@ const BLINK_LENGTH = 0.14;
 /** How quickly the body chases its target pose, per second: snappy in a swing, loose otherwise. */
 const FOLLOW_SWING = 34;
 const FOLLOW_FREE = 15;
-const SWORD_COLORS: Record<string, string> = { steel: '#e4ebf5', gold: '#e0b24a', leather: '#4a2c24' };
+const SWORD_COLORS: Record<string, string> = { steel: '#f4f8ff', gold: '#e0b24a', leather: '#4a2c24' };
 const BLADE_AXIS = new Vector3(0, 0, 1);
 
 /** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
@@ -72,10 +72,19 @@ export class Avatar {
       const mesh = node as Mesh;
       if (!mesh.isMesh) return;
       const name = (mesh.material as { name: string }).name.split('.')[0];
-      if (name === 'glow') mesh.material = new MeshBasicMaterial({ color: glow });
+      if (name === 'glow') {
+        mesh.material = new MeshBasicMaterial({ color: glow });
+        // A wider additive copy reads as light bleeding off the blade, even from the far game camera.
+        const halo = new Mesh(
+          mesh.geometry,
+          new MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false }),
+        );
+        halo.scale.set(2.6, 1.02, 3.2);
+        mesh.add(halo);
+      }
       else {
         // A faint emissive keeps the steel's shaded faces from going black against the sky.
-        mesh.material = toonMaterial(SWORD_COLORS[name] ?? '#cccccc', { emissive: name === 'steel' ? '#4a5568' : '#201810' });
+        mesh.material = toonMaterial(SWORD_COLORS[name] ?? '#cccccc', { emissive: name === 'steel' ? '#6b7a94' : '#201810' });
         // Flat-shaded blades would tear apart under an inflated shell, so only rounded parts get outlined.
         if (name !== 'steel') addOutline(mesh);
       }
@@ -84,6 +93,8 @@ export class Avatar {
     model.rotation.x = Math.PI / 2;
     const sword = new Group();
     sword.add(model);
+    // Held at arm's length from a 7 m camera, so the whole weapon is drawn a little oversize.
+    sword.scale.setScalar(1.2);
     return sword;
   }
 

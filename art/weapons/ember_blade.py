@@ -118,6 +118,7 @@ STATIONS = [
 
 
 def section(w, h):
+    w, h = w * 1.7, h * 1.4  # broad enough to read as a blade from the game camera
     return [(-w, 0), (-0.38 * w, h), (0.38 * w, h), (w, 0), (0.38 * w, -h), (-0.38 * w, -h)]
 
 
@@ -143,10 +144,10 @@ finish("blade", bm, STEEL, bevel=0.0008, smooth=False)
 
 # Molten fuller: a thin glowing strip inlaid along each face of the blade.
 for side in (1, -1):
-    strip = [(-0.0065, 0.17), (0.0065, 0.17), (0.0055, 0.84), (0.0, 0.9), (-0.0055, 0.84)]
+    strip = [(-0.014, 0.17), (0.014, 0.17), (0.012, 0.84), (0.0, 0.93), (-0.012, 0.84)]
     bm = bmesh.new()
-    pts = [bm.verts.new((x, side * 0.0108, z)) for x, z in strip]
-    top = [bm.verts.new((x, side * 0.0116, z)) for x, z in strip]
+    pts = [bm.verts.new((x, side * 0.0158, z)) for x, z in strip]
+    top = [bm.verts.new((x, side * 0.0168, z)) for x, z in strip]
     bm.faces.new(top if side == 1 else top[::-1])
     for i in range(len(strip)):
         j = (i + 1) % len(strip)
@@ -160,9 +161,10 @@ wing = [
     (0.27, 0.175), (0.255, 0.20), (0.205, 0.14), (0.19, 0.165), (0.145, 0.105), (0.13, 0.125),
     (0.085, 0.07), (0.0, 0.035),
 ]
-prism("guard", wing, 0.026, GOLD, bevel=0.0025, mirror=True)
+wing = [(x * 1.45, z * 1.3) for x, z in wing]
+prism("guard", wing, 0.034, GOLD, bevel=0.0025, mirror=True)
 # a central block where the wings meet the blade
-prism("guard_core", [(-0.04, 0.03), (0.04, 0.03), (0.035, 0.12), (-0.035, 0.12)], 0.038, GOLD, bevel=0.004)
+prism("guard_core", [(-0.055, 0.03), (0.055, 0.03), (0.05, 0.15), (-0.05, 0.15)], 0.05, GOLD, bevel=0.004)
 lathe("collar", [(0.021, 0.0), (0.034, 0.012), (0.034, 0.03), (0.0, 0.03)], GOLD, bevel=0.0015)
 for obj in bpy.data.objects:
     if obj.name == "collar":

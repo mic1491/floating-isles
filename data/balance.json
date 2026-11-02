@@ -26,7 +26,7 @@
     "maxPitch": 1.25,
     "minDistance": 2.5,
     "maxDistance": 14,
-    "defaultDistance": 7
+    "defaultDistance": 5.2
   },
   "party": { "switchCooldown": 1 },
   "combat": {
