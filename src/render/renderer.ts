@@ -1,0 +1,68 @@
+import {
+  NoToneMapping,
+  PCFShadowMap,
+  PerspectiveCamera,
+  SRGBColorSpace,
+  Scene,
+  Vector2,
+  WebGLRenderer,
+} from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { qualitySettings, type QualitySettings, type QualityTier } from '../core/quality';
+import type { DirectionalLight } from 'three';
+
+export class GameRenderer {
+  readonly scene = new Scene();
+  readonly camera = new PerspectiveCamera(58, 1, 0.1, 1800);
+  private readonly renderer: WebGLRenderer;
+  private readonly composer: EffectComposer;
+  private settings!: QualitySettings;
+
+  constructor(canvas: HTMLCanvasElement) {
+    this.renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    this.renderer.outputColorSpace = SRGBColorSpace;
+    this.renderer.toneMapping = NoToneMapping;
+    this.renderer.shadowMap.type = PCFShadowMap;
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.28, 0.6, 0.86));
+    this.composer.addPass(new OutputPass());
+
+    addEventListener('resize', () => this.resize());
+  }
+
+  get rendererInfo(): { calls: number; triangles: number } {
+    return this.renderer.info.render;
+  }
+
+  setQuality(tier: QualityTier, sun: DirectionalLight): void {
+    this.settings = qualitySettings(tier);
+    this.renderer.shadowMap.enabled = this.settings.shadows;
+    sun.castShadow = this.settings.shadows;
+    this.scene.traverse((node) => {
+      const material = (node as { material?: { needsUpdate: boolean } }).material;
+      if (material) material.needsUpdate = true;
+    });
+    this.resize();
+  }
+
+  resize(): void {
+    const width = innerWidth;
+    const height = innerHeight;
+    this.camera.aspect = width / height;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setPixelRatio(this.settings.pixelRatio);
+    this.renderer.setSize(width, height);
+    this.composer.setPixelRatio(this.settings.pixelRatio);
+    this.composer.setSize(width, height);
+  }
+
+  render(): void {
+    if (this.settings.bloom) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
+  }
+}

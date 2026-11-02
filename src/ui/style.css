@@ -1,0 +1,362 @@
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+  background: #1a1d33;
+  font-family: 'PingFang TC', 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+  color: #fff;
+}
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgb(0 0 0 / 60%);
+}
+
+.bars {
+  position: absolute;
+  left: max(20px, env(safe-area-inset-left));
+  top: 18px;
+  width: min(260px, 34vw);
+  display: grid;
+  gap: 6px;
+}
+
+.bar {
+  position: relative;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: rgb(20 20 40 / 55%);
+  border: 1px solid rgb(255 255 255 / 35%);
+}
+
+.bar .fill {
+  height: 100%;
+  width: 100%;
+  transition: width 0.12s linear;
+}
+
+.bar.hp .fill {
+  background: linear-gradient(90deg, #5fd07a, #a5ec8b);
+}
+
+.bar.stamina {
+  height: 10px;
+}
+
+.bar.stamina .fill {
+  background: linear-gradient(90deg, #ffd166, #ffe9a8);
+}
+
+.bar.stamina.low .fill {
+  background: #ff7a5a;
+}
+
+.bar-label {
+  position: absolute;
+  inset: 0;
+  font-size: 10px;
+  line-height: 13px;
+  padding-left: 8px;
+}
+
+.bar.stamina .bar-label {
+  display: none;
+}
+
+.party {
+  position: absolute;
+  right: max(20px, env(safe-area-inset-right));
+  top: 70px;
+  display: grid;
+  gap: 8px;
+}
+
+.slot {
+  pointer-events: auto;
+  min-width: 64px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  background: rgb(20 20 40 / 45%);
+  border-left: 4px solid var(--accent);
+}
+
+.slot.active {
+  background: rgb(255 255 255 / 24%);
+  font-weight: 600;
+}
+
+.abilities {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+}
+
+.ability {
+  padding: 6px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  white-space: nowrap;
+  background: rgb(20 20 40 / 45%);
+  opacity: 0.75;
+}
+
+.ability.ready {
+  opacity: 1;
+  background: rgb(255 214 120 / 35%);
+}
+
+.quality {
+  pointer-events: auto;
+  position: absolute;
+  right: max(20px, env(safe-area-inset-right));
+  top: 18px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 40%);
+  border-radius: 10px;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  background: rgb(20 20 40 / 45%);
+}
+
+.floats {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.float {
+  position: absolute;
+  font-size: 18px;
+  font-weight: 700;
+  transform: translate(-50%, 0);
+  animation: rise 0.8s ease-out forwards;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
+}
+
+.float.large {
+  font-size: 24px;
+}
+
+@keyframes rise {
+  to {
+    margin-top: -56px;
+    opacity: 0;
+  }
+}
+
+.hurt-flash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  box-shadow: inset 0 0 90px 24px rgb(255 50 50 / 75%);
+}
+
+.hurt-flash.on {
+  animation: hurt 0.35s ease-out;
+}
+
+@keyframes hurt {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.start {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  text-align: center;
+  background: rgb(15 18 45 / 35%);
+  transition: opacity 0.25s;
+}
+
+.start h1 {
+  margin: 0;
+  font-size: clamp(36px, 7vw, 64px);
+  font-weight: 500;
+  letter-spacing: 0.18em;
+}
+
+.start p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.start .hint {
+  max-width: 620px;
+  padding: 0 24px;
+  font-size: 13px;
+  line-height: 1.7;
+  opacity: 0.9;
+}
+
+.start.hidden {
+  opacity: 0;
+}
+
+.rotate-hint {
+  display: none;
+  position: absolute;
+  inset: 0;
+  place-content: center;
+  font-size: 20px;
+  background: #1a1d33;
+  pointer-events: auto;
+}
+
+.touch .abilities {
+  display: none;
+}
+
+.touch .party {
+  top: 18px;
+  right: calc(max(20px, env(safe-area-inset-right)) + 96px);
+  grid-auto-flow: column;
+}
+
+.touch .slot {
+  min-width: 0;
+}
+
+@media (orientation: portrait) {
+  .touch .rotate-hint {
+    display: grid;
+  }
+}
+
+.touch-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.touch-move,
+.touch-look {
+  pointer-events: auto;
+  touch-action: none;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.touch-move {
+  left: 0;
+  width: 40%;
+}
+
+.touch-look {
+  left: 40%;
+  right: 0;
+}
+
+.joystick-base {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 45%);
+  background: rgb(255 255 255 / 10%);
+  opacity: 0;
+}
+
+.joystick-base.active {
+  opacity: 1;
+}
+
+.joystick-knob {
+  position: absolute;
+  left: 32px;
+  top: 32px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 55%);
+}
+
+.touch-buttons {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  width: 232px;
+  height: 200px;
+}
+
+.touch-button {
+  pointer-events: auto;
+  touch-action: none;
+  position: absolute;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: 1px solid rgb(255 255 255 / 55%);
+  background: rgb(20 20 40 / 42%);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.touch-button:active {
+  background: rgb(255 255 255 / 30%);
+}
+
+.touch-button.attack {
+  right: 0;
+  bottom: 0;
+  width: 84px;
+  height: 84px;
+  font-size: 17px;
+}
+
+.touch-button.skill {
+  right: 96px;
+  bottom: 0;
+}
+
+.touch-button.burst {
+  right: 170px;
+  bottom: 0;
+}
+
+.touch-button.jump {
+  right: 0;
+  bottom: 96px;
+}
+
+.touch-button.dash {
+  right: 74px;
+  bottom: 96px;
+}

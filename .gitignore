@@ -4,3 +4,4 @@ dist/
 .mcp.json
 .env
 .env.*
+.claude/

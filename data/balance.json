@@ -1,0 +1,103 @@
+{
+  "player": {
+    "walkSpeed": 5,
+    "sprintSpeed": 8.5,
+    "jumpVelocity": 8.5,
+    "gravity": 24,
+    "maxHp": 100,
+    "respawnY": -20,
+    "glideMinHeight": 2,
+    "glideFallSpeed": 2.5,
+    "glideSpeed": 9
+  },
+  "stamina": {
+    "max": 100,
+    "regenPerSecond": 18,
+    "regenDelay": 0.8,
+    "sprintPerSecond": 14,
+    "glidePerSecond": 10,
+    "dashCost": 20
+  },
+  "dash": { "speed": 16, "duration": 0.25, "invulnerable": 0.3, "cooldown": 0.5 },
+  "camera": {
+    "sensitivity": 0.0028,
+    "touchSensitivity": 0.0055,
+    "minPitch": -0.35,
+    "maxPitch": 1.25,
+    "minDistance": 2.5,
+    "maxDistance": 14,
+    "defaultDistance": 7
+  },
+  "party": { "switchCooldown": 1 },
+  "combat": {
+    "attackInterval": 0.38,
+    "comboResetTime": 0.9,
+    "attackRange": 2.6,
+    "attackArc": 1.2,
+    "hitstop": 0.06,
+    "auraDuration": 8,
+    "energyPerHit": 6,
+    "energyMax": 60
+  },
+  "characters": [
+    {
+      "id": "fire",
+      "element": "fire",
+      "color": "#ff7a45",
+      "attack": 12,
+      "skill": { "damage": 30, "cooldown": 6, "radius": 4.5 },
+      "burst": { "damage": 75, "radius": 8 }
+    },
+    {
+      "id": "water",
+      "element": "water",
+      "color": "#45b6ff",
+      "attack": 10,
+      "skill": { "damage": 26, "cooldown": 5, "radius": 5 },
+      "burst": { "damage": 65, "radius": 9 }
+    },
+    {
+      "id": "thunder",
+      "element": "thunder",
+      "color": "#b97aff",
+      "attack": 11,
+      "skill": { "damage": 28, "cooldown": 4, "radius": 4 },
+      "burst": { "damage": 70, "radius": 8 }
+    }
+  ],
+  "reactions": {
+    "vaporizeMultiplier": 1.5,
+    "overloadDamage": 25,
+    "overloadRadius": 4,
+    "overloadKnockback": 8,
+    "electroDamage": 6,
+    "electroTicks": 3,
+    "electroInterval": 0.6,
+    "electroJumpRange": 6
+  },
+  "enemies": {
+    "melee": {
+      "hp": 120,
+      "speed": 3.4,
+      "damage": 10,
+      "attackRange": 1.9,
+      "attackWindup": 0.6,
+      "attackCooldown": 1.6,
+      "aggroRange": 13,
+      "leashRange": 22,
+      "respawnDelay": 15
+    },
+    "ranged": {
+      "hp": 80,
+      "speed": 2.6,
+      "damage": 8,
+      "attackRange": 11,
+      "attackWindup": 0.8,
+      "attackCooldown": 2.4,
+      "aggroRange": 16,
+      "leashRange": 24,
+      "respawnDelay": 15,
+      "projectileSpeed": 11
+    }
+  }
+}
