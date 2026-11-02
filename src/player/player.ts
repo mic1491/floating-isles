@@ -44,7 +44,7 @@ export class Player {
   private avatar: Avatar | null = null;
   private characterId = '';
   private clock = 0;
-  private grounded = false;
+  private grounded = true;
   private dashTime = 0;
   private dashCooldown = 0;
   private invulnerable = 0;
@@ -190,6 +190,11 @@ export class Player {
 
     if (wishLength > 0.05 && !dashing) this.facing.lerp(wish, 1 - Math.exp(-14 * dt)).normalize();
     this.updateView(dt, wishLength * speed);
+  }
+
+  /** Keeps the body placed and breathing while the world itself is paused. */
+  refreshView(dt: number): void {
+    this.updateView(dt, 0);
   }
 
   private handleDash(dt: number, actions: Actions, wish: Vector3): void {

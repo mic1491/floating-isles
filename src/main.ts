@@ -215,6 +215,8 @@ const boot = async (): Promise<void> => {
     if (actions.mapPressed && menu.playing) map.toggle();
 
     if (!menu.playing || map.open) {
+      player.refreshView(dt);
+      if (!map.open) map.update(dt, player.position, player.facing);
       orbit.update(dt, actions, player.position);
       sky.update(0, player.position);
       actions.endFrame();
