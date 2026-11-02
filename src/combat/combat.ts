@@ -17,6 +17,7 @@ export interface CombatEvents {
   damage(at: Vector3, amount: number, color: string): void;
   reaction(at: Vector3, reaction: Reaction): void;
   playerHurt(): void;
+  elementArea(center: Vector3, radius: number, element: Element): void;
 }
 
 interface Projectile {
@@ -33,6 +34,11 @@ const SPAWNS: Array<[EnemyKind, number, number]> = [
   ['melee', -26, -14],
   ['ranged', 30, -2],
   ['ranged', -18, 24],
+  ['melee', -86, -50],
+  ['melee', -96, -62],
+  ['ranged', -84, -64],
+  ['melee', 98, -2],
+  ['ranged', 108, -14],
 ];
 
 const orb = new SphereGeometry(0.22, 10, 8);
@@ -125,6 +131,7 @@ export class Combat {
   }
 
   private area(center: Vector3, radius: number, damage: number, element: Element): void {
+    this.events.elementArea(center, radius, element);
     for (const enemy of this.enemies) {
       if (enemy.alive && enemy.position.distanceTo(center) <= radius) this.hit(enemy, damage, element);
     }

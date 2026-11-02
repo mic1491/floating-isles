@@ -99,6 +99,7 @@ export const bindTouch = (root: HTMLElement, actions: Actions): void => {
   button(t('touch.skill'), 'skill', () => (actions.skillPressed = true));
   button(t('touch.burst'), 'burst', () => (actions.burstPressed = true));
   button(t('touch.jump'), 'jump', () => (actions.jumpPressed = true));
+  button(t('touch.interact'), 'interact', () => (actions.interactPressed = true));
   button(
     t('touch.dash'),
     'dash',

@@ -26,6 +26,9 @@ export class Hud {
   private readonly floats: HTMLElement;
   private readonly hurtFlash: HTMLElement;
   private readonly quality: HTMLButtonElement;
+  private readonly explore: HTMLElement;
+  private readonly prompt: HTMLElement;
+  private readonly toasts: HTMLElement;
 
   constructor(
     root: HTMLElement,
@@ -45,6 +48,10 @@ export class Hud {
     this.staminaBar = div('bar stamina', bars);
     this.staminaFill = div('fill', this.staminaBar);
     div('bar-label', this.staminaBar, t('hud.stamina'));
+
+    this.explore = div('explore', root);
+    this.prompt = div('prompt', root, t('explore.prompt'));
+    this.toasts = div('toasts', root);
 
     const partyBar = div('party', root);
     party.members.forEach((member, i) => {
@@ -94,6 +101,21 @@ export class Hud {
     node.style.left = `${(projected.x * 0.5 + 0.5) * innerWidth + (Math.random() - 0.5) * 34}px`;
     node.style.top = `${(-projected.y * 0.5 + 0.5) * innerHeight}px`;
     node.style.color = color;
+    node.addEventListener('animationend', () => node.remove());
+  }
+
+  setExploration(found: number, total: number, coins: number, shards: number): void {
+    this.explore.textContent =
+      `${t('explore.progress')} ${found}/${total} · ${t('explore.coins')} ${coins} · ${t('explore.shards')} ${shards}`;
+  }
+
+  setPrompt(visible: boolean): void {
+    this.prompt.classList.toggle('on', visible);
+    this.prompt.parentElement!.classList.toggle('can-interact', visible);
+  }
+
+  toast(text: string): void {
+    const node = div('toast', this.toasts, text);
     node.addEventListener('animationend', () => node.remove());
   }
 

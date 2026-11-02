@@ -11,6 +11,7 @@ export class Actions {
   dashPressed = false;
   skillPressed = false;
   burstPressed = false;
+  interactPressed = false;
   switchTo: number | null = null;
 
   /** Clears everything that lasts a single frame. */
@@ -22,6 +23,7 @@ export class Actions {
     this.dashPressed = false;
     this.skillPressed = false;
     this.burstPressed = false;
+    this.interactPressed = false;
     this.switchTo = null;
   }
 }

@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface SaveData {
   version: number;
@@ -7,6 +7,9 @@ export interface SaveData {
   hp: number;
   activeCharacter: number;
   timeOfDay: number;
+  discovered: string[];
+  coins: number;
+  shards: number;
 }
 
 export const defaultSave = (): SaveData => ({
@@ -16,6 +19,9 @@ export const defaultSave = (): SaveData => ({
   hp: 100,
   activeCharacter: 0,
   timeOfDay: 0.68,
+  discovered: [],
+  coins: 0,
+  shards: 0,
 });
 
 /** Upgrades older saves one version at a time and rejects anything unreadable. */
@@ -26,6 +32,12 @@ export const migrateSave = (raw: unknown): SaveData => {
   if (save.version === 1) {
     save.timeOfDay = defaultSave().timeOfDay;
     save.version = 2;
+  }
+  if (save.version === 2) {
+    save.discovered = [];
+    save.coins = 0;
+    save.shards = 0;
+    save.version = 3;
   }
   const merged = { ...defaultSave(), ...save };
   return merged.position.every(Number.isFinite) ? merged : defaultSave();

@@ -84,6 +84,68 @@ body {
   display: none;
 }
 
+.explore {
+  position: absolute;
+  left: max(20px, env(safe-area-inset-left));
+  top: 62px;
+  font-size: 13px;
+}
+
+.prompt {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 74px;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 15px;
+  white-space: nowrap;
+  background: rgb(20 20 40 / 60%);
+}
+
+.prompt.on {
+  display: block;
+}
+
+.touch .prompt {
+  display: none;
+}
+
+.toasts {
+  position: absolute;
+  left: 50%;
+  top: 22%;
+  transform: translateX(-50%);
+  display: grid;
+  gap: 6px;
+  justify-items: center;
+}
+
+.toast {
+  padding: 8px 22px;
+  border-radius: 12px;
+  font-size: 17px;
+  white-space: nowrap;
+  background: rgb(20 20 40 / 58%);
+  animation: toast 2.4s ease-out forwards;
+}
+
+@keyframes toast {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  10%,
+  75% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .party {
   position: absolute;
   right: max(20px, env(safe-area-inset-right));
@@ -359,4 +421,15 @@ body {
 .touch-button.dash {
   right: 74px;
   bottom: 96px;
+}
+
+.touch-button.interact {
+  display: none;
+  right: 148px;
+  bottom: 96px;
+  background: rgb(255 214 120 / 45%);
+}
+
+.can-interact .touch-button.interact {
+  display: block;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reactionOf } from '../combat/reactions';
+import { exploration, ExplorationProgress, puzzleResponds } from '../exploration/progress';
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
 import { Stamina } from '../player/stamina';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
@@ -68,7 +69,7 @@ describe('migrateSave', () => {
   it('falls back on unreadable or future saves', () => {
     expect(migrateSave(null)).toEqual(defaultSave());
     expect(migrateSave({ version: 99 })).toEqual(defaultSave());
-    expect(migrateSave({ version: 2, position: [Number.NaN, 0, 0] })).toEqual(defaultSave());
+    expect(migrateSave({ version: 3, position: [Number.NaN, 0, 0] })).toEqual(defaultSave());
   });
 
   it('upgrades a version 1 save and keeps its position', () => {
@@ -77,6 +78,13 @@ describe('migrateSave', () => {
     expect(save.position).toEqual([1, 2, 3]);
     expect(save.hp).toBe(40);
     expect(save.timeOfDay).toBe(defaultSave().timeOfDay);
+    expect(save.discovered).toEqual([]);
+  });
+
+  it('keeps exploration progress in a current save', () => {
+    const save = migrateSave({ ...defaultSave(), discovered: ['chest-ruins'], coins: 50 });
+    expect(save.discovered).toEqual(['chest-ruins']);
+    expect(save.coins).toBe(50);
   });
 });
 
@@ -105,6 +113,49 @@ describe('terrainHeight', () => {
       const height = terrainHeight(Math.cos(angle) * radius, Math.sin(angle) * radius);
       expect(height).toBeGreaterThan(1);
       expect(height).toBeLessThan(5);
+    }
+  });
+});
+
+describe('exploration', () => {
+  const chest = exploration.points.find((p) => p.kind === 'chest')!;
+  const flame = exploration.points.find((p) => p.id === 'seal-flame')!;
+
+  it('pays a point only once', () => {
+    const progress = new ExplorationProgress([], 0, 0);
+    expect(progress.claim(chest)).toEqual(exploration.rewards.chest);
+    expect(progress.claim(chest)).toBeNull();
+    expect(progress.coins).toBe(exploration.rewards.chest.coins);
+    expect(progress.count).toBe(1);
+  });
+
+  it('restores what was already found', () => {
+    expect(new ExplorationProgress([chest.id], 50, 0).claim(chest)).toBeNull();
+  });
+
+  it('opens a puzzle only with its element and in reach', () => {
+    expect(puzzleResponds(flame, 'fire', 3, 4)).toBe(true);
+    expect(puzzleResponds(flame, 'water', 3, 4)).toBe(false);
+    expect(puzzleResponds(flame, 'fire', 9, 4)).toBe(false);
+    expect(puzzleResponds(chest, 'fire', 0, 4)).toBe(false);
+  });
+
+  it('has unique ids on solid ground, with one of each kind', () => {
+    expect(new Set(exploration.points.map((p) => p.id)).size).toBe(exploration.points.length);
+    expect(exploration.points.length).toBeGreaterThanOrEqual(20);
+    for (const point of exploration.points) {
+      expect(edgeRatio(point.x, point.z), point.id).toBeLessThan(0.88);
+      expect(terrainHeight(point.x, point.z), point.id).toBeGreaterThan(1);
+    }
+  });
+
+  it('keeps something within 50 m of everywhere on the island', () => {
+    for (let x = -150; x <= 150; x += 6) {
+      for (let z = -150; z <= 150; z += 6) {
+        if (edgeRatio(x, z) > 0.86) continue;
+        const nearest = Math.min(...exploration.points.map((p) => Math.hypot(p.x - x, p.z - z)));
+        expect(nearest, `${x},${z}`).toBeLessThanOrEqual(50);
+      }
     }
   });
 });

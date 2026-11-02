@@ -1,0 +1,34 @@
+{
+  "interactRange": 2.6,
+  "pickupRange": 1.5,
+  "viewpointRange": 4.5,
+  "puzzleHitPadding": 1,
+  "rewards": {
+    "chest": { "coins": 50, "shards": 0 },
+    "collectible": { "coins": 0, "shards": 1 },
+    "puzzle": { "coins": 100, "shards": 3 },
+    "viewpoint": { "coins": 0, "shards": 2 }
+  },
+  "points": [
+    { "id": "chest-ruins", "kind": "chest", "x": -24, "z": -14 },
+    { "id": "chest-meadow", "kind": "chest", "x": 34, "z": 26 },
+    { "id": "chest-camp-west", "kind": "chest", "x": -92, "z": -56 },
+    { "id": "chest-camp-east", "kind": "chest", "x": 104, "z": -8 },
+    { "id": "chest-south-shore", "kind": "chest", "x": -22, "z": 104 },
+    { "id": "chest-north-shore", "kind": "chest", "x": 8, "z": -112 },
+    { "id": "shard-hill", "kind": "collectible", "x": 18, "z": -48 },
+    { "id": "shard-west-slope", "kind": "collectible", "x": -42, "z": 22 },
+    { "id": "shard-east-rise", "kind": "collectible", "x": 66, "z": 12 },
+    { "id": "shard-far-west", "kind": "collectible", "x": -112, "z": 22 },
+    { "id": "shard-south-field", "kind": "collectible", "x": 14, "z": 62 },
+    { "id": "shard-north-west", "kind": "collectible", "x": -46, "z": -96 },
+    { "id": "shard-south-east", "kind": "collectible", "x": 76, "z": 92 },
+    { "id": "shard-north-east", "kind": "collectible", "x": 92, "z": -66 },
+    { "id": "seal-flame", "kind": "puzzle", "element": "fire", "x": -62, "z": -28 },
+    { "id": "seal-tide", "kind": "puzzle", "element": "water", "x": 44, "z": 78 },
+    { "id": "seal-storm", "kind": "puzzle", "element": "thunder", "x": 112, "z": 42 },
+    { "id": "view-summit", "kind": "viewpoint", "x": 50, "z": -68 },
+    { "id": "view-west-hill", "kind": "viewpoint", "x": -66, "z": 38 },
+    { "id": "view-south-coast", "kind": "viewpoint", "x": -70, "z": 88 }
+  ]
+}

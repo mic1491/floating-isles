@@ -4,6 +4,8 @@ import { Combat } from './combat/combat';
 import { balance } from './core/balance';
 import { isTouchDevice } from './core/device';
 import { qualitySettings, type QualityTier } from './core/quality';
+import { ExplorationField } from './exploration/field';
+import { exploration, ExplorationProgress } from './exploration/progress';
 import { Actions } from './input/actions';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
@@ -112,10 +114,23 @@ const boot = async (): Promise<void> => {
   }
   const menu = showStart(ui, touch, canvas);
 
+  const progress = new ExplorationProgress(save.discovered, save.coins, save.shards);
+  const showProgress = () =>
+    hud.setExploration(progress.count, exploration.points.length, progress.coins, progress.shards);
+  showProgress();
+  const field = new ExplorationField(scene, progress, {
+    discovered: (point) => {
+      hud.toast(t(`found.${point.kind}`));
+      showProgress();
+      void persist();
+    },
+  });
+
   const combat = new Combat(scene, player, party, {
     damage: (at, amount, color) => hud.floatText(at, String(amount), color),
     reaction: (at, reaction) => hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true),
     playerHurt: () => hud.flashHurt(),
+    elementArea: (center, radius, element) => field.elementHit(center, radius, element),
   });
 
   const persist = () =>
@@ -126,6 +141,9 @@ const boot = async (): Promise<void> => {
       hp: player.hp,
       activeCharacter: party.activeIndex,
       timeOfDay: sky.timeOfDay,
+      discovered: progress.discovered,
+      coins: progress.coins,
+      shards: progress.shards,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -166,6 +184,8 @@ const boot = async (): Promise<void> => {
     party.update(dt);
     player.update(dt, actions, orbit.yaw);
     combat.update(dt, actions, camera);
+    field.update(dt, player.position, actions.interactPressed);
+    hud.setPrompt(field.canInteract);
     physics.step(dt);
     orbit.update(dt, actions, player.position);
 
@@ -191,7 +211,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress } });
   }
 };
 
