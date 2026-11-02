@@ -1,11 +1,14 @@
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
+import { Group, MathUtils, Mesh, Quaternion, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { addOutline, toonMaterial } from '../render/toon';
 import { computePose, type BoneName, type Motion } from './avatarPose';
+import { buildSword } from './swordModel';
 
 const BLINK_EVERY = 3.6;
 const BLINK_LENGTH = 0.14;
+/** How quickly the body chases its target pose, per second: snappy in a swing, loose otherwise. */
+const FOLLOW_SWING = 34;
+const FOLLOW_FREE = 15;
 const BLADE_AXIS = new Vector3(0, 0, 1);
 
 /** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
@@ -33,19 +36,6 @@ const FINGER_CURL: Array<[string, [number, number, number]]> = [
   ['ThumbDistal', [0, -0.3, 0.4]],
 ];
 
-const buildSword = (color: string): Group => {
-  const sword = new Group();
-  // The sword's origin is the middle of the grip, which sits inside the closed fist.
-  const blade = new Mesh(new BoxGeometry(0.055, 0.018, 0.92), new MeshBasicMaterial({ color }));
-  blade.position.z = 0.54;
-  const guard = new Mesh(new BoxGeometry(0.2, 0.035, 0.04), toonMaterial('#e0b24a'));
-  guard.position.z = 0.075;
-  const grip = new Mesh(new BoxGeometry(0.032, 0.032, 0.13), toonMaterial('#5a3424'));
-  for (const part of [guard, grip]) addOutline(part);
-  sword.add(blade, guard, grip);
-  return sword;
-};
-
 /** A VRM character posed from code, parented inside the player's view. */
 export class Avatar {
   readonly root = new Group();
@@ -53,8 +43,9 @@ export class Avatar {
   private readonly hips: Object3D;
   private readonly hipsRestY: number;
   private readonly applied = new Map<BoneName, [number, number, number]>();
-  private attackId = -1;
-  private blend = 1;
+  private hipsDrop = 0;
+  private aimWeight = 0;
+  private readonly aimBlade: [number, number] = [0, -0.5];
   private readonly hand: Object3D;
   private readonly scratch = { aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
 
@@ -131,25 +122,24 @@ export class Avatar {
 
   update(dt: number, motion: Motion): void {
     const { bones, hipsDrop, swordAim, blade } = computePose(motion);
-    // A new hit starts from wherever the last pose ended, so chained swings never pop.
-    const id = motion.attack?.id ?? -1;
-    if (id !== this.attackId) {
-      if (id !== -1) this.blend = 0;
-      this.attackId = id;
-    }
-    this.blend = Math.min(1, this.blend + dt / 0.09);
-    const mix = this.blend < 1 ? this.blend * this.blend * (3 - 2 * this.blend) : 1;
+    // Every bone eases toward its target, so a new hit, a landing or a stop never pops.
+    const follow = 1 - Math.exp(-dt * (motion.attack ? FOLLOW_SWING : FOLLOW_FREE));
     for (const name of Object.keys(bones) as BoneName[]) {
       const target = bones[name];
       const previous = this.applied.get(name) ?? target;
-      const x = previous[0] + (target[0] - previous[0]) * mix;
-      const y = previous[1] + (target[1] - previous[1]) * mix;
-      const z = previous[2] + (target[2] - previous[2]) * mix;
+      const x = previous[0] + (target[0] - previous[0]) * follow;
+      const y = previous[1] + (target[1] - previous[1]) * follow;
+      const z = previous[2] + (target[2] - previous[2]) * follow;
       this.applied.set(name, [x, y, z]);
       this.node(name)?.rotation.set(x, y, z);
     }
-    this.hips.position.y = this.hipsRestY - hipsDrop;
-    this.aimSword(swordAim, blade);
+    const drop = this.hipsDrop + (hipsDrop - this.hipsDrop) * follow;
+    this.hipsDrop = drop;
+    this.hips.position.y = this.hipsRestY - drop;
+    this.aimWeight = MathUtils.lerp(this.aimWeight, swordAim, follow);
+    this.aimBlade[0] = MathUtils.lerp(this.aimBlade[0], blade[0], follow);
+    this.aimBlade[1] = MathUtils.lerp(this.aimBlade[1], blade[1], follow);
+    this.aimSword(this.aimWeight, this.aimBlade);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;
     this.vrm.expressionManager?.setValue('blink', blink);
     this.vrm.update(dt);

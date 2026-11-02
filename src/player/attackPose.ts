@@ -15,13 +15,8 @@ interface Frame {
   blade: [number, number];
 }
 
-const EASES: Record<Ease, (u: number) => number> = {
-  in: (u) => u ** 2.2,
-  out: (u) => 1 - (1 - u) ** 3,
-  io: (u) => u * u * (3 - 2 * u),
-};
-
-const lerp = (a: number, b: number, u: number): number => a + (b - a) * u;
+/** How hard a key's tangent is scaled: arriving by 'in' means the blade is still fast, 'out' means it settles. */
+const SPEED: Record<Ease, number> = { in: 1.6, out: 0.5, io: 1 };
 
 /**
  * Builds a track from sparse frames: any bone a frame leaves out keeps its previous value, so each
@@ -96,6 +91,29 @@ const smooth = (u: number): number => {
   return c * c * (3 - 2 * c);
 };
 
+/** Cubic Hermite through p0 and p1 with end slopes m0 and m1, both per segment. */
+const hermite = (p0: number, p1: number, m0: number, m1: number, u: number): number => {
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (2 * u3 - 3 * u2 + 1) * p0 + (u3 - 2 * u2 + u) * m0 + (-2 * u3 + 3 * u2) * p1 + (u3 - u2) * m1;
+};
+
+/**
+ * Samples one channel with continuous velocity: slopes come from the neighbouring keys, so the limbs
+ * flow through each pose instead of stopping at it. The first and last keys are at rest.
+ */
+const sample = (frames: Frame[], i: number, u: number, read: (f: Frame) => number): number => {
+  const slope = (k: number): number => {
+    if (k <= 0 || k >= frames.length - 1) return 0;
+    const span = frames[k + 1].t - frames[k - 1].t;
+    return ((read(frames[k + 1]) - read(frames[k - 1])) / span) * SPEED[frames[k].ease];
+  };
+  const a = frames[i];
+  const b = frames[i + 1];
+  const length = b.t - a.t;
+  return hermite(read(a), read(b), slope(i) * length, slope(i + 1) * length, u);
+};
+
 export const attackPose = (step: number, t: number): AttackPose => {
   const frames = TRACKS[Math.min(Math.max(step, 1), TRACKS.length) - 1];
   const strikeAt = ATTACKS[Math.min(Math.max(step, 1), ATTACKS.length) - 1].strikeAt;
@@ -104,20 +122,19 @@ export const attackPose = (step: number, t: number): AttackPose => {
   const clock = t < strikeAt ? (t / strikeAt) * hit : hit + ((t - strikeAt) / (1 - strikeAt)) * (1 - hit);
   let i = 0;
   while (i < frames.length - 2 && clock > frames[i + 1].t) i++;
-  const a = frames[i];
-  const b = frames[i + 1];
-  const u = EASES[b.ease](Math.min(1, Math.max(0, (clock - a.t) / (b.t - a.t))));
+  const u = Math.min(1, Math.max(0, (clock - frames[i].t) / (frames[i + 1].t - frames[i].t)));
   const bones: Partial3 = {};
-  for (const key of Object.keys(b.pose) as BoneName[]) {
-    const from = a.pose[key] ?? b.pose[key]!;
-    const to = b.pose[key]!;
-    bones[key] = [lerp(from[0], to[0], u), lerp(from[1], to[1], u), lerp(from[2], to[2], u)];
+  for (const key of Object.keys(frames[frames.length - 1].pose) as BoneName[]) {
+    // A bone first posed mid-swing starts from that pose, so it never swings in from nowhere.
+    const first = frames.find((f) => f.pose[key])!.pose[key]!;
+    const read = (axis: number) => (f: Frame) => (f.pose[key] ?? [first[0], first[1], first[2]])[axis];
+    bones[key] = [sample(frames, i, u, read(0)), sample(frames, i, u, read(1)), sample(frames, i, u, read(2))];
   }
   const weight = smooth(t / 0.14) * (1 - smooth((t - 0.7) / 0.3));
   return {
     bones,
     weight,
-    drop: lerp(a.drop, b.drop, u),
-    blade: [lerp(a.blade[0], b.blade[0], u), lerp(a.blade[1], b.blade[1], u)],
+    drop: sample(frames, i, u, (f) => f.drop),
+    blade: [sample(frames, i, u, (f) => f.blade[0]), sample(frames, i, u, (f) => f.blade[1])],
   };
 };

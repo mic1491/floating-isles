@@ -32,7 +32,7 @@ export interface Motion {
 export interface Pose {
   bones: Record<BoneName, Euler3>;
   hipsDrop: number;
-  /** 0 leaves the sword along the forearm; 1 points it along the swing. */
+  /** 0 leaves the sword along the forearm; 1 points it along `blade`. */
   swordAim: number;
   /** Where that blade points, as [yaw, pitch] from the character's forward. */
   blade: [number, number];
@@ -68,8 +68,9 @@ export const computePose = (m: Motion): Pose => {
     rightUpperLeg: [step * reach * moving, 0, 0.03],
     rightLowerLeg: [Math.max(0, -lift) * reach * 1.5 * moving, 0, 0],
   };
-  let swordAim = 0;
-  let blade: [number, number] = [0, 0];
+  // The sword is always carried: low and forward at the side, trailing back when running.
+  const swordAim = 1;
+  let blade: [number, number] = [-0.12, -0.55 - m.pace * 0.35];
   let hipsDrop = Math.abs(step) * 0.025 * moving + (1 - moving) * breathe * 0.004;
 
   if (m.airborne) {
@@ -80,6 +81,7 @@ export const computePose = (m: Motion): Pose => {
     bones.leftUpperArm = [0.25, 0, -0.95];
     bones.rightUpperArm = [0.25, 0, 0.95];
     hipsDrop = 0;
+    blade = [-0.3, -0.7];
   }
   if (m.gliding) {
     bones.chest = [0.3, 0, 0];
@@ -92,6 +94,7 @@ export const computePose = (m: Motion): Pose => {
     bones.leftLowerLeg = [0.45, 0, 0];
     bones.rightUpperLeg = [0.25, 0, 0.05];
     bones.rightLowerLeg = [0.3, 0, 0];
+    blade = [-0.5, -0.2];
   }
   if (m.dashing) {
     bones.spine = [0.3, 0, 0];
@@ -107,8 +110,7 @@ export const computePose = (m: Motion): Pose => {
       bones[key] = [mix(from[0], to[0], weight), mix(from[1], to[1], weight), mix(from[2], to[2], weight)];
     }
     hipsDrop = mix(hipsDrop, drop, weight);
-    swordAim = weight;
-    blade = aim;
+    blade = [mix(blade[0], aim[0], weight), mix(blade[1], aim[1], weight)];
   }
   return { bones, hipsDrop, swordAim, blade };
 };
