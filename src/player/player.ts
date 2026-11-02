@@ -16,6 +16,7 @@ import { addOutline, toonMaterial } from '../render/toon';
 import type { Physics } from '../world/physics';
 import { terrainHeight } from '../world/terrain';
 import type { Avatar } from './avatar';
+import { ATTACKS } from './attackTable';
 import { Stamina } from './stamina';
 
 const cfg = balance.player;
@@ -49,7 +50,8 @@ export class Player {
   private dashCooldown = 0;
   private invulnerable = 0;
   private walkPhase = 0;
-  private swing = 0;
+  private attack: { step: number; elapsed: number; id: number; lungeScale: number } | null = null;
+  private attackCount = 0;
 
   constructor(physics: Physics, start: Vector3) {
     const world = physics.world;
@@ -104,8 +106,19 @@ export class Player {
     this.placeholder.visible = this.avatar === null;
   }
 
-  playSwing(): void {
-    this.swing = 1;
+  /** Starts hit `step` (1-based) of the sword combo. `lungeScale` shortens the step forward near a target. */
+  startAttack(step: number, lungeScale = 1): void {
+    this.attack = { step, elapsed: 0, id: ++this.attackCount, lungeScale };
+  }
+
+  cancelAttack(): void {
+    this.attack = null;
+  }
+
+  /** The hit being swung and how far through it, or null when not attacking. */
+  get swinging(): { step: number; t: number } | null {
+    if (!this.attack) return null;
+    return { step: this.attack.step, t: this.attack.elapsed / ATTACKS[this.attack.step - 1].duration };
   }
 
   /** Applies damage unless dashing through it; returns whether it landed. */
@@ -154,7 +167,7 @@ export class Player {
     const dashing = this.dashTime > 0;
     if (!sprinting && !this.gliding && !dashing) this.stamina.update(dt);
 
-    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength;
+    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength * (this.attack ? 0.3 : 1);
     if (this.gliding) {
       speed = cfg.glideSpeed * wishLength;
       this.stamina.drain(balance.stamina.glidePerSecond * dt);
@@ -167,6 +180,7 @@ export class Player {
     const delta = dashing
       ? this.dashDirection.clone().multiplyScalar(balance.dash.speed * dt)
       : wish.clone().multiplyScalar(speed * dt);
+    delta.addScaledVector(this.facing, this.lungeSpeed() * dt);
     delta.y = this.verticalSpeed * dt;
 
     this.controller.computeColliderMovement(this.collider, delta);
@@ -188,7 +202,10 @@ export class Player {
       this.takeDamage(10);
     }
 
-    if (wishLength > 0.05 && !dashing) this.facing.lerp(wish, 1 - Math.exp(-14 * dt)).normalize();
+    if (wishLength > 0.05 && !dashing) {
+      const turn = this.attack ? (this.attack.elapsed / ATTACKS[this.attack.step - 1].duration < 0.25 ? 4 : 0) : 14;
+      if (turn > 0) this.facing.lerp(wish, 1 - Math.exp(-turn * dt)).normalize();
+    }
     this.updateView(dt, wishLength * speed);
   }
 
@@ -205,6 +222,18 @@ export class Player {
     this.dashCooldown = balance.dash.cooldown;
     this.invulnerable = balance.dash.invulnerable;
     this.dashDirection.copy(wish.lengthSq() > 0 ? wish : this.facing);
+    this.attack = null;
+  }
+
+  /** Forward speed of the step taken into a strike, from just before the blade lands to just after. */
+  private lungeSpeed(): number {
+    if (!this.attack) return 0;
+    const style = ATTACKS[this.attack.step - 1];
+    const t = this.attack.elapsed / style.duration;
+    const from = style.strikeAt - 0.22;
+    const to = style.strikeAt + 0.04;
+    if (t < from || t > to) return 0;
+    return (style.lunge * this.attack.lungeScale) / ((to - from) * style.duration);
   }
 
   private handleJumpAndGlide(actions: Actions): void {
@@ -224,7 +253,11 @@ export class Player {
 
   private updateView(dt: number, speed: number): void {
     this.walkPhase += speed * dt * 2.2;
-    this.swing = Math.max(0, this.swing - dt * 5);
+    if (this.attack) {
+      this.attack.elapsed += dt;
+      if (this.attack.elapsed >= ATTACKS[this.attack.step - 1].duration) this.attack = null;
+    }
+    const swinging = this.swinging;
     this.view.position.copy(this.position);
     this.view.position.y += this.grounded ? Math.abs(Math.sin(this.walkPhase)) * 0.06 * Math.min(1, speed) : 0;
     this.view.rotation.y = Math.atan2(-this.facing.x, -this.facing.z);
@@ -237,9 +270,9 @@ export class Player {
       airborne: !this.grounded,
       gliding: this.gliding,
       dashing: this.dashTime > 0,
-      swing: this.swing,
+      attack: swinging && this.attack ? { ...swinging, id: this.attack.id } : null,
     });
-    this.weapon.rotation.y = this.swing * 2.4 - 1.2 * Math.min(this.swing * 4, 1);
+    this.weapon.rotation.y = swinging ? 1.2 - 2.4 * swinging.t : 0;
     this.wing.visible = this.gliding;
     this.view.visible = this.invulnerable <= 0 || Math.floor(this.invulnerable * 30) % 2 === 0;
   }

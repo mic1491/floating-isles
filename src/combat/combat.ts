@@ -5,19 +5,23 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
+import { ATTACKS, COMBO_LENGTH } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
 const cfg = balance.combat;
 const rx = balance.reactions;
-const COMBO_LENGTH = 3;
-const FINISHER_MULTIPLIER = 1.5;
+/** Seconds the slash trail starts before the blade lands, so the sweep reads as the cause of the hit. */
+const TRAIL_LEAD = 0.09;
+const INPUT_BUFFER = 0.25;
+const KNOCKBACK = [2.5, 2.5, 4.5, 9];
 
 export interface CombatEvents {
   damage(at: Vector3, amount: number, color: string): void;
   reaction(at: Vector3, reaction: Reaction): void;
   playerHurt(): void;
   elementArea(center: Vector3, radius: number, element: Element): void;
+  impact(strength: number): void;
 }
 
 interface Projectile {
@@ -48,9 +52,11 @@ export class Combat {
   readonly enemies: Enemy[];
   private readonly fx: Fx;
   private readonly projectiles: Projectile[] = [];
-  private attackTimer = 0;
   private comboTimer = 0;
   private comboStep = 0;
+  private inputBuffer = 0;
+  /** The hit in flight: its trail and damage fire partway through the swing. */
+  private strike: { step: number; trailed: boolean; landed: boolean } | null = null;
   /** Seconds of hitstop still to play; the game loop freezes time for this long. */
   hitstop = 0;
 
@@ -69,12 +75,12 @@ export class Combat {
   }
 
   update(dt: number, actions: Actions, camera: Camera): void {
-    this.attackTimer = Math.max(0, this.attackTimer - dt);
     this.comboTimer = Math.max(0, this.comboTimer - dt);
     if (this.comboTimer === 0) this.comboStep = 0;
 
     if (this.player.alive) {
-      if (actions.attack && this.attackTimer === 0) this.normalAttack();
+      this.inputBuffer = actions.attack ? INPUT_BUFFER : Math.max(0, this.inputBuffer - dt);
+      this.updateSwing();
       if (actions.skillPressed) this.useSkill();
       if (actions.burstPressed) this.useBurst();
     }
@@ -88,24 +94,58 @@ export class Combat {
     this.fx.update(dt);
   }
 
-  private normalAttack(): void {
-    this.attackTimer = cfg.attackInterval;
-    this.comboTimer = cfg.comboResetTime;
-    this.comboStep = (this.comboStep % COMBO_LENGTH) + 1;
-    const finisher = this.comboStep === COMBO_LENGTH;
-    const { active } = this.party;
-    this.faceNearest();
-    this.player.playSwing();
+  /** Starts the next hit once the current one has reached its chain point, then fires its trail and damage on cue. */
+  private updateSwing(): void {
+    const swing = this.player.swinging;
+    if (this.strike && !swing) this.strike = null;
+    const ready = !swing || swing.t >= ATTACKS[swing.step - 1].chainAt;
+    if (this.inputBuffer > 0 && ready) this.beginAttack();
 
-    const damage = active.attack * (finisher ? FINISHER_MULTIPLIER : 1);
+    const now = this.player.swinging;
+    if (!this.strike || !now) return;
+    const style = ATTACKS[this.strike.step - 1];
+    if (!this.strike.trailed && now.t >= style.strikeAt - TRAIL_LEAD / style.duration) {
+      this.strike.trailed = true;
+      this.fx.slash(this.player.view, style.trail, ELEMENT_COLORS[this.party.active.element]);
+    }
+    if (!this.strike.landed && now.t >= style.strikeAt) {
+      this.strike.landed = true;
+      this.land(this.strike.step);
+    }
+  }
+
+  private beginAttack(): void {
+    this.inputBuffer = 0;
+    this.comboStep = (this.comboStep % COMBO_LENGTH) + 1;
+    const style = ATTACKS[this.comboStep - 1];
+    this.comboTimer = style.duration + 0.35;
+    const target = this.faceNearest();
+    // Step in only as far as needed to reach a target; stop short of walking through it.
+    const gap = target ? target.position.distanceTo(this.player.position) : Infinity;
+    const lungeScale = Number.isFinite(gap) ? Math.min(1, Math.max(0.15, (gap - 1.3) / style.lunge)) : 1;
+    this.player.startAttack(this.comboStep, lungeScale);
+    this.strike = { step: this.comboStep, trailed: false, landed: false };
+  }
+
+  private land(step: number): void {
+    const style = ATTACKS[step - 1];
+    const finisher = step === COMBO_LENGTH;
+    const { active } = this.party;
+    const damage = active.attack * style.damageScale;
     let hit = false;
     for (const enemy of this.enemies) {
       if (!enemy.alive || !this.inArc(enemy)) continue;
       this.hit(enemy, damage, finisher ? active.element : null);
+      enemy.push(this.player.position, KNOCKBACK[step - 1]);
+      this.fx.spark(enemy.position.clone().setY(enemy.position.y + 0.9), ELEMENT_COLORS[active.element], finisher ? 0.6 : 0.35);
       hit = true;
     }
-    if (hit) this.party.gainEnergy(cfg.energyPerHit);
-    this.fx.ring(this.player.position, finisher ? 2.6 : 1.8, active.color, 0.2);
+    if (hit) {
+      this.hitstop = style.hitstop;
+      this.events.impact(style.shake);
+      this.party.gainEnergy(cfg.energyPerHit);
+    }
+    if (finisher) this.fx.ring(this.player.position, 2.6, active.color, 0.25);
   }
 
   private useSkill(): void {
@@ -197,7 +237,7 @@ export class Combat {
   }
 
   /** Light auto-aim so attacks stay usable on touch screens. */
-  private faceNearest(): void {
+  private faceNearest(): Enemy | null {
     let best: Enemy | null = null;
     let bestDistance = cfg.attackRange + 3;
     for (const enemy of this.enemies) {
@@ -209,6 +249,7 @@ export class Combat {
       }
     }
     if (best) this.player.facing.subVectors(best.position, this.player.position).setY(0).normalize();
+    return best;
   }
 
   private enemyAttack(enemy: Enemy): void {

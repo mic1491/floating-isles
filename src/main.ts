@@ -178,6 +178,7 @@ const boot = async (): Promise<void> => {
     reaction: (at, reaction) => hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true),
     playerHurt: () => hud.flashHurt(),
     elementArea: (center, radius, element) => field.elementHit(center, radius, element),
+    impact: (strength) => orbit.kick(strength),
   });
 
   const persist = () =>

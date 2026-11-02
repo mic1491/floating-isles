@@ -234,7 +234,7 @@ describe('MapProgress', () => {
 });
 
 describe('computePose', () => {
-  const still: Motion = { time: 0, stride: 0, pace: 0, airborne: false, gliding: false, dashing: false, swing: 0 };
+  const still: Motion = { time: 0, stride: 0, pace: 0, airborne: false, gliding: false, dashing: false, attack: null };
 
   it('stands with both arms down and mirrored', () => {
     const { bones } = computePose(still);
@@ -254,9 +254,20 @@ describe('computePose', () => {
     expect(Math.abs(bones.leftUpperArm[2])).toBeLessThan(0.3);
   });
 
-  it('raises the sword arm, then brings it down', () => {
-    const start = computePose({ ...still, swing: 1 }).bones.rightUpperArm[0];
-    const end = computePose({ ...still, swing: 0.01 }).bones.rightUpperArm[0];
-    expect(start).toBeLessThan(end);
+  it('sweeps the sword arm across the body through a strike', () => {
+    const pose = (t: number) => computePose({ ...still, attack: { step: 1, t, id: 1 } }).bones.rightUpperArm[2];
+    expect(pose(0.5)).toBeGreaterThan(pose(0.1) + 1);
+  });
+
+  it('gives each hit of the combo its own pose', () => {
+    const at = (step: number) => computePose({ ...still, attack: { step, t: 0.45, id: step } }).bones.chest;
+    const poses = [1, 2, 3, 4].map((step) => at(step).join());
+    expect(new Set(poses).size).toBe(4);
+  });
+
+  it('returns to the walking pose when a swing ends', () => {
+    const rest = computePose(still).bones.rightUpperArm;
+    const end = computePose({ ...still, attack: { step: 2, t: 1, id: 1 } }).bones.rightUpperArm;
+    expect(end[2]).toBeCloseTo(rest[2], 1);
   });
 });

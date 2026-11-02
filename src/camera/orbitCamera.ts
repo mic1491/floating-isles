@@ -12,6 +12,7 @@ const GROUND_MARGIN = 0.5;
 export class OrbitCamera {
   yaw = 0;
   pitch = 0.32;
+  private shake = 0;
   private targetDistance = cfg.defaultDistance;
   private distance = cfg.defaultDistance;
   private readonly focus = new Vector3();
@@ -22,6 +23,11 @@ export class OrbitCamera {
     private readonly physics: Physics,
     private readonly ignore: RigidBody,
   ) {}
+
+  /** A brief jolt of the view, for impacts. */
+  kick(amount: number): void {
+    this.shake = Math.max(this.shake, amount);
+  }
 
   update(dt: number, actions: Actions, playerPosition: Vector3): void {
     this.yaw -= actions.lookX;
@@ -47,6 +53,12 @@ export class OrbitCamera {
 
     const position = this.camera.position.copy(this.focus).addScaledVector(this.offset, this.distance);
     position.y = Math.max(position.y, terrainHeight(position.x, position.z) + GROUND_MARGIN);
+    if (this.shake > 0.001) {
+      position.x += (Math.random() - 0.5) * this.shake * 2;
+      position.y += (Math.random() - 0.5) * this.shake * 2;
+      position.z += (Math.random() - 0.5) * this.shake * 2;
+      this.shake *= Math.exp(-18 * dt);
+    }
     this.camera.lookAt(this.focus);
   }
 }

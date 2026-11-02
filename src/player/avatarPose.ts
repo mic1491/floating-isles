@@ -1,4 +1,7 @@
+import { attackPose } from './attackPose';
+
 export type BoneName =
+  | 'hips'
   | 'spine'
   | 'chest'
   | 'head'
@@ -22,13 +25,15 @@ export interface Motion {
   airborne: boolean;
   gliding: boolean;
   dashing: boolean;
-  /** 1 when a swing starts, falling to 0 as it ends. */
-  swing: number;
+  /** The sword hit in progress: which of the combo and how far through it (0 to 1). */
+  attack: { step: number; t: number; id: number } | null;
 }
 
 export interface Pose {
   bones: Record<BoneName, Euler3>;
   hipsDrop: number;
+  /** 0 leaves the sword along the forearm; 1 points it along the swing. */
+  swordAim: number;
 }
 
 const ARM_DOWN = 1.22;
@@ -48,6 +53,7 @@ export const computePose = (m: Motion): Pose => {
   const moving = Math.min(1, m.pace * 2.5);
 
   const bones: Record<BoneName, Euler3> = {
+    hips: [0, 0, 0],
     spine: [m.pace * 0.1, 0, 0],
     chest: [breathe * 0.015 + m.pace * 0.08, step * 0.1 * moving, 0],
     head: [-m.pace * 0.1, 0, 0],
@@ -60,6 +66,7 @@ export const computePose = (m: Motion): Pose => {
     rightUpperLeg: [step * reach * moving, 0, 0.03],
     rightLowerLeg: [Math.max(0, -lift) * reach * 1.5 * moving, 0, 0],
   };
+  let swordAim = 0;
   let hipsDrop = Math.abs(step) * 0.025 * moving + (1 - moving) * breathe * 0.004;
 
   if (m.airborne) {
@@ -89,12 +96,15 @@ export const computePose = (m: Motion): Pose => {
     bones.leftUpperArm = [0.65, 0, -ARM_DOWN];
     bones.rightUpperArm = [0.65, 0, ARM_DOWN];
   }
-  if (m.swing > 0) {
-    const progress = 1 - m.swing;
-    const slash = progress * progress * (3 - 2 * progress);
-    bones.chest = [0.08, mix(0.55, -0.6, slash), 0];
-    bones.rightUpperArm = [mix(-2.2, -0.75, slash), 0, mix(1.15, 0.55, slash)];
-    bones.rightLowerArm = [0, mix(0.9, 0.1, slash), 0];
+  if (m.attack) {
+    const { bones: swing, weight, drop } = attackPose(m.attack.step, m.attack.t);
+    for (const key of Object.keys(swing) as BoneName[]) {
+      const from = bones[key];
+      const to = swing[key]!;
+      bones[key] = [mix(from[0], to[0], weight), mix(from[1], to[1], weight), mix(from[2], to[2], weight)];
+    }
+    hipsDrop = mix(hipsDrop, drop, weight);
+    swordAim = weight;
   }
-  return { bones, hipsDrop };
+  return { bones, hipsDrop, swordAim };
 };
