@@ -34,6 +34,8 @@ export interface Pose {
   hipsDrop: number;
   /** 0 leaves the sword along the forearm; 1 points it along the swing. */
   swordAim: number;
+  /** Where that blade points, as [yaw, pitch] from the character's forward. */
+  blade: [number, number];
 }
 
 const ARM_DOWN = 1.22;
@@ -67,6 +69,7 @@ export const computePose = (m: Motion): Pose => {
     rightLowerLeg: [Math.max(0, -lift) * reach * 1.5 * moving, 0, 0],
   };
   let swordAim = 0;
+  let blade: [number, number] = [0, 0];
   let hipsDrop = Math.abs(step) * 0.025 * moving + (1 - moving) * breathe * 0.004;
 
   if (m.airborne) {
@@ -97,7 +100,7 @@ export const computePose = (m: Motion): Pose => {
     bones.rightUpperArm = [0.65, 0, ARM_DOWN];
   }
   if (m.attack) {
-    const { bones: swing, weight, drop } = attackPose(m.attack.step, m.attack.t);
+    const { bones: swing, weight, drop, blade: aim } = attackPose(m.attack.step, m.attack.t);
     for (const key of Object.keys(swing) as BoneName[]) {
       const from = bones[key];
       const to = swing[key]!;
@@ -105,6 +108,7 @@ export const computePose = (m: Motion): Pose => {
     }
     hipsDrop = mix(hipsDrop, drop, weight);
     swordAim = weight;
+    blade = aim;
   }
-  return { bones, hipsDrop, swordAim };
+  return { bones, hipsDrop, swordAim, blade };
 };

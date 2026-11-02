@@ -7,15 +7,40 @@ import { computePose, type BoneName, type Motion } from './avatarPose';
 const BLINK_EVERY = 3.6;
 const BLINK_LENGTH = 0.14;
 const BLADE_AXIS = new Vector3(0, 0, 1);
-const FORWARD = new Vector3(0, 0, -1);
+
+/** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
+const GRIP_OFFSET = new Vector3(-0.058, -0.02, -0.005);
+
+/**
+ * Finger curls in the normalised T-pose, where each hand points along X with the palm down and the
+ * knuckles lined up on Z. Curling about Z closes the finger toward the palm; the sign flips per side.
+ */
+const FINGER_CURL: Array<[string, [number, number, number]]> = [
+  ['IndexProximal', [0, 0, 1.35]],
+  ['IndexIntermediate', [0, 0, 1.5]],
+  ['IndexDistal', [0, 0, 0.9]],
+  ['MiddleProximal', [0, 0, 1.45]],
+  ['MiddleIntermediate', [0, 0, 1.5]],
+  ['MiddleDistal', [0, 0, 0.9]],
+  ['RingProximal', [0, 0, 1.5]],
+  ['RingIntermediate', [0, 0, 1.5]],
+  ['RingDistal', [0, 0, 0.9]],
+  ['LittleProximal', [0, 0, 1.55]],
+  ['LittleIntermediate', [0, 0, 1.5]],
+  ['LittleDistal', [0, 0, 0.9]],
+  ['ThumbMetacarpal', [0, -0.5, 0.3]],
+  ['ThumbProximal', [0, -0.5, 0.5]],
+  ['ThumbDistal', [0, -0.3, 0.4]],
+];
 
 const buildSword = (color: string): Group => {
   const sword = new Group();
+  // The sword's origin is the middle of the grip, which sits inside the closed fist.
   const blade = new Mesh(new BoxGeometry(0.055, 0.018, 0.92), new MeshBasicMaterial({ color }));
-  blade.position.z = 0.56;
+  blade.position.z = 0.54;
   const guard = new Mesh(new BoxGeometry(0.2, 0.035, 0.04), toonMaterial('#e0b24a'));
-  guard.position.z = 0.09;
-  const grip = new Mesh(new BoxGeometry(0.03, 0.03, 0.17), toonMaterial('#5a3424'));
+  guard.position.z = 0.075;
+  const grip = new Mesh(new BoxGeometry(0.032, 0.032, 0.13), toonMaterial('#5a3424'));
   for (const part of [guard, grip]) addOutline(part);
   sword.add(blade, guard, grip);
   return sword;
@@ -31,8 +56,7 @@ export class Avatar {
   private attackId = -1;
   private blend = 1;
   private readonly hand: Object3D;
-  private readonly shoulder: Object3D;
-  private readonly scratch = { a: new Vector3(), b: new Vector3(), aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
+  private readonly scratch = { aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
 
   private constructor(private readonly vrm: VRM) {
     // VRM 1.0 models face +Z and the player view faces -Z.
@@ -45,7 +69,6 @@ export class Avatar {
     this.hips = vrm.humanoid.getNormalizedBoneNode('hips')!;
     this.hipsRestY = this.hips.position.y;
     this.hand = vrm.humanoid.getNormalizedBoneNode('rightHand')!;
-    this.shoulder = vrm.humanoid.getNormalizedBoneNode('rightUpperArm')!;
   }
 
   static async load(url: string, weaponColor: string): Promise<Avatar> {
@@ -54,7 +77,10 @@ export class Avatar {
     const gltf = await loader.loadAsync(url);
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
-    avatar.vrm.humanoid.getNormalizedBoneNode('rightHand')?.add(buildSword(weaponColor));
+    const sword = buildSword(weaponColor);
+    sword.position.copy(GRIP_OFFSET);
+    avatar.vrm.humanoid.getNormalizedBoneNode('rightHand')?.add(sword);
+    avatar.closeHands();
     return avatar;
   }
 
@@ -67,24 +93,34 @@ export class Avatar {
     return node ?? null;
   }
 
+  /** Wraps the right fingers around the grip and lets the left hand hang loosely curled. */
+  private closeHands(): void {
+    const humanoid = this.vrm.humanoid;
+    for (const [name, [x, y, z]] of FINGER_CURL) {
+      humanoid.getNormalizedBoneNode(`right${name}` as 'rightIndexProximal')?.rotation.set(x, y, z);
+      const loose = name.startsWith('Thumb') ? 0.25 : 0.38;
+      humanoid.getNormalizedBoneNode(`left${name}` as 'leftIndexProximal')?.rotation.set(0, -y * 0.3, -z * loose);
+    }
+  }
+
   /** Settles hair and cloth at once, so a teleport does not whip them across the map. */
   resetPhysics(): void {
     this.vrm.springBoneManager?.reset();
   }
 
   /**
-   * Turns the wrist so the blade carries on along the line of the arm, tilted a little forward.
-   * Without it the sword keeps pointing the way the hand did at rest, straight up in a raised swing.
+   * Turns the wrist so the blade points where the swing wants it, whatever the arm is doing.
+   * `blade` is [yaw, pitch] from the character's forward, yaw positive to their left.
    */
-  private aimSword(weight: number): void {
+  private aimSword(weight: number, blade: [number, number]): void {
     this.hand.quaternion.identity();
     if (weight < 0.001) return;
-    const { a, b, aim, q, r } = this.scratch;
+    const { aim, q, r } = this.scratch;
     this.vrm.scene.updateMatrixWorld(true);
-    this.shoulder.getWorldPosition(a);
-    this.hand.getWorldPosition(b);
-    aim.subVectors(b, a).normalize().multiplyScalar(0.75);
-    aim.addScaledVector(FORWARD.clone().applyQuaternion(this.root.getWorldQuaternion(q)), 0.25).normalize();
+    const [yaw, pitch] = blade;
+    // The model faces +Z, so its own left is +X.
+    aim.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+    aim.applyQuaternion(this.vrm.scene.getWorldQuaternion(q));
     this.hand.parent!.getWorldQuaternion(q);
     const current = BLADE_AXIS.clone().applyQuaternion(q);
     r.setFromUnitVectors(current, aim);
@@ -94,7 +130,7 @@ export class Avatar {
   }
 
   update(dt: number, motion: Motion): void {
-    const { bones, hipsDrop, swordAim } = computePose(motion);
+    const { bones, hipsDrop, swordAim, blade } = computePose(motion);
     // A new hit starts from wherever the last pose ended, so chained swings never pop.
     const id = motion.attack?.id ?? -1;
     if (id !== this.attackId) {
@@ -113,7 +149,7 @@ export class Avatar {
       this.node(name)?.rotation.set(x, y, z);
     }
     this.hips.position.y = this.hipsRestY - hipsDrop;
-    this.aimSword(swordAim);
+    this.aimSword(swordAim, blade);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;
     this.vrm.expressionManager?.setValue('blink', blink);
     this.vrm.update(dt);
