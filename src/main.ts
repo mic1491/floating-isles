@@ -96,7 +96,9 @@ const boot = async (): Promise<void> => {
   for (const member of party.members) {
     if (!member.model) continue;
     // The placeholder keeps the game playable while a model downloads, or if it fails.
-    Avatar.load(`${import.meta.env.BASE_URL}${member.model}`, member.weaponColor ?? member.color)
+    const base = import.meta.env.BASE_URL;
+    const weapon = member.weaponModel ? `${base}${member.weaponModel}` : null;
+    Avatar.load(`${base}${member.model}`, member.weaponColor ?? member.color, weapon)
       .then((avatar) => player.addAvatar(member.id, avatar))
       .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));
   }

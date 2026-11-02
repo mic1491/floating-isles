@@ -1,7 +1,8 @@
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
-import { Group, MathUtils, Mesh, Quaternion, Vector3, type Object3D } from 'three';
+import { Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computePose, type BoneName, type Motion } from './avatarPose';
+import { addOutline, toonMaterial } from '../render/toon';
 import { buildSword } from './swordModel';
 
 const BLINK_EVERY = 3.6;
@@ -9,6 +10,7 @@ const BLINK_LENGTH = 0.14;
 /** How quickly the body chases its target pose, per second: snappy in a swing, loose otherwise. */
 const FOLLOW_SWING = 34;
 const FOLLOW_FREE = 15;
+const SWORD_COLORS: Record<string, string> = { steel: '#e4ebf5', gold: '#e0b24a', leather: '#4a2c24' };
 const BLADE_AXIS = new Vector3(0, 0, 1);
 
 /** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
@@ -62,13 +64,38 @@ export class Avatar {
     this.hand = vrm.humanoid.getNormalizedBoneNode('rightHand')!;
   }
 
-  static async load(url: string, weaponColor: string): Promise<Avatar> {
+  /** Loads a modelled sword (blade along +Y in the file) and dresses it in the game's toon materials. */
+  private static async loadSword(url: string, glow: string): Promise<Group> {
+    const gltf = await new GLTFLoader().loadAsync(url);
+    const model = gltf.scene;
+    model.traverse((node) => {
+      const mesh = node as Mesh;
+      if (!mesh.isMesh) return;
+      const name = (mesh.material as { name: string }).name.split('.')[0];
+      if (name === 'glow') mesh.material = new MeshBasicMaterial({ color: glow });
+      else {
+        // A faint emissive keeps the steel's shaded faces from going black against the sky.
+        mesh.material = toonMaterial(SWORD_COLORS[name] ?? '#cccccc', { emissive: name === 'steel' ? '#4a5568' : '#201810' });
+        // Flat-shaded blades would tear apart under an inflated shell, so only rounded parts get outlined.
+        if (name !== 'steel') addOutline(mesh);
+      }
+    });
+    // Point the model's blade along +Z, the axis the grip is aimed with.
+    model.rotation.x = Math.PI / 2;
+    const sword = new Group();
+    sword.add(model);
+    return sword;
+  }
+
+  static async load(url: string, weaponColor: string, weaponUrl: string | null = null): Promise<Avatar> {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
-    const sword = buildSword(weaponColor);
+    const sword = weaponUrl
+      ? await Avatar.loadSword(weaponUrl, weaponColor).catch(() => buildSword(weaponColor))
+      : buildSword(weaponColor);
     sword.position.copy(GRIP_OFFSET);
     avatar.vrm.humanoid.getNormalizedBoneNode('rightHand')?.add(sword);
     avatar.closeHands();

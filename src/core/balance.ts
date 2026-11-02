@@ -9,6 +9,8 @@ export interface CharacterDef {
   /** Path under the site root; characters without one use the placeholder body. */
   model?: string;
   weaponColor?: string;
+  /** A glb sword; characters without one carry the plain built-in blade. */
+  weaponModel?: string;
   attack: number;
   skill: { damage: number; cooldown: number; radius: number };
   burst: { damage: number; radius: number };
