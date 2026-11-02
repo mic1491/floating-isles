@@ -79,10 +79,13 @@ export class Avatar {
           mesh.geometry,
           new MeshBasicMaterial({ color: glow, transparent: true, opacity: 0.8, blending: AdditiveBlending, depthWrite: false }),
         );
-        halo.scale.set(2.6, 1.02, 3.2);
+        halo.scale.set(1.8, 1.02, 3.2);
         mesh.add(halo);
-      }
-      else {
+      } else if (name === 'gem') mesh.material = new MeshBasicMaterial({ color: '#6af0ff' });
+      else if (name === 'blade') {
+        // The blade carries its two-tone paint in vertex colours.
+        mesh.material = toonMaterial('#ffffff', { vertexColors: true, emissive: '#2a2024' });
+      } else {
         // A faint emissive keeps the steel's shaded faces from going black against the sky.
         mesh.material = toonMaterial(SWORD_COLORS[name] ?? '#cccccc', { emissive: name === 'steel' ? '#6b7a94' : '#201810' });
         // Flat-shaded blades would tear apart under an inflated shell, so only rounded parts get outlined.
