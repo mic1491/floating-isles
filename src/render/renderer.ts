@@ -29,7 +29,7 @@ export class GameRenderer {
 
     this.composer = new EffectComposer(this.renderer);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
-    this.composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.28, 0.6, 0.86));
+    this.composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.18, 0.5, 0.94));
     this.composer.addPass(new OutputPass());
 
     addEventListener('resize', () => this.resize());

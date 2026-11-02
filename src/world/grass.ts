@@ -18,18 +18,37 @@ import { flowerMask, isGrassy, terrainHeight } from './terrain';
 
 const TILE_SIZE = 12;
 const TILES_PER_FRAME = 1;
+const GRASS_FADE_END = 46;
 
+/** Thin tapered blade: arcs forward, dark at the root and bright at the tip. */
 const bladeGeometry = (): BufferGeometry => {
+  const rows = 6;
+  const height = 0.52;
+  const positions: number[] = [];
+  const normals: number[] = [];
+  const colors: number[] = [];
+  const index: number[] = [];
+  for (let i = 0; i <= rows; i++) {
+    const t = i / rows;
+    const half = i === rows ? 0 : 0.034 * (1 - t) ** 0.7;
+    const y = t * height;
+    const z = t * t * 0.2;
+    const shade = 0.62 + 0.55 * t ** 1.4;
+    for (const x of i === rows ? [0] : [-half, half]) {
+      positions.push(x, y, z);
+      normals.push(0, 1, 0);
+      colors.push(shade, shade, shade);
+    }
+    if (i > 0) {
+      const base = 2 * (i - 1);
+      index.push(...(i === rows ? [base, base + 1, base + 2] : [base, base + 1, base + 2, base + 2, base + 1, base + 3]));
+    }
+  }
   const geometry = new BufferGeometry();
-  geometry.setAttribute(
-    'position',
-    new Float32BufferAttribute([-0.09, 0, 0, 0.09, 0, 0, -0.05, 0.22, 0, 0.05, 0.22, 0, 0, 0.46, 0], 3),
-  );
-  geometry.setAttribute(
-    'normal',
-    new Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3),
-  );
-  geometry.setIndex([0, 1, 2, 2, 1, 3, 2, 3, 4]);
+  geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
+  geometry.setAttribute('normal', new Float32BufferAttribute(normals, 3));
+  geometry.setAttribute('color', new Float32BufferAttribute(colors, 3));
+  geometry.setIndex(index);
   return geometry;
 };
 
@@ -40,8 +59,8 @@ const seeded = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
-const SHADES = ['#9ad56b', '#b4e07a', '#cbe885', '#86c964'].map((c) => new Color(c));
-const PETALS = ['#ffffff', '#ffd9ec', '#ffb8dc', '#ffe9a8'].map((c) => new Color(c));
+const SHADES = ['#8fd163', '#a8dc72', '#bfe47e', '#7cc35e'].map((c) => new Color(c));
+const PETALS = ['#e8dce2', '#f2c4dc', '#e8a3cc', '#f0d795'].map((c) => new Color(c));
 
 const pick = (palette: Color[], roll: number): Color => palette.at(Math.floor(roll * palette.length))!;
 
@@ -58,15 +77,27 @@ export class GrassField {
   constructor(private readonly scene: Scene) {
     this.material = toonMaterial('#ffffff');
     this.material.side = DoubleSide;
+    this.material.vertexColors = true;
     this.material.onBeforeCompile = (shader) => {
       shader.uniforms.windTime = this.time;
       shader.vertexShader = `uniform float windTime;\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `vec3 transformed = position;
          vec2 root = instanceMatrix[3].xz;
+         vec2 away = root - cameraPosition.xz;
+         float dist = length(away);
+         // Per-blade hash thins the field with distance: dense underfoot, sparse far away.
+         float pick = fract(sin(dot(root, vec2(12.9898, 78.233))) * 43758.5453);
+         float keep = 1.0 - smoothstep(6.0, ${GRASS_FADE_END.toFixed(1)}, dist);
+         float visible = step(pick, keep * keep * 0.92 + 0.08 * keep);
+         float lean = position.y * position.y * 3.2;
          float gust = sin(windTime * 1.6 + root.x * 0.22 + root.y * 0.17)
                     + 0.5 * sin(windTime * 3.1 + root.x * 0.6);
-         transformed.x += gust * 0.16 * position.y * position.y * 3.0;`,
+         transformed.x += gust * 0.12 * lean;
+         transformed.z += 0.05 * sin(windTime * 2.3 + root.y * 0.4) * lean;
+         // Far blades that survive are widened so the thinned field still reads as lawn.
+         transformed.x *= 1.0 + smoothstep(8.0, ${GRASS_FADE_END.toFixed(1)}, dist) * 1.4;
+         transformed *= visible;`,
       );
       // Blades share an upward normal on both faces so they light like the ground.
       shader.fragmentShader = shader.fragmentShader.replace(
@@ -122,7 +153,7 @@ export class GrassField {
       const x = (ix + random()) * TILE_SIZE;
       const z = (iz + random()) * TILE_SIZE;
       const spin = random();
-      const size = 0.55 + random() * 0.6;
+      const size = 0.7 + random() * 0.75;
       const roll = random();
       const shade = random();
       if (!isGrassy(x, z)) continue;
