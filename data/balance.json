@@ -113,6 +113,47 @@
       "respawnDelay": 15,
       "projectileSpeed": 11
     },
+    "charger": {
+      "hp": 150,
+      "coins": 16,
+      "speed": 3,
+      "damage": 16,
+      "attackRange": 11,
+      "attackWindup": 1,
+      "attackCooldown": 2.6,
+      "aggroRange": 15,
+      "leashRange": 26,
+      "respawnDelay": 18,
+      "chargeSpeed": 15,
+      "chargeTime": 0.55,
+      "stagger": 1.4
+    },
+    "bomber": {
+      "hp": 45,
+      "coins": 8,
+      "speed": 5.2,
+      "damage": 18,
+      "attackRange": 2.4,
+      "attackWindup": 0.9,
+      "attackCooldown": 99,
+      "aggroRange": 14,
+      "leashRange": 24,
+      "respawnDelay": 14
+    },
+    "guard": {
+      "hp": 260,
+      "coins": 22,
+      "speed": 1.9,
+      "damage": 14,
+      "attackRange": 2.2,
+      "attackWindup": 0.9,
+      "attackCooldown": 2,
+      "aggroRange": 11,
+      "leashRange": 20,
+      "respawnDelay": 20,
+      "armor": 0.35,
+      "armorBreak": 6
+    },
     "boss": {
       "hp": 800,
       "coins": 500,

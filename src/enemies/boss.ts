@@ -153,15 +153,16 @@ export class Boss {
     }
   }
 
-  hurt(amount: number): void {
-    if (!this.alive || !this.awake) return;
+  /** Returns what was dealt; a sleeping or defeated boss takes nothing. */
+  hurt(amount: number): number {
+    if (!this.alive || !this.awake) return 0;
     this.hp -= amount;
     this.flash = 0.1;
     if (!this.alive) {
       this.clearWarnings();
       this.setAura(null);
       this.doing = null;
-      return;
+      return amount;
     }
     const next = this.ratio <= 0.34 ? 3 : this.ratio <= 0.67 ? 2 : 1;
     if (next > this.phase) {
@@ -172,7 +173,11 @@ export class Boss {
       this.forced = 'wave';
       this.cooldown = Math.min(this.cooldown, 0.5);
     }
+    return amount;
   }
+
+  /** The guardian wears no shell to crack. */
+  breakArmor(): void {}
 
   /** The guardian does not budge from blows. */
   push(_from?: Vector3, _force?: number): void {}

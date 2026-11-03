@@ -41,7 +41,7 @@ interface Projectile {
   life: number;
 }
 
-const SPAWNS: Array<[EnemyKind, number, number]> = [
+export const SPAWNS: Array<[EnemyKind, number, number]> = [
   ['melee', 18, 12],
   ['melee', 21, 9],
   ['melee', -10, 26],
@@ -53,6 +53,16 @@ const SPAWNS: Array<[EnemyKind, number, number]> = [
   ['ranged', -84, -64],
   ['melee', 98, -2],
   ['ranged', 108, -14],
+  ['charger', 62, -34],
+  ['charger', -58, 56],
+  ['charger', 88, 30],
+  ['bomber', 28, 48],
+  ['bomber', -34, -40],
+  ['bomber', -70, -8],
+  ['bomber', 50, -90],
+  ['guard', -64, -48],
+  ['guard', 72, 66],
+  ['guard', -12, -60],
 ];
 
 const orb = new SphereGeometry(0.22, 10, 8);
@@ -216,6 +226,7 @@ export class Combat {
     const reaction = element ? reactionOf(enemy.aura, element) : null;
     if (reaction) {
       enemy.setAura(null);
+      enemy.breakArmor();
       color = '#ffe27a';
       if (reaction === 'vaporize') damage *= rx.vaporizeMultiplier;
       this.events.reaction(enemy.position, reaction);
@@ -233,12 +244,12 @@ export class Combat {
 
   private applyDamage(enemy: Fighter, amount: number, color: string): void {
     const wasAlive = enemy.alive;
-    enemy.hurt(amount);
+    const dealt = enemy.hurt(amount);
     if (wasAlive && !enemy.alive) {
       const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
       this.events.defeated(enemy.position, enemy.cfg.coins, shards);
     }
-    this.events.damage(enemy.position, Math.round(amount), color);
+    this.events.damage(enemy.position, Math.round(dealt), color);
   }
 
   private overload(source: Fighter): void {
@@ -303,8 +314,14 @@ export class Combat {
       this.launch(from, velocity, enemy.cfg.damage);
       return;
     }
-    if (enemy.position.distanceTo(this.player.position) > enemy.cfg.attackRange * 1.3) return;
-    if (this.player.takeDamage(enemy.cfg.damage)) this.events.playerHurt();
+    const blast = enemy.cfg.attackRange * 1.3;
+    const inReach = enemy.position.distanceTo(this.player.position) <= blast;
+    if (enemy.kind === 'bomber') {
+      this.fx.ring(enemy.position, blast, '#ffb070', 0.4);
+      this.events.shake(0.25);
+      enemy.explode();
+    }
+    if (inReach && this.player.takeDamage(enemy.cfg.damage)) this.events.playerHurt();
   }
 
   private launch(from: Vector3, velocity: Vector3, damage: number): void {

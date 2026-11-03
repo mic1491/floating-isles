@@ -11,6 +11,8 @@ import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth'
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
 import { Boss, type BossHost } from '../enemies/boss';
+import { Enemy } from '../enemies/enemy';
+import { SPAWNS } from '../combat/combat';
 import { countsOf, QuestLog, quests, statusOf, targetOf } from '../quests/quests';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
@@ -496,5 +498,49 @@ describe('world boss', () => {
     expect(statusOf(guardian, countsOf(progress, map, false)).done).toBe(false);
     expect(statusOf(guardian, countsOf(progress, map, true)).done).toBe(true);
     expect(migrateSave({ version: 6, position: [0, 0, 0] }).bossDefeated).toBe(false);
+  });
+});
+
+describe('enemy variety', () => {
+  const origin = new Vector3(0, 0, 0);
+  const camera = undefined as never;
+
+  it('has all five kinds on the island, each on land and away from the start', () => {
+    expect(new Set(SPAWNS.map(([kind]) => kind)).size).toBe(5);
+    for (const [kind, x, z] of SPAWNS) {
+      expect(edgeRatio(x, z), `${kind} at ${x},${z}`).toBeLessThan(0.9);
+      expect(Math.hypot(x - 5, z - 5), `${kind} at ${x},${z}`).toBeGreaterThan(14);
+    }
+  });
+
+  it('a shell cuts ordinary damage until a reaction cracks it', () => {
+    const guard = new Enemy('guard', origin.clone());
+    expect(guard.armored).toBe(true);
+    expect(guard.hurt(100)).toBeCloseTo(35);
+    guard.breakArmor();
+    expect(guard.armored).toBe(false);
+    expect(guard.hurt(100)).toBe(100);
+  });
+
+  it('a bomber spends itself without dying to a hit', () => {
+    const bomber = new Enemy('bomber', origin.clone());
+    bomber.explode();
+    expect(bomber.alive).toBe(false);
+  });
+
+  it('a charger warns, runs its locked line once, then stands dazed and takes extra damage', () => {
+    const charger = new Enemy('charger', origin.clone());
+    const player = new Vector3(0, 0, -8);
+    let hits = 0;
+    let dazedAt = -1;
+    for (let frame = 0; frame < 60 * 6; frame++) {
+      if (charger.update(1 / 60, player, true, camera)) hits++;
+      if (dazedAt < 0 && charger.hurt(0) === 0 && (charger as unknown as { stun: number }).stun > 0) dazedAt = frame;
+    }
+    expect(hits).toBeGreaterThanOrEqual(1);
+    expect(dazedAt).toBeGreaterThan(0);
+    const dazed = new Enemy('charger', origin.clone());
+    (dazed as unknown as { stun: number }).stun = 1;
+    expect(dazed.hurt(100)).toBe(150);
   });
 });
