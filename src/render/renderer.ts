@@ -35,7 +35,11 @@ export class GameRenderer {
     this.composer.addPass(new UnrealBloomPass(new Vector2(256, 256), 0.18, 0.5, 0.94));
     this.composer.addPass(new OutputPass());
 
+    // Follow the box the page actually gives the canvas. On phones `innerWidth` and `innerHeight` jump
+    // around as the browser's bars slide in and out, which left the picture cut off or short of the edge.
     addEventListener('resize', () => this.resize());
+    window.visualViewport?.addEventListener('resize', () => this.resize());
+    new ResizeObserver(() => this.resize()).observe(canvas);
   }
 
   get rendererInfo(): { calls: number; triangles: number } {
@@ -59,15 +63,19 @@ export class GameRenderer {
   }
 
   resize(): void {
-    const width = innerWidth;
-    const height = innerHeight;
+    // The first size notice can arrive before quality is chosen; the choice triggers its own resize.
+    if (!this.settings) return;
+    const canvas = this.renderer.domElement;
+    const width = canvas.clientWidth || innerWidth;
+    const height = canvas.clientHeight || innerHeight;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     // Pixel style renders at a third of the resolution and scales up with hard edges.
     const ratio = this.pixelArt ? 1 / PIXEL_SIZE : this.settings.pixelRatio;
     this.renderer.domElement.style.imageRendering = this.pixelArt ? 'pixelated' : '';
     this.renderer.setPixelRatio(ratio);
-    this.renderer.setSize(width, height);
+    // The page's CSS sizes the canvas; the renderer only sets how many pixels it draws.
+    this.renderer.setSize(width, height, false);
     this.composer.setPixelRatio(ratio);
     this.composer.setSize(width, height);
   }
