@@ -5,6 +5,7 @@ import { computePose, type BoneName, type Motion } from './avatarPose';
 import { addOutline, toonMaterial } from '../render/toon';
 import type { Element, WeaponKind } from '../core/balance';
 import { addAccessories } from './accessories';
+import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type Clip, type ClipLibrary } from './clips';
 import { ATTACKS } from './attackTable';
 import { shiftHue } from './recolor';
 import { buildSword } from './swordModel';
@@ -17,6 +18,21 @@ const FOLLOW_SWING = 34;
 const FOLLOW_FREE = 15;
 const SWORD_COLORS: Record<string, string> = { steel: '#f4f8ff', gold: '#e0b24a', leather: '#4a2c24' };
 const BLADE_AXIS = new Vector3(0, 0, 1);
+/** The bones the hand-made poses already drive. */
+const HAND_MADE_BONES = new Set([
+  'hips',
+  'spine',
+  'chest',
+  'head',
+  'leftUpperArm',
+  'leftLowerArm',
+  'rightUpperArm',
+  'rightLowerArm',
+  'leftUpperLeg',
+  'leftLowerLeg',
+  'rightUpperLeg',
+  'rightLowerLeg',
+]);
 
 /** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
 const GRIP_OFFSET = new Vector3(-0.058, -0.02, -0.005);
@@ -52,6 +68,8 @@ export interface AvatarLook {
   weaponModel?: string | null;
   hue?: number;
   hairOnly?: boolean;
+  /** Recorded sword motion; characters without a sword keep the hand-made swings. */
+  clips?: ClipLibrary | null;
 }
 
 /** A VRM character posed from code, parented inside the player's view. */
@@ -66,6 +84,11 @@ export class Avatar {
   private readonly aimBlade: [number, number] = [0, -0.5];
   private readonly hand: Object3D;
   private weaponNode: Object3D | null = null;
+  private clips: Map<string, Clip> | null = null;
+  private clipHipsScale = 1;
+  /** Bones the recorded motion has moved that the hand-made one never touches, so they can be put back. */
+  private readonly clipTouched = new Set<string>();
+  private readonly clipQuat = new Quaternion();
   private weaponKind: WeaponKind = 'sword';
   private readonly scratch = { aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
 
@@ -139,6 +162,10 @@ export class Avatar {
         ? await Avatar.loadSword(look.weaponModel, look.weaponColor).catch(() => buildSword(look.weaponColor))
         : buildSword(look.weaponColor);
     }
+    if (look.clips && look.weapon === 'sword') {
+      avatar.clips = new Map(look.clips.clips.map((clip) => [clip.name, clip]));
+      avatar.clipHipsScale = avatar.hipsRestY / look.clips.restHipsY;
+    }
     avatar.weaponNode = weapon;
     avatar.weaponKind = look.weapon;
     weapon.position.copy(GRIP_OFFSET);
@@ -164,6 +191,38 @@ export class Avatar {
       const loose = name.startsWith('Thumb') ? 0.25 : 0.38;
       humanoid.getNormalizedBoneNode(`left${name}` as 'leftIndexProximal')?.rotation.set(0, -y * 0.3, -z * loose);
     }
+  }
+
+  private clipFor(motion: Motion): Clip | null {
+    if (!this.clips || !motion.attack) return null;
+    return this.clips.get(COMBO_CLIPS[motion.attack.step - 1]) ?? null;
+  }
+
+  /**
+   * Lays a recorded swing over the pose: each bone turns toward the recording as the hit begins and back
+   * as it ends. Bones the hand-made poses never touch are set from scratch each frame and put back after.
+   */
+  private playClip(clip: Clip | null, motion: Motion): void {
+    if (!clip || !motion.attack) {
+      for (const name of this.clipTouched) this.node(name as BoneName)?.quaternion.identity();
+      this.clipTouched.clear();
+      return;
+    }
+    const progress = motion.attack.t;
+    const time = clipTime(clip, progress, ATTACKS[motion.attack.step - 1].strikeAt);
+    const weight = clipWeight(progress);
+    for (const bone of Object.keys(clip.bones)) {
+      const node = this.vrm.humanoid.getNormalizedBoneNode(bone as 'hips');
+      if (!node) continue;
+      sampleBone(clip, bone, time, this.clipQuat);
+      if (!HAND_MADE_BONES.has(bone) && bone !== 'rightHand') {
+        node.quaternion.identity();
+        this.clipTouched.add(bone);
+      }
+      if (bone === 'rightHand') this.clipTouched.add(bone);
+      node.quaternion.slerp(this.clipQuat, weight);
+    }
+    this.hips.position.y += sampleHipsY(clip, time) * this.clipHipsScale * weight;
   }
 
   /** A spear thrusts forward as its hit lands, and a staff's orb flares. */
@@ -208,7 +267,8 @@ export class Avatar {
   }
 
   update(dt: number, motion: Motion): void {
-    const { bones, hipsDrop, swordAim, blade } = computePose(motion);
+    const clip = this.clipFor(motion);
+    const { bones, hipsDrop, swordAim, blade } = computePose(clip ? { ...motion, attack: null } : motion);
     // Every bone eases toward its target, so a new hit, a landing or a stop never pops.
     const follow = 1 - Math.exp(-dt * (motion.attack ? FOLLOW_SWING : FOLLOW_FREE));
     for (const name of Object.keys(bones) as BoneName[]) {
@@ -232,6 +292,7 @@ export class Avatar {
     this.aimBlade[0] = MathUtils.lerp(this.aimBlade[0], aim[0], follow);
     this.aimBlade[1] = MathUtils.lerp(this.aimBlade[1], aim[1], follow);
     this.aimSword(this.aimWeight, this.aimBlade);
+    this.playClip(clip, motion);
     this.animateWeapon(motion);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;
     this.vrm.expressionManager?.setValue('blink', blink);

@@ -10,6 +10,10 @@ import { Stamina } from '../player/stamina';
 import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
+import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
+import clipData from '../../public/assets/animations/sword_clips.json';
+import { ATTACKS } from '../player/attackTable';
+import { Quaternion } from 'three';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
 import { balance } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
@@ -680,5 +684,61 @@ describe('weapons and gear', () => {
     expect(clean.loadouts[0].accessories).toEqual(['charm-guard', null]);
     expect(clean.loadouts[1].accessories[0]).toBeNull();
     expect(sanitizeGear(undefined, elements)).toEqual(defaultGear(elements));
+  });
+});
+
+describe('recorded sword motion', () => {
+  const library = clipData as unknown as ClipLibrary;
+
+  it('has a clip for every hit of the combo, with every bone recorded for every frame', () => {
+    expect(COMBO_CLIPS).toHaveLength(ATTACKS.length);
+    for (const name of COMBO_CLIPS) {
+      const clip = library.clips.find((c) => c.name === name)!;
+      expect(clip, name).toBeDefined();
+      const frames = Math.round(clip.duration * clip.fps) + 1;
+      expect(clip.hipsY).toHaveLength(frames);
+      for (const bone of ['hips', 'rightUpperArm', 'rightHand', 'leftFoot']) expect(clip.bones[bone], bone).toHaveLength(frames);
+      expect(clip.strike).toBeGreaterThan(0);
+      expect(clip.strike).toBeLessThan(clip.duration);
+    }
+  });
+
+  it('records proper rotations: every quaternion has unit length', () => {
+    for (const clip of library.clips) {
+      for (const frames of Object.values(clip.bones)) {
+        for (const [x, y, z, w] of frames) expect(Math.hypot(x, y, z, w)).toBeCloseTo(1, 2);
+      }
+    }
+  });
+
+  it("lands the recording's strike exactly when the game's blade lands", () => {
+    for (const [i, name] of COMBO_CLIPS.entries()) {
+      const clip = library.clips.find((c) => c.name === name)!;
+      const strikeAt = ATTACKS[i].strikeAt;
+      expect(clipTime(clip, strikeAt, strikeAt)).toBeCloseTo(clip.strike, 5);
+      expect(clipTime(clip, 0, strikeAt)).toBe(0);
+      expect(clipTime(clip, 1, strikeAt)).toBeCloseTo(clip.duration, 5);
+      expect(clipTime(clip, 9, strikeAt)).toBeLessThanOrEqual(clip.duration);
+    }
+  });
+
+  it('eases the recording in at the start and out at the end of a hit', () => {
+    expect(clipWeight(0)).toBe(0);
+    expect(clipWeight(0.4)).toBeCloseTo(1, 5);
+    expect(clipWeight(1)).toBe(0);
+    expect(clipWeight(0.06)).toBeGreaterThan(0);
+    expect(clipWeight(0.06)).toBeLessThan(1);
+  });
+
+  it('blends between frames along the short way', () => {
+    const clip = library.clips[0];
+    const into = new Quaternion();
+    const first = sampleBone(clip, 'rightUpperArm', 0, into).clone();
+    const mid = sampleBone(clip, 'rightUpperArm', 0.5 / clip.fps, into).clone();
+    const second = sampleBone(clip, 'rightUpperArm', 1 / clip.fps, into).clone();
+    // The halfway frame sits midway between its neighbours; recorded values are rounded, so allow a little slack.
+    expect(Math.abs(first.angleTo(mid) - mid.angleTo(second))).toBeLessThan(0.02);
+    expect(mid.angleTo(first)).toBeLessThan(first.angleTo(second) + 0.02);
+    expect(Number.isFinite(sampleHipsY(clip, clip.duration * 2))).toBe(true);
   });
 });

@@ -14,6 +14,7 @@ import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
 import { Gear } from './party/gear';
+import { loadClips } from './player/clips';
 import { maxHpFor } from './party/growth';
 import { Party } from './party/party';
 import { countsOf, QuestLog, statusOf, targetOf } from './quests/quests';
@@ -105,20 +106,26 @@ const boot = async (): Promise<void> => {
   player.setCharacter(party.active);
   // Each model is loaded the first time its character is in the field, not all at start, so phones
   // do not decode three copies at once. The placeholder body stands in until it arrives, or if it fails.
+  const base0 = import.meta.env.BASE_URL;
+  const clipsLoaded = loadClips(`${base0}assets/animations/sword_clips.json`).catch(() => null);
   const requested = new Set<string>();
   const ensureAvatar = (member: CharacterDef) => {
     if (!member.model || requested.has(member.id)) return;
     requested.add(member.id);
     const base = import.meta.env.BASE_URL;
-    Avatar.load(`${base}${member.model}`, {
-      element: member.element,
-      color: member.color,
-      weapon: member.weapon,
-      weaponColor: member.weaponColor ?? member.color,
-      weaponModel: member.weaponModel ? `${base}${member.weaponModel}` : null,
-      hue: member.hue,
-      hairOnly: member.hueParts === 'hair',
-    })
+    clipsLoaded
+      .then((clips) =>
+        Avatar.load(`${base}${member.model}`, {
+          element: member.element,
+          color: member.color,
+          weapon: member.weapon,
+          weaponColor: member.weaponColor ?? member.color,
+          weaponModel: member.weaponModel ? `${base}${member.weaponModel}` : null,
+          hue: member.hue,
+          hairOnly: member.hueParts === 'hair',
+          clips,
+        }),
+      )
       .then((avatar) => player.addAvatar(member.id, avatar))
       .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));
   };
