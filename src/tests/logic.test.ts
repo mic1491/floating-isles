@@ -10,8 +10,10 @@ import { Stamina } from '../player/stamina';
 import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
-import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
+import { groundWeights, Locomotion } from '../player/locomotion';
+import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
+import moveData from '../../public/assets/animations/move_clips.json';
 import { ATTACKS } from '../player/attackTable';
 import { Quaternion } from 'three';
 import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
@@ -689,11 +691,11 @@ describe('weapons and gear', () => {
 });
 
 describe('recorded sword motion', () => {
-  const library = clipData as unknown as ClipLibrary;
+  const library = mergeClips(clipData as unknown as ClipLibrary, moveData as unknown as ClipLibrary)!;
 
   it('has a clip for every hit of the combo, with every bone recorded for every frame', () => {
-    expect(COMBO_CLIPS).toHaveLength(ATTACKS.length);
-    for (const name of COMBO_CLIPS) {
+    for (const names of Object.values(COMBO_CLIPS)) expect(names).toHaveLength(ATTACKS.length);
+    for (const name of new Set(Object.values(COMBO_CLIPS).flat())) {
       const clip = library.clips.find((c) => c.name === name)!;
       expect(clip, name).toBeDefined();
       const frames = Math.round(clip.duration * clip.fps) + 1;
@@ -713,7 +715,7 @@ describe('recorded sword motion', () => {
   });
 
   it("lands the recording's strike exactly when the game's blade lands", () => {
-    for (const [i, name] of COMBO_CLIPS.entries()) {
+    for (const [i, name] of COMBO_CLIPS.sword.entries()) {
       const clip = library.clips.find((c) => c.name === name)!;
       const strikeAt = ATTACKS[i].strikeAt;
       expect(clipTime(clip, strikeAt, strikeAt)).toBeCloseTo(clip.strike, 5);
@@ -795,5 +797,54 @@ describe('main quests five to ten', () => {
     expect(migrateSave({ version: 9, position: [0, 0, 0] }).stats).toEqual({ kills: {}, reactions: 0 });
     const kept = migrateSave({ version: 10, position: [0, 0, 0], stats: { kills: { any: 5, guard: -2 }, reactions: 4.9 } } as never).stats;
     expect(kept).toEqual({ kills: { any: 5, guard: 0 }, reactions: 4 });
+  });
+});
+
+describe('recorded locomotion', () => {
+  const library = mergeClips(clipData as unknown as ClipLibrary, moveData as unknown as ClipLibrary)!;
+  const clips = new Map(library.clips.map((c) => [c.name, c]));
+
+  it('cross-fades neighbouring ground loops by speed, always summing to one', () => {
+    for (const speed of [0, 0.5, 1.8, 2.2, 3.6, 5, 7, 8.5, 12]) {
+      const w = groundWeights(speed);
+      expect(Object.values(w).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5);
+    }
+    expect(groundWeights(0).Idle_Loop).toBe(1);
+    expect(groundWeights(5).Jog_Fwd_Loop).toBe(1);
+    expect(groundWeights(20).Sprint_Loop).toBe(1);
+    expect(groundWeights(3.6).Walk_Loop).toBeGreaterThan(0);
+    expect(groundWeights(3.6).Jog_Fwd_Loop).toBeGreaterThan(0);
+  });
+
+  it('has every clip the state machine plays', () => {
+    expect(Locomotion.available(clips)).toBe(true);
+    for (const name of ['Roll', 'Jump_Start', 'Jump_Land', 'Hit_Chest', 'Spell_Simple_Shoot']) expect(clips.has(name), name).toBe(true);
+  });
+
+  it('takes over the pose when running and hands it back while gliding', () => {
+    const move = new Locomotion(clips);
+    const input = { time: 0, speed: 5, airborne: false, gliding: false, dashing: false, hitAge: 99 };
+    for (let i = 0; i < 30; i++) move.update(1 / 60, input);
+    expect(move.base).toBeGreaterThan(0.95);
+    const q = new Quaternion();
+    expect(move.sample('leftUpperLeg', q)).toBe(true);
+    for (let i = 0; i < 60; i++) move.update(1 / 60, { ...input, gliding: true });
+    expect(move.base).toBeLessThan(0.05);
+  });
+
+  it('flinches only briefly after a hit', () => {
+    const move = new Locomotion(clips);
+    move.update(1 / 60, { time: 0, speed: 0, airborne: false, gliding: false, dashing: false, hitAge: 0.1 });
+    expect(move.hit).not.toBeNull();
+    move.update(1 / 60, { time: 0, speed: 0, airborne: false, gliding: false, dashing: false, hitAge: 1 });
+    expect(move.hit).toBeNull();
+  });
+
+  it('loops seamlessly: the last frame blends back into the first', () => {
+    const jog = clips.get('Jog_Fwd_Loop')!;
+    const q = new Quaternion();
+    const last = sampleBone(jog, 'leftUpperLeg', jog.duration - 0.5 / jog.fps, q).clone();
+    const first = sampleBone(jog, 'leftUpperLeg', 0, q).clone();
+    expect(last.angleTo(first)).toBeLessThan(0.3);
   });
 });

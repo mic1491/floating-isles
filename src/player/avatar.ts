@@ -1,5 +1,5 @@
 import { VRMLoaderPlugin, VRMUtils, type VRM } from '@pixiv/three-vrm';
-import { AdditiveBlending, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D } from 'three';
+import { AdditiveBlending, Box3, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion, Vector3, type Object3D, type Scene } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computePose, type BoneName, type Motion } from './avatarPose';
 import { addOutline, toonMaterial } from '../render/toon';
@@ -7,9 +7,11 @@ import type { Element, WeaponKind } from '../core/balance';
 import { addAccessories } from './accessories';
 import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type Clip, type ClipLibrary } from './clips';
 import { ATTACKS } from './attackTable';
+import { Locomotion } from './locomotion';
 import { shiftHue } from './recolor';
 import { buildSword } from './swordModel';
 import { buildSpear, buildStaff } from './weaponModels';
+import { glowMaterial, sparkles, SwingTrail, weaponTime } from './weaponFx';
 
 const BLINK_EVERY = 3.6;
 const BLINK_LENGTH = 0.14;
@@ -33,6 +35,10 @@ const HAND_MADE_BONES = new Set([
   'rightUpperLeg',
   'rightLowerLeg',
 ]);
+
+/** Bones below the waist: a swing lets go of them while the player is running. */
+const LOWER_BODY = new Set(['hips', 'leftUpperLeg', 'leftLowerLeg', 'leftFoot', 'leftToes', 'rightUpperLeg', 'rightLowerLeg', 'rightFoot', 'rightToes']);
+const FLINCH_BONES = ['spine', 'chest', 'upperChest', 'neck', 'head', 'leftShoulder', 'rightShoulder'];
 
 /** Where the grip sits in the sword hand: just past the knuckles, in the hollow the fingers close around. */
 const GRIP_OFFSET = new Vector3(-0.058, -0.02, -0.005);
@@ -85,11 +91,18 @@ export class Avatar {
   private readonly hand: Object3D;
   private weaponNode: Object3D | null = null;
   private clips: Map<string, Clip> | null = null;
+  private move: Locomotion | null = null;
+  private moveBones: string[] = [];
   private clipHipsScale = 1;
   /** Bones the recorded motion has moved that the hand-made one never touches, so they can be put back. */
   private readonly clipTouched = new Set<string>();
   private readonly clipQuat = new Quaternion();
+  private readonly clipQuatB = new Quaternion();
   private weaponKind: WeaponKind = 'sword';
+  /** How far the weapon reaches along its own axis, before its scale. */
+  private tipLocal = 1;
+  private trail: SwingTrail | null = null;
+  private trailInScene = false;
   private readonly scratch = { aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
 
   private constructor(private readonly vrm: VRM) {
@@ -114,7 +127,10 @@ export class Avatar {
       if (!mesh.isMesh) return;
       const name = (mesh.material as { name: string }).name.split('.')[0];
       if (name === 'glow') {
-        mesh.material = new MeshBasicMaterial({ color: glow });
+        // The inlay carries a band of light running up it; the file's blade lies along +Y.
+        mesh.geometry.computeBoundingBox();
+        const box = mesh.geometry.boundingBox!;
+        mesh.material = glowMaterial(glow, { flow: true, axis: 'y', length: Math.max(0.1, box.max.y - box.min.y) });
         // A wider additive copy reads as light bleeding off the blade, even from the far game camera.
         const halo = new Mesh(
           mesh.geometry,
@@ -137,6 +153,12 @@ export class Avatar {
     model.rotation.x = Math.PI / 2;
     const sword = new Group();
     sword.add(model);
+    const embers = sparkles(glow, 10, 0.09, (life, i, out) => {
+      const a = i * 2.2;
+      out.set(Math.sin(a) * 0.05, Math.cos(a) * 0.05 + life * 0.04, 0.12 + ((i * 0.37) % 1) * 0.7 + life * 0.08);
+    });
+    sword.add(embers.points);
+    sword.userData.tick = embers.tick;
     // Held at arm's length from a 7 m camera, so the whole weapon is drawn a little oversize.
     sword.scale.setScalar(1.2);
     return sword;
@@ -162,9 +184,16 @@ export class Avatar {
         ? await Avatar.loadSword(look.weaponModel, look.weaponColor).catch(() => buildSword(look.weaponColor))
         : buildSword(look.weaponColor);
     }
+    weapon.updateMatrixWorld(true);
+    avatar.tipLocal = new Box3().setFromObject(weapon).max.z / weapon.scale.z;
+    avatar.trail = new SwingTrail(look.weaponColor);
     if (look.clips) {
       avatar.clips = new Map(look.clips.clips.map((clip) => [clip.name, clip]));
       avatar.clipHipsScale = avatar.hipsRestY / look.clips.restHipsY;
+      if (Locomotion.available(avatar.clips)) {
+        avatar.move = new Locomotion(avatar.clips);
+        avatar.moveBones = Object.keys(avatar.clips.get('Idle_Loop')!.bones);
+      }
     }
     avatar.weaponNode = weapon;
     avatar.weaponKind = look.weapon;
@@ -195,7 +224,7 @@ export class Avatar {
 
   private clipFor(motion: Motion): Clip | null {
     if (!this.clips || !motion.attack) return null;
-    return this.clips.get(COMBO_CLIPS[motion.attack.step - 1]) ?? null;
+    return this.clips.get((COMBO_CLIPS[this.weaponKind] ?? COMBO_CLIPS.sword)[motion.attack.step - 1]) ?? null;
   }
 
   /**
@@ -211,18 +240,85 @@ export class Avatar {
     const progress = motion.attack.t;
     const time = clipTime(clip, progress, ATTACKS[motion.attack.step - 1].strikeAt);
     const weight = clipWeight(progress);
+    // The swing owns the upper body; the legs keep running under it unless the player stands still.
+    const legs = this.move && (motion.airborne || motion.dashing || (motion.speed ?? motion.pace * 8.5) > 1.5) ? 0.12 : 1;
     for (const bone of Object.keys(clip.bones)) {
       const node = this.vrm.humanoid.getNormalizedBoneNode(bone as 'hips');
       if (!node) continue;
       sampleBone(clip, bone, time, this.clipQuat);
-      if (!HAND_MADE_BONES.has(bone) && bone !== 'rightHand') {
+      if (!this.move && !HAND_MADE_BONES.has(bone) && bone !== 'rightHand') {
         node.quaternion.identity();
         this.clipTouched.add(bone);
       }
       if (bone === 'rightHand') this.clipTouched.add(bone);
-      node.quaternion.slerp(this.clipQuat, weight);
+      node.quaternion.slerp(this.clipQuat, weight * (LOWER_BODY.has(bone) ? legs : 1));
     }
-    this.hips.position.y += sampleHipsY(clip, time) * this.clipHipsScale * weight;
+    this.hips.position.y += sampleHipsY(clip, time) * this.clipHipsScale * weight * legs;
+  }
+
+  /** Lays the recorded body motion over the hand-made pose, bone by bone, leaving the sword hand to its aim. */
+  private applyLocomotion(dt: number, motion: Motion): void {
+    const move = this.move;
+    if (!move) return;
+    move.update(dt, {
+      time: motion.time,
+      speed: motion.speed ?? motion.pace * 8.5,
+      airborne: motion.airborne,
+      gliding: motion.gliding,
+      dashing: motion.dashing,
+      hitAge: motion.hitAge ?? 99,
+    });
+    // Bones the hand-made poses never touch start from rest each frame, so nothing recorded lingers.
+    for (const bone of this.moveBones) {
+      if (HAND_MADE_BONES.has(bone) || bone === 'rightHand') continue;
+      this.node(bone as BoneName)?.quaternion.identity();
+    }
+    if (move.base < 0.002) return;
+    for (const bone of this.moveBones) {
+      if (bone === 'rightHand' || !move.sample(bone, this.clipQuat)) continue;
+      this.node(bone as BoneName)?.quaternion.slerp(this.clipQuat, move.base);
+    }
+    this.hips.position.y += move.hipsY() * this.clipHipsScale * move.base;
+  }
+
+  /** A short upper-body flinch when hurt. */
+  private applyFlinch(): void {
+    const hit = this.move?.hit;
+    if (!hit || !this.clipQuatB) return;
+    for (const bone of FLINCH_BONES) {
+      if (!hit.clip.bones[bone]) continue;
+      sampleBone(hit.clip, bone, hit.time, this.clipQuatB);
+      this.node(bone as BoneName)?.quaternion.slerp(this.clipQuatB, hit.weight * 0.8);
+    }
+  }
+
+  /** Runs the weapon's own motion: pulsing gems, scrolling runes, fluttering streamers. */
+  private tickWeapon(time: number): void {
+    weaponTime.value = time;
+    (this.weaponNode?.userData.tick as ((t: number) => void) | undefined)?.(time);
+  }
+
+  /** Draws a ribbon of light behind the weapon through the part of a swing where the blade is moving fast. */
+  private updateTrail(dt: number, motion: Motion): void {
+    const trail = this.trail;
+    const weapon = this.weaponNode;
+    if (!trail || !weapon) return;
+    if (!this.trailInScene) {
+      let top: Object3D = this.root;
+      while (top.parent) top = top.parent;
+      if (!(top as Scene).isScene) return;
+      top.add(trail.mesh);
+      this.trailInScene = true;
+    }
+    let emit = false;
+    if (motion.attack) {
+      const strike = ATTACKS[motion.attack.step - 1].strikeAt;
+      emit = motion.attack.t > strike - 0.3 && motion.attack.t < strike + 0.2;
+    }
+    if (emit) weapon.updateWorldMatrix(true, false);
+    // A sword's whole blade sweeps a ribbon; a staff or spear only trails its head.
+    const base = this.weaponKind === 'sword' ? this.tipLocal * 0.3 : this.tipLocal - 0.42;
+    trail.update(dt, emit ? weapon : null, base, this.tipLocal);
   }
 
   /** A spear thrusts forward as its hit lands, and a staff's orb flares. */
@@ -291,11 +387,15 @@ export class Avatar {
     }
     this.aimBlade[0] = MathUtils.lerp(this.aimBlade[0], aim[0], follow);
     this.aimBlade[1] = MathUtils.lerp(this.aimBlade[1], aim[1], follow);
+    this.applyLocomotion(dt, motion);
     this.aimSword(this.aimWeight, this.aimBlade);
     this.playClip(clip, motion);
+    this.applyFlinch();
     this.animateWeapon(motion);
+    this.tickWeapon(motion.time);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;
     this.vrm.expressionManager?.setValue('blink', blink);
     this.vrm.update(dt);
+    this.updateTrail(dt, motion);
   }
 }

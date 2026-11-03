@@ -33,4 +33,5 @@ npm run build
 
 ## Credits
 
-- Sword combo motions: [Universal Animation Library 2](https://quaternius.itch.io/universal-animation-library-2) by Quaternius, CC0. Converted for the game's VRM characters with `tools/retargetClips.mjs`.
+- Sword combo motions: [Universal Animation Library 2](https://quaternius.itch.io/universal-animation-library-2) by Quaternius, CC0. Converted for the game's VRM characters with `tools/retargetClips.mjs <glb> <out> sword`.
+- Idle, walk, jog, sprint, jump, roll, flinch and spell-cast motions: [Universal Animation Library](https://quaternius.itch.io/universal-animation-library) by Quaternius, CC0, converted with `tools/retargetClips.mjs <glb> <out> move`.

@@ -14,7 +14,7 @@ import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
 import { Gear } from './party/gear';
-import { loadClips } from './player/clips';
+import { loadClips, mergeClips } from './player/clips';
 import { maxHpFor } from './party/growth';
 import { Party } from './party/party';
 import { countsOf, QuestLog, statusOf, targetOf } from './quests/quests';
@@ -107,7 +107,10 @@ const boot = async (): Promise<void> => {
   // Each model is loaded the first time its character is in the field, not all at start, so phones
   // do not decode three copies at once. The placeholder body stands in until it arrives, or if it fails.
   const base0 = import.meta.env.BASE_URL;
-  const clipsLoaded = loadClips(`${base0}assets/animations/sword_clips.json`).catch(() => null);
+  const clipsLoaded = Promise.all([
+    loadClips(`${base0}assets/animations/sword_clips.json`).catch(() => null),
+    loadClips(`${base0}assets/animations/move_clips.json`).catch(() => null),
+  ]).then(([swords, moves]) => mergeClips(swords, moves));
   const requested = new Set<string>();
   const ensureAvatar = (member: CharacterDef) => {
     if (!member.model || requested.has(member.id)) return;

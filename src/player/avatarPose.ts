@@ -22,6 +22,10 @@ export interface Motion {
   stride: number;
   /** 0 standing still, 1 full sprint. */
   pace: number;
+  /** Ground speed in metres per second; the recorded locomotion chooses and times its loops by it. */
+  speed?: number;
+  /** Seconds since the player was hurt. */
+  hitAge?: number;
   airborne: boolean;
   gliding: boolean;
   dashing: boolean;

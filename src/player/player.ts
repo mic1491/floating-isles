@@ -64,6 +64,8 @@ export class Player {
   private dashTime = 0;
   private dashCooldown = 0;
   private invulnerable = 0;
+  /** Seconds since the last hit taken, for the flinch. */
+  private hitAge = 99;
   private walkPhase = 0;
   private walkSpeed = 0;
   private attack: { step: number; elapsed: number; id: number; lungeScale: number } | null = null;
@@ -145,6 +147,7 @@ export class Player {
   takeDamage(amount: number): boolean {
     if (this.invulnerable > 0 || !this.alive) return false;
     this.hp = Math.max(0, this.hp - amount);
+    this.hitAge = 0;
     return true;
   }
 
@@ -167,6 +170,7 @@ export class Player {
   update(dt: number, actions: Actions, yaw: number): void {
     this.dashCooldown = Math.max(0, this.dashCooldown - dt);
     this.invulnerable = Math.max(0, this.invulnerable - dt);
+    this.hitAge += dt;
 
     // Movement is relative to where the camera looks.
     const forwardX = -Math.sin(yaw);
@@ -307,6 +311,8 @@ export class Player {
       time: this.clock,
       stride: this.walkPhase * 0.75,
       pace: Math.min(1, speed / cfg.sprintSpeed),
+      speed,
+      hitAge: this.hitAge,
       airborne: !this.grounded,
       gliding: this.gliding,
       dashing: this.dashTime > 0,

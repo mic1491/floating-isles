@@ -7,6 +7,7 @@ import {
   MeshToonMaterial,
   NearestFilter,
   RedFormat,
+  type Texture,
 } from 'three';
 
 const gradient = new DataTexture(new Uint8Array([135, 185, 230, 255]), 4, 1, RedFormat);
@@ -16,10 +17,11 @@ gradient.needsUpdate = true;
 
 export const toonMaterial = (
   color: string,
-  options: { vertexColors?: boolean; emissive?: string } = {},
+  options: { vertexColors?: boolean; emissive?: string; map?: Texture } = {},
 ): MeshToonMaterial =>
   new MeshToonMaterial({
     color: new Color(color),
+    map: options.map ?? null,
     gradientMap: gradient,
     vertexColors: options.vertexColors ?? false,
     emissive: new Color(options.emissive ?? '#000000'),
