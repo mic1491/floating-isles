@@ -29,6 +29,11 @@
     "defaultDistance": 5.2
   },
   "party": { "switchCooldown": 1 },
+  "weapons": {
+    "sword": { "range": 2.6, "arc": 1.2, "lunge": 1, "splash": 0, "splashRadius": 0 },
+    "staff": { "range": 3, "arc": 1.6, "lunge": 0.6, "splash": 0.4, "splashRadius": 2.8 },
+    "spear": { "range": 3.7, "arc": 0.7, "lunge": 1.4, "splash": 0, "splashRadius": 0 }
+  },
   "growth": { "maxLevel": 20, "baseXp": 30, "xpPerLevel": 12, "damagePerLevel": 0.06, "hpPerLevel": 6, "benchShare": 0.5 },
   "combat": {
     "attackInterval": 0.38,
@@ -44,6 +49,7 @@
     {
       "id": "fire",
       "element": "fire",
+      "weapon": "sword",
       "color": "#ff7a45",
       "model": "assets/characters/ember_wing.vrm",
       "weaponColor": "#ff6a3c",
@@ -58,8 +64,8 @@
       "color": "#45b6ff",
       "model": "assets/characters/ember_wing.vrm",
       "hue": 210,
+      "weapon": "staff",
       "weaponColor": "#45b6ff",
-      "weaponModel": "assets/weapons/ember_blade.glb",
       "attack": 10,
       "skill": { "damage": 26, "cooldown": 5, "radius": 5 },
       "burst": { "damage": 65, "radius": 9 }
@@ -70,8 +76,8 @@
       "color": "#b97aff",
       "model": "assets/characters/ember_wing.vrm",
       "hue": 275,
+      "weapon": "spear",
       "weaponColor": "#b97aff",
-      "weaponModel": "assets/weapons/ember_blade.glb",
       "attack": 11,
       "skill": { "damage": 28, "cooldown": 4, "radius": 4 },
       "burst": { "damage": 70, "radius": 8 }

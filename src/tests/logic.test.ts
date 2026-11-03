@@ -10,6 +10,7 @@ import { Stamina } from '../player/stamina';
 import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
+import { balance } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
 import { Enemy } from '../enemies/enemy';
 import { SPAWNS } from '../combat/combat';
@@ -568,5 +569,19 @@ describe('enemy variety', () => {
     const dazed = new Enemy('charger', origin.clone());
     (dazed as unknown as { stun: number }).stun = 1;
     expect(dazed.hurt(100)).toBe(150);
+  });
+});
+
+describe('weapons', () => {
+  it('gives each character their own weapon, and the three play differently', () => {
+    expect(balance.characters.map((c) => c.weapon)).toEqual(['sword', 'staff', 'spear']);
+    const { sword, staff, spear } = balance.weapons;
+    expect(spear.range).toBeGreaterThan(staff.range);
+    expect(staff.range).toBeGreaterThan(sword.range);
+    expect(spear.arc).toBeLessThan(sword.arc);
+    expect(staff.arc).toBeGreaterThan(sword.arc);
+    expect(staff.splash).toBeGreaterThan(0);
+    expect(sword.splash).toBe(0);
+    expect(spear.lunge).toBeGreaterThan(staff.lunge);
   });
 });

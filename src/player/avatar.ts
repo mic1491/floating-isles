@@ -3,8 +3,12 @@ import { AdditiveBlending, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computePose, type BoneName, type Motion } from './avatarPose';
 import { addOutline, toonMaterial } from '../render/toon';
+import type { Element, WeaponKind } from '../core/balance';
+import { addAccessories } from './accessories';
+import { ATTACKS } from './attackTable';
 import { shiftHue } from './recolor';
 import { buildSword } from './swordModel';
+import { buildSpear, buildStaff } from './weaponModels';
 
 const BLINK_EVERY = 3.6;
 const BLINK_LENGTH = 0.14;
@@ -39,6 +43,16 @@ const FINGER_CURL: Array<[string, [number, number, number]]> = [
   ['ThumbDistal', [0, -0.3, 0.4]],
 ];
 
+/** Everything that makes one character look like themselves on a shared model. */
+export interface AvatarLook {
+  element: Element;
+  color: string;
+  weapon: WeaponKind;
+  weaponColor: string;
+  weaponModel?: string | null;
+  hue?: number;
+}
+
 /** A VRM character posed from code, parented inside the player's view. */
 export class Avatar {
   readonly root = new Group();
@@ -50,6 +64,8 @@ export class Avatar {
   private aimWeight = 0;
   private readonly aimBlade: [number, number] = [0, -0.5];
   private readonly hand: Object3D;
+  private weaponNode: Object3D | null = null;
+  private weaponKind: WeaponKind = 'sword';
   private readonly scratch = { aim: new Vector3(), q: new Quaternion(), r: new Quaternion() };
 
   private constructor(private readonly vrm: VRM) {
@@ -102,18 +118,30 @@ export class Avatar {
     return sword;
   }
 
-  static async load(url: string, weaponColor: string, weaponUrl: string | null = null, hue = 0): Promise<Avatar> {
+  static async load(url: string, look: AvatarLook): Promise<Avatar> {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
-    if (hue) shiftHue(avatar.vrm.scene, hue);
-    const sword = weaponUrl
-      ? await Avatar.loadSword(weaponUrl, weaponColor).catch(() => buildSword(weaponColor))
-      : buildSword(weaponColor);
-    sword.position.copy(GRIP_OFFSET);
-    avatar.vrm.humanoid.getNormalizedBoneNode('rightHand')?.add(sword);
+    if (look.hue) shiftHue(avatar.vrm.scene, look.hue);
+    addAccessories(avatar.vrm, look.element, look.color);
+    let weapon: Group;
+    if (look.weapon === 'staff') {
+      weapon = buildStaff(look.weaponColor);
+      weapon.scale.setScalar(1.15);
+    } else if (look.weapon === 'spear') {
+      weapon = buildSpear(look.weaponColor);
+      weapon.scale.setScalar(1.1);
+    } else {
+      weapon = look.weaponModel
+        ? await Avatar.loadSword(look.weaponModel, look.weaponColor).catch(() => buildSword(look.weaponColor))
+        : buildSword(look.weaponColor);
+    }
+    avatar.weaponNode = weapon;
+    avatar.weaponKind = look.weapon;
+    weapon.position.copy(GRIP_OFFSET);
+    avatar.vrm.humanoid.getNormalizedBoneNode('rightHand')?.add(weapon);
     avatar.closeHands();
     return avatar;
   }
@@ -135,6 +163,21 @@ export class Avatar {
       const loose = name.startsWith('Thumb') ? 0.25 : 0.38;
       humanoid.getNormalizedBoneNode(`left${name}` as 'leftIndexProximal')?.rotation.set(0, -y * 0.3, -z * loose);
     }
+  }
+
+  /** A spear thrusts forward as its hit lands, and a staff's orb flares. */
+  private animateWeapon(motion: Motion): void {
+    const node = this.weaponNode;
+    if (!node) return;
+    let punch = 0;
+    if (motion.attack) {
+      const strike = ATTACKS[motion.attack.step - 1].strikeAt;
+      const near = Math.max(0, 1 - Math.abs(motion.attack.t - strike) / 0.2);
+      punch = near * near * (3 - 2 * near);
+    }
+    if (this.weaponKind === 'spear') node.position.z = GRIP_OFFSET.z + punch * 0.6;
+    const halo = node.userData.glow as Object3D | undefined;
+    if (halo) halo.scale.setScalar(1 + punch * 1.6);
   }
 
   /** Settles hair and cloth at once, so a teleport does not whip them across the map. */
@@ -180,9 +223,15 @@ export class Avatar {
     this.hipsDrop = drop;
     this.hips.position.y = this.hipsRestY - drop;
     this.aimWeight = MathUtils.lerp(this.aimWeight, swordAim, follow);
-    this.aimBlade[0] = MathUtils.lerp(this.aimBlade[0], blade[0], follow);
-    this.aimBlade[1] = MathUtils.lerp(this.aimBlade[1], blade[1], follow);
+    // A sword rests low at the side; a staff or spear is carried upright, head held high.
+    let aim = blade;
+    if (this.weaponKind !== 'sword' && !motion.attack && !motion.airborne && !motion.gliding) {
+      aim = [-0.08, (this.weaponKind === 'staff' ? 1.3 : 1.1) - motion.pace * 0.2];
+    }
+    this.aimBlade[0] = MathUtils.lerp(this.aimBlade[0], aim[0], follow);
+    this.aimBlade[1] = MathUtils.lerp(this.aimBlade[1], aim[1], follow);
     this.aimSword(this.aimWeight, this.aimBlade);
+    this.animateWeapon(motion);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;
     this.vrm.expressionManager?.setValue('blink', blink);
     this.vrm.update(dt);

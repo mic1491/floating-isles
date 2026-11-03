@@ -2,8 +2,11 @@ import raw from '../../data/balance.json';
 
 export type Element = 'fire' | 'water' | 'thunder';
 
+export type WeaponKind = 'sword' | 'staff' | 'spear';
+
 export interface CharacterDef {
   id: string;
+  weapon: WeaponKind;
   element: Element;
   color: string;
   /** Path under the site root; characters without one use the placeholder body. */

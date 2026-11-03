@@ -158,7 +158,7 @@ export class Combat {
     // Step in only as far as needed to reach a target; stop short of walking through it.
     const gap = target ? this.reach(target, this.player.position) : Infinity;
     const lungeScale = Number.isFinite(gap) ? Math.min(1, Math.max(0.15, (gap - 1.3) / style.lunge)) : 1;
-    this.player.startAttack(this.comboStep, lungeScale);
+    this.player.startAttack(this.comboStep, lungeScale * this.weapon.lunge);
     this.events.swing(this.comboStep);
     this.strike = { step: this.comboStep, trailed: false, landed: false };
   }
@@ -169,12 +169,24 @@ export class Combat {
     const { active } = this.party;
     const damage = active.attack * style.damageScale * this.party.power;
     let hit = false;
+    const struck: Fighter[] = [];
     for (const enemy of this.enemies) {
       if (!enemy.alive || !this.inArc(enemy)) continue;
+      struck.push(enemy);
       this.hit(enemy, damage, finisher ? active.element : null);
       enemy.push(this.player.position, KNOCKBACK[step - 1]);
       this.fx.spark(enemy.position.clone().setY(enemy.position.y + 0.9), ELEMENT_COLORS[active.element], finisher ? 0.6 : 0.35);
       hit = true;
+    }
+    // A staff's blow bursts outward, so everything near the target feels some of it.
+    const { splash, splashRadius } = this.weapon;
+    if (splash > 0 && struck.length > 0) {
+      const centre = struck[0].position;
+      this.fx.ring(centre, splashRadius, active.color, 0.28);
+      for (const other of this.enemies) {
+        if (!other.alive || struck.includes(other) || this.reach(other, centre) > splashRadius) continue;
+        this.hit(other, damage * splash, null);
+      }
     }
     if (hit) {
       this.hitstop = style.hitstop;
@@ -282,8 +294,8 @@ export class Combat {
 
   private inArc(enemy: Fighter): boolean {
     const to = new Vector3().subVectors(enemy.position, this.player.position).setY(0);
-    if (to.length() - enemy.radius > cfg.attackRange) return false;
-    return to.length() - enemy.radius < 0.6 || to.normalize().angleTo(this.player.facing.clone().setY(0).normalize()) < cfg.attackArc;
+    if (to.length() - enemy.radius > this.weapon.range) return false;
+    return to.length() - enemy.radius < 0.6 || to.normalize().angleTo(this.player.facing.clone().setY(0).normalize()) < this.weapon.arc;
   }
 
   /** Light auto-aim so attacks stay usable on touch screens. */
@@ -292,9 +304,14 @@ export class Combat {
     return Math.max(0, enemy.position.distanceTo(point) - enemy.radius);
   }
 
+  /** The reach, sweep and side effects of the weapon in the active character's hand. */
+  private get weapon() {
+    return balance.weapons[this.party.active.weapon];
+  }
+
   private faceNearest(): Fighter | null {
     let best: Fighter | null = null;
-    let bestDistance = cfg.attackRange + 3;
+    let bestDistance = this.weapon.range + 3;
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
       const distance = this.reach(enemy, this.player.position);

@@ -105,8 +105,14 @@ const boot = async (): Promise<void> => {
     if (!member.model || requested.has(member.id)) return;
     requested.add(member.id);
     const base = import.meta.env.BASE_URL;
-    const weapon = member.weaponModel ? `${base}${member.weaponModel}` : null;
-    Avatar.load(`${base}${member.model}`, member.weaponColor ?? member.color, weapon, member.hue)
+    Avatar.load(`${base}${member.model}`, {
+      element: member.element,
+      color: member.color,
+      weapon: member.weapon,
+      weaponColor: member.weaponColor ?? member.color,
+      weaponModel: member.weaponModel ? `${base}${member.weaponModel}` : null,
+      hue: member.hue,
+    })
       .then((avatar) => player.addAvatar(member.id, avatar))
       .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));
   };
