@@ -8,6 +8,7 @@ import { computePose, type Motion } from '../player/avatarPose';
 import { Stamina } from '../player/stamina';
 import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth';
 import { Party } from '../party/party';
+import { countsOf, QuestLog, quests, statusOf, targetOf } from '../quests/quests';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
 import { edgeRatio, ISLAND_RADIUS, terrainHeight } from '../world/terrain';
@@ -329,5 +330,51 @@ describe('character growth', () => {
     expect(new Party(0, [3, 99, -4]).levels).toEqual([3, 10, 1]);
     expect(new Party(0).levels).toEqual([1, 1, 1]);
     expect(migrateSave({ version: 4, position: [0, 0, 0] }).levels).toEqual([1, 1, 1]);
+  });
+});
+
+describe('main quests', () => {
+  const fresh = () => ({ progress: new ExplorationProgress([], 0, 0), map: new MapProgress('', [], []) });
+  const ids = (kind: string, count: number) =>
+    exploration.points.filter((p) => p.kind === kind).slice(0, count).map((p) => p.id);
+
+  it('starts at the first quest and is unmet with nothing found', () => {
+    const { progress, map } = fresh();
+    const counts = countsOf(progress, map);
+    expect(new QuestLog(0).current).toBe(quests[0]);
+    expect(statusOf(quests[0], counts)).toMatchObject({ have: 0, need: 1, done: false });
+  });
+
+  it('completes in order and pays out only once', () => {
+    const log = new QuestLog(0);
+    const { map } = fresh();
+    const progress = new ExplorationProgress([...ids('chest', 1), ...ids('collectible', 3)], 0, 0);
+    const counts = countsOf(progress, map);
+    expect(log.advance(counts)).toBe(quests[0]);
+    expect(log.advance(counts)).toBe(quests[1]);
+    expect(log.advance(counts)).toBeNull();
+    expect(log.current).toBe(quests[2]);
+  });
+
+  it('works through a quest step by step', () => {
+    const { map } = fresh();
+    const progress = new ExplorationProgress(ids('puzzle', 1), 0, 0);
+    const status = statusOf(quests[2], countsOf(progress, map));
+    expect(status.step.type).toBe('waypoint');
+    expect(status.done).toBe(false);
+  });
+
+  it('does not count the starting waypoint, and points at one still dark', () => {
+    const { progress, map } = fresh();
+    expect(countsOf(progress, map).waypoints).toBe(0);
+    const step = quests[2].steps[0];
+    const target = targetOf(step, progress, map, 0, 0)!;
+    expect(map.isUnlocked(mapConfig.waypoints.find((w) => w.x === target.x && w.z === target.z)!.id)).toBe(false);
+  });
+
+  it('is finished past the last quest and clamps a bad saved index', () => {
+    expect(new QuestLog(99).current).toBeNull();
+    expect(new QuestLog(-3).completed).toBe(0);
+    expect(migrateSave({ version: 5, position: [0, 0, 0] }).quest).toBe(0);
   });
 });

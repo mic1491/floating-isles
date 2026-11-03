@@ -4,7 +4,7 @@ import { Combat } from './combat/combat';
 import { isTouchDevice } from './core/device';
 import { qualitySettings, type QualityTier } from './core/quality';
 import { ExplorationField } from './exploration/field';
-import { exploration, ExplorationProgress, nextObjective } from './exploration/progress';
+import { bearingTo, exploration, ExplorationProgress, nextObjective } from './exploration/progress';
 import { Actions } from './input/actions';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
@@ -12,6 +12,7 @@ import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
 import { maxHpFor } from './party/growth';
 import { Party } from './party/party';
+import { countsOf, QuestLog, statusOf, targetOf } from './quests/quests';
 import { Avatar } from './player/avatar';
 import { Player } from './player/player';
 import { GameRenderer } from './render/renderer';
@@ -176,6 +177,37 @@ const boot = async (): Promise<void> => {
     void persist();
   });
   player.hp = save.hp > 0 ? Math.min(save.hp, player.maxHp) : player.maxHp;
+  const questLog = new QuestLog(save.quest);
+  const announceQuest = () => {
+    if (questLog.current) hud.toast(`${t('quest.title')}:${questLog.current.title} — ${questLog.current.intro}`);
+  };
+  // Quests read straight from what has been done, so a quest already met pays out at once.
+  const updateQuests = () => {
+    const done = questLog.advance(countsOf(progress, mapProgress));
+    if (!done) return;
+    progress.coins += done.reward.coins;
+    progress.shards += done.reward.shards;
+    showProgress();
+    hud.toast(`${t('quest.done')}:${done.title} · +${done.reward.coins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
+    if (questLog.current) announceQuest();
+    else hud.toast(t('quest.chapter'));
+    void persist();
+  };
+  const updateGoal = () => {
+    const { x, z } = player.position;
+    const quest = questLog.current;
+    if (quest) {
+      const status = statusOf(quest, countsOf(progress, mapProgress));
+      const label = status.step.type === 'find' ? t(`quest.find.${status.step.kind}`) : t('quest.waypoint');
+      const target = targetOf(status.step, progress, mapProgress, x, z);
+      const where = target ? ` · ${Math.round(Math.hypot(target.x - x, target.z - z))} m` : '';
+      hud.setGoal(`${quest.title} · ${label} ${status.have}/${status.need}${where}`, target ? bearingTo(target.x - x, target.z - z, orbit.yaw) : null);
+      return;
+    }
+    const goal = nextObjective(progress, x, z, orbit.yaw);
+    if (!goal) return hud.setGoal(null, null);
+    hud.setGoal(`${t('goal.prefix')}${t(`goal.${goal.point.kind}`)} · ${Math.round(goal.distance)} m`, goal.bearing);
+  };
   const growth = new GrowthView(ui, party, progress, {
     opened: () => {
       menu.keepPlaying = true;
@@ -241,6 +273,7 @@ const boot = async (): Promise<void> => {
       waypoints: mapProgress.unlockedIds,
       markers: mapProgress.markers,
       levels: party.levels,
+      quest: questLog.completed,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -250,6 +283,7 @@ const boot = async (): Promise<void> => {
   let last = performance.now();
   let saveTimer = AUTOSAVE_SECONDS;
   let deadTimer = 0;
+  let announced = false;
 
   const frame = (now: number) => {
     requestAnimationFrame(frame);
@@ -259,6 +293,10 @@ const boot = async (): Promise<void> => {
     terrain.update(player.position);
     grass.update(dt, player.position);
 
+    if (menu.playing && !announced) {
+      announced = true;
+      announceQuest();
+    }
     if (actions.mapPressed && menu.playing && !growth.open) map.toggle();
     if (actions.growthPressed && menu.playing && !map.open) growth.toggle();
 
@@ -303,7 +341,8 @@ const boot = async (): Promise<void> => {
     }
 
     sky.update(dt, player.position);
-    hud.setObjective(nextObjective(progress, player.position.x, player.position.z, orbit.yaw));
+    updateQuests();
+    updateGoal();
     hud.update(player, party);
     actions.endFrame();
     graphics.render();

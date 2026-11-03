@@ -153,9 +153,10 @@ body {
   padding: 8px 22px;
   border-radius: 12px;
   font-size: 17px;
-  white-space: nowrap;
+  max-width: min(90vw, 560px);
+  text-align: center;
   background: rgb(20 20 40 / 58%);
-  animation: toast 2.4s ease-out forwards;
+  animation: toast 3.4s ease-out forwards;
 }
 
 @keyframes toast {
@@ -648,4 +649,13 @@ body {
   margin: 0;
   font-size: 12px;
   opacity: 0.8;
+}
+
+@media (max-width: 900px) {
+  .goal {
+    top: 56px;
+    max-width: calc(100vw - 340px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }

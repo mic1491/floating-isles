@@ -4,7 +4,6 @@ import type { QualityTier } from '../core/quality';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
-import type { Objective } from '../exploration/progress';
 import { t } from './i18n';
 
 const div = (className: string, parent: HTMLElement, text = ''): HTMLDivElement => {
@@ -138,16 +137,11 @@ export class Hud {
       `${t('explore.progress')} ${found}/${total} · ${t('explore.coins')} ${coins} · ${t('explore.shards')} ${shards}`;
   }
 
-  /** The quest line: what to look for next, how far, and an arrow toward it. */
-  setObjective(objective: Objective | null): void {
-    this.goal.classList.toggle('done', objective === null);
-    if (!objective) {
-      this.goalText.textContent = t('goal.done');
-      return;
-    }
-    this.goalArrow.style.transform = `rotate(${objective.bearing}rad)`;
-    this.goalText.textContent =
-      `${t('goal.prefix')}${t(`goal.${objective.point.kind}`)} · ${Math.round(objective.distance)} m`;
+  /** The goal line: what to do next and an arrow toward it. `null` text means nothing is left to find. */
+  setGoal(text: string | null, bearing: number | null): void {
+    this.goal.classList.toggle('done', text === null || bearing === null);
+    this.goalText.textContent = text ?? t('goal.done');
+    if (bearing !== null) this.goalArrow.style.transform = `rotate(${bearing}rad)`;
   }
 
   setPrompt(visible: boolean): void {

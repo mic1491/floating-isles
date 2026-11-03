@@ -69,6 +69,10 @@ export const puzzleResponds = (
 ): boolean =>
   point.kind === 'puzzle' && point.element === element && distance <= radius + exploration.puzzleHitPadding;
 
+/** The angle to a target `dx`, `dz` away, relative to where the camera looks: 0 is ahead, positive is right. */
+export const bearingTo = (dx: number, dz: number, cameraYaw: number): number =>
+  Math.atan2(dx * Math.cos(cameraYaw) - dz * Math.sin(cameraYaw), -dx * Math.sin(cameraYaw) - dz * Math.cos(cameraYaw));
+
 export interface Objective {
   point: ExplorationPoint;
   distance: number;
@@ -94,9 +98,6 @@ export const nextObjective = (
     }
   }
   if (!best) return null;
-  const dx = best.x - x;
-  const dz = best.z - z;
-  const ahead = dx * -Math.sin(cameraYaw) + dz * -Math.cos(cameraYaw);
-  const right = dx * Math.cos(cameraYaw) + dz * -Math.sin(cameraYaw);
-  return { point: best, distance: bestDistance, bearing: Math.atan2(right, ahead) };
+  const bearing = bearingTo(best.x - x, best.z - z, cameraYaw);
+  return { point: best, distance: bestDistance, bearing };
 };

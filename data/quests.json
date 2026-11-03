@@ -1,0 +1,28 @@
+{
+  "quests": [
+    {
+      "id": "first-light",
+      "title": "第一道光",
+      "intro": "島上藏著古老的寶箱。去找到第一個吧。",
+      "steps": [{ "type": "find", "kind": "chest", "count": 1 }],
+      "reward": { "coins": 100, "shards": 1 }
+    },
+    {
+      "id": "shard-trail",
+      "title": "碎片的低語",
+      "intro": "浮光碎片會回應旅人的腳步,收集三枚。",
+      "steps": [{ "type": "find", "kind": "collectible", "count": 3 }],
+      "reward": { "coins": 150, "shards": 2 }
+    },
+    {
+      "id": "gate-of-elements",
+      "title": "元素之門",
+      "intro": "傳送點是舊時代的航標。點亮兩座,再用對應的元素解開一道封印。",
+      "steps": [
+        { "type": "waypoint", "count": 2 },
+        { "type": "find", "kind": "puzzle", "count": 1 }
+      ],
+      "reward": { "coins": 300, "shards": 4 }
+    }
+  ]
+}
