@@ -17,6 +17,8 @@ const zhTW = {
   'hud.stamina': '體力',
   'hud.quality.high': '畫質:高',
   'hud.quality.low': '畫質:低',
+  'hud.sound.on': '音效:開',
+  'hud.sound.off': '音效:關',
   'hud.pixel.on': '像素風:開',
   'hud.pixel.off': '像素風:關',
   'character.fire': '燼羽',

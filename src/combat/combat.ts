@@ -22,6 +22,9 @@ export interface CombatEvents {
   playerHurt(): void;
   elementArea(center: Vector3, radius: number, element: Element): void;
   impact(strength: number): void;
+  swing(step: number): void;
+  skill(): void;
+  burst(): void;
 }
 
 interface Projectile {
@@ -124,6 +127,7 @@ export class Combat {
     const gap = target ? target.position.distanceTo(this.player.position) : Infinity;
     const lungeScale = Number.isFinite(gap) ? Math.min(1, Math.max(0.15, (gap - 1.3) / style.lunge)) : 1;
     this.player.startAttack(this.comboStep, lungeScale);
+    this.events.swing(this.comboStep);
     this.strike = { step: this.comboStep, trailed: false, landed: false };
   }
 
@@ -153,6 +157,7 @@ export class Combat {
     if (this.party.skillCooldowns[i] > 0) return;
     const { skill, element, color } = this.party.active;
     this.party.skillCooldowns[i] = skill.cooldown;
+    this.events.skill();
     this.faceNearest();
     const center = this.player.position.clone().addScaledVector(this.player.facing, 3);
     center.y = terrainHeight(center.x, center.z) + 0.4;
@@ -165,6 +170,7 @@ export class Combat {
     if (this.party.energy[i] < cfg.energyMax) return;
     const { burst, element, color } = this.party.active;
     this.party.energy[i] = 0;
+    this.events.burst();
     this.fx.dome(this.player.position, burst.radius, color, 0.6);
     this.fx.ring(this.player.position, burst.radius, '#ffffff', 0.6);
     this.area(this.player.position, burst.radius, burst.damage * this.party.power, element);

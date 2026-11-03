@@ -92,11 +92,12 @@ export class Hud {
   }
 
   /** Adds a button to the top-right cluster, left of the existing ones. */
-  addButton(label: string, onClick: () => void): void {
+  addButton(label: string, onClick: () => void): HTMLButtonElement {
     const node = document.createElement('button');
     node.textContent = label;
     node.addEventListener('click', onClick);
     this.settings.prepend(node);
+    return node;
   }
 
   setQuality(tier: QualityTier): void {

@@ -6,6 +6,7 @@ import { qualitySettings, type QualityTier } from './core/quality';
 import { ExplorationField } from './exploration/field';
 import { bearingTo, exploration, ExplorationProgress, nextObjective } from './exploration/progress';
 import { Actions } from './input/actions';
+import { Sfx } from './audio/sfx';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
@@ -106,6 +107,13 @@ const boot = async (): Promise<void> => {
   }
 
   const actions = new Actions();
+  let muted = false;
+  try {
+    muted = localStorage.getItem('muted') === '1';
+  } catch {}
+  const sfx = new Sfx(muted);
+  addEventListener('pointerdown', () => sfx.unlock());
+  addEventListener('keydown', () => sfx.unlock());
   const orbit = new OrbitCamera(camera, physics, player.body);
   orbit.yaw = save.cameraYaw;
 
@@ -161,6 +169,7 @@ const boot = async (): Promise<void> => {
   const field = new ExplorationField(scene, progress, {
     discovered: (point) => {
       hud.toast(t(`found.${point.kind}`));
+      sfx.pickup();
       showProgress();
       void persist();
     },
@@ -174,6 +183,7 @@ const boot = async (): Promise<void> => {
   };
   const waypoints = new WaypointField(scene, mapProgress, () => {
     hud.toast(t('found.waypoint'));
+    sfx.pickup();
     void persist();
   });
   player.hp = save.hp > 0 ? Math.min(save.hp, player.maxHp) : player.maxHp;
@@ -188,6 +198,7 @@ const boot = async (): Promise<void> => {
     progress.coins += done.reward.coins;
     progress.shards += done.reward.shards;
     showProgress();
+    sfx.questDone();
     hud.toast(`${t('quest.done')}:${done.title} · +${done.reward.coins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
     if (questLog.current) announceQuest();
     else hud.toast(t('quest.chapter'));
@@ -224,11 +235,21 @@ const boot = async (): Promise<void> => {
       const gained = maxHpFor(party.levels) - player.maxHp;
       player.maxHp += gained;
       player.hp += gained;
+      sfx.upgrade();
       showProgress();
       void persist();
     },
   });
   hud.addButton(t('hud.growth'), () => growth.toggle());
+  const soundButton = hud.addButton('', () => {
+    muted = !muted;
+    sfx.setMuted(muted);
+    soundButton.textContent = t(muted ? 'hud.sound.off' : 'hud.sound.on');
+    try {
+      localStorage.setItem('muted', muted ? '1' : '0');
+    } catch {}
+  });
+  soundButton.textContent = t(muted ? 'hud.sound.off' : 'hud.sound.on');
   const map = new MapView(ui, mapProgress, progress, {
     opened: () => {
       menu.keepPlaying = true;
@@ -254,10 +275,22 @@ const boot = async (): Promise<void> => {
 
   const combat = new Combat(scene, player, party, {
     damage: (at, amount, color) => hud.floatText(at, String(amount), color),
-    reaction: (at, reaction) => hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true),
-    playerHurt: () => hud.flashHurt(),
+    reaction: (at, reaction) => {
+      hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true);
+      sfx.reaction();
+    },
+    playerHurt: () => {
+      hud.flashHurt();
+      sfx.hurt();
+    },
     elementArea: (center, radius, element) => field.elementHit(center, radius, element),
-    impact: (strength) => orbit.kick(strength),
+    impact: (strength) => {
+      orbit.kick(strength);
+      sfx.hit();
+    },
+    swing: (step) => sfx.swing(step),
+    skill: () => sfx.skill(),
+    burst: () => sfx.burst(),
   });
 
   const persist = () =>
@@ -358,7 +391,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, sfx } });
   }
 };
 
