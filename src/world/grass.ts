@@ -1,12 +1,15 @@
 import {
   BufferGeometry,
   Color,
+  DataTexture,
   DoubleSide,
   Euler,
   Float32BufferAttribute,
   InstancedMesh,
   Matrix4,
+  NearestFilter,
   Quaternion,
+  RedFormat,
   Vector3,
   type IUniform,
   type MeshToonMaterial,
@@ -19,10 +22,13 @@ import { flowerMask, isGrassy, terrainHeight } from './terrain';
 const TILE_SIZE = 12;
 const TILES_PER_FRAME = 1;
 const GRASS_FADE_END = 46;
+/** How many recent footfalls press the grass down at once, and how long each takes to spring back. */
+const STAMPS = 28;
+const STAMP_SECONDS = 6;
 
 /** Thin tapered blade: arcs forward, dark at the root and bright at the tip. */
 const bladeGeometry = (rows: number): BufferGeometry => {
-  const height = 0.52;
+  const height = 0.34;
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
@@ -58,6 +64,11 @@ const seeded = (seed: number) => () => {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 };
 
+const SOFT_RAMP = new DataTexture(new Uint8Array([105, 135, 160, 185, 207, 226, 242, 255]), 8, 1, RedFormat);
+SOFT_RAMP.minFilter = NearestFilter;
+SOFT_RAMP.magFilter = NearestFilter;
+SOFT_RAMP.needsUpdate = true;
+
 const SHADES = ['#8fd163', '#a8dc72', '#bfe47e', '#7cc35e'].map((c) => new Color(c));
 const PETALS = ['#e8dce2', '#f2c4dc', '#e8a3cc', '#f0d795'].map((c) => new Color(c));
 
@@ -68,6 +79,10 @@ export class GrassField {
   private geometry = bladeGeometry(6);
   private readonly material: MeshToonMaterial;
   private readonly time: IUniform<number> = { value: 0 };
+  /** Each footfall is (x, z, strength): the strength fades from 1 to 0 as the grass recovers. */
+  private readonly stamps = Array.from({ length: STAMPS }, () => new Vector3(0, 0, 0));
+  private readonly stampAge = new Array<number>(STAMPS).fill(STAMP_SECONDS);
+  private nextStamp = 0;
   private readonly active = new Map<string, InstancedMesh>();
   private readonly pool: InstancedMesh[] = [];
   private blades = 0;
@@ -75,11 +90,14 @@ export class GrassField {
 
   constructor(private readonly scene: Scene) {
     this.material = toonMaterial('#ffffff');
+    // Grass gets a finer ramp than the rest of the scene, so it shades smoothly instead of in four hard bands.
+    this.material.gradientMap = SOFT_RAMP;
     this.material.side = DoubleSide;
     this.material.vertexColors = true;
     this.material.onBeforeCompile = (shader) => {
       shader.uniforms.windTime = this.time;
-      shader.vertexShader = `uniform float windTime;\n${shader.vertexShader}`.replace(
+      shader.uniforms.trail = { value: this.stamps };
+      shader.vertexShader = `uniform float windTime;\nuniform vec3 trail[${STAMPS}];\n${shader.vertexShader}`.replace(
         '#include <begin_vertex>',
         `vec3 transformed = position;
          vec2 root = instanceMatrix[3].xz;
@@ -89,13 +107,25 @@ export class GrassField {
          float pick = fract(sin(dot(root, vec2(12.9898, 78.233))) * 43758.5453);
          float keep = 1.0 - smoothstep(6.0, ${GRASS_FADE_END.toFixed(1)}, dist);
          float visible = step(pick, keep * keep * 0.92 + 0.08 * keep);
-         float lean = position.y * position.y * 3.2;
+         // Footfalls press nearby blades flat and sideways; they spring back as the strength fades.
+         float press = 0.0;
+         vec2 shove = vec2(0.0);
+         for (int i = 0; i < ${STAMPS}; i++) {
+           vec2 away = root - trail[i].xy;
+           float k = smoothstep(1.0, 0.1, length(away)) * trail[i].z;
+           press = max(press, k);
+           shove += normalize(away + vec2(0.0001)) * k;
+         }
+         float lean = position.y * position.y * 6.0;
          float gust = sin(windTime * 1.6 + root.x * 0.22 + root.y * 0.17)
                     + 0.5 * sin(windTime * 3.1 + root.x * 0.6);
          transformed.x += gust * 0.12 * lean;
          transformed.z += 0.05 * sin(windTime * 2.3 + root.y * 0.4) * lean;
          // Far blades that survive are widened so the thinned field still reads as lawn.
          transformed.x *= 1.0 + smoothstep(8.0, ${GRASS_FADE_END.toFixed(1)}, dist) * 1.4;
+         transformed.y *= 1.0 - 0.8 * press;
+         vColor.rgb *= 1.0 - 0.3 * press;
+         transformed.xz += shove * 0.22 * position.y;
          transformed *= visible;`,
       );
       // Blades share an upward normal on both faces so they light like the ground.
@@ -121,8 +151,19 @@ export class GrassField {
     this.blades = Math.round(density * TILE_SIZE * TILE_SIZE);
   }
 
+  /** Presses the grass down where a foot just landed. */
+  stamp(x: number, z: number): void {
+    this.stamps[this.nextStamp].set(x, z, 1);
+    this.stampAge[this.nextStamp] = 0;
+    this.nextStamp = (this.nextStamp + 1) % STAMPS;
+  }
+
   update(dt: number, focus: Vector3): void {
     this.time.value += dt;
+    for (let i = 0; i < STAMPS; i++) {
+      this.stampAge[i] += dt;
+      this.stamps[i].z = Math.max(0, 1 - this.stampAge[i] / STAMP_SECONDS) ** 1.5;
+    }
     const fx = cellOf(focus.x, TILE_SIZE);
     const fz = cellOf(focus.z, TILE_SIZE);
     for (const [key, mesh] of this.active) {
@@ -162,7 +203,7 @@ export class GrassField {
       const x = (ix + random()) * TILE_SIZE;
       const z = (iz + random()) * TILE_SIZE;
       const spin = random();
-      const size = 0.7 + random() * 0.75;
+      const size = 0.75 + random() * 0.45;
       const roll = random();
       const shade = random();
       if (!isGrassy(x, z)) continue;
@@ -170,7 +211,7 @@ export class GrassField {
       rotation.setFromEuler(euler.set(0, spin * Math.PI, 0));
       scale.setScalar(size);
       mesh.setMatrixAt(placed, matrix.compose(position, rotation, scale));
-      const petal = roll < 0.04 + flowerMask(x, z) * 0.42;
+      const petal = roll < 0.015 + flowerMask(x, z) * 0.24;
       mesh.setColorAt(placed, pick(petal ? PETALS : SHADES, shade));
       placed++;
     }

@@ -65,6 +65,7 @@ export class Player {
   private dashCooldown = 0;
   private invulnerable = 0;
   private walkPhase = 0;
+  private walkSpeed = 0;
   private attack: { step: number; elapsed: number; id: number; lungeScale: number } | null = null;
   private attackCount = 0;
 
@@ -95,6 +96,11 @@ export class Player {
     this.weapon.position.set(0.42, 0.85, -0.45);
     this.placeholder.add(torso, head, hair, this.weapon);
     this.view.add(this.placeholder, this.glider.group);
+  }
+
+  /** Whether the player is on the ground and actually moving, so only real steps leave a trail. */
+  get walkingOnGround(): boolean {
+    return this.grounded && !this.gliding && this.walkSpeed > 0.5;
   }
 
   get alive(): boolean {
@@ -282,6 +288,7 @@ export class Player {
   }
 
   private updateView(dt: number, speed: number): void {
+    this.walkSpeed = speed;
     const before = Math.floor(this.walkPhase / Math.PI);
     this.walkPhase += speed * dt * 2.2;
     // One footfall each time the stride passes a half-turn, only while actually walking on the ground.

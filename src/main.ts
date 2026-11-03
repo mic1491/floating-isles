@@ -132,6 +132,16 @@ const boot = async (): Promise<void> => {
   const sfx = new Sfx(muted);
   addEventListener('pointerdown', () => sfx.unlock());
   addEventListener('keydown', () => sfx.unlock());
+  // Walking presses the grass down every half metre or so, leaving a path that springs back in seconds.
+  let stepSide = 1;
+  const lastStamp = new Vector3(Infinity, 0, 0);
+  const trampleGrass = () => {
+    const { position, facing } = player;
+    if (Math.hypot(position.x - lastStamp.x, position.z - lastStamp.z) < 0.5) return;
+    lastStamp.copy(position);
+    stepSide = -stepSide;
+    grass.stamp(position.x - facing.z * 0.18 * stepSide, position.z + facing.x * 0.18 * stepSide);
+  };
   player.events = {
     step: (speed) => sfx.step(speed),
     jump: () => {
@@ -416,6 +426,7 @@ const boot = async (): Promise<void> => {
 
     terrain.update(player.position);
     grass.update(dt, player.position);
+    if (menu.playing && player.alive && player.walkingOnGround) trampleGrass();
 
     // On a slow device, step down to the light setting by itself rather than leave the player lagging.
     if (tier === 'high' && menu.playing && fpsWatch.add(rawDt)) {
