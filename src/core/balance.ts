@@ -13,6 +13,8 @@ export interface CharacterDef {
   model?: string;
   /** Turns the model's hair, jacket and eyes by this many degrees, so one model can play several characters. */
   hue?: number;
+  /** `hair` limits the colour turn to hair and eyes, for a model whose clothes already have the right colours. */
+  hueParts?: 'hair' | 'all';
   weaponColor?: string;
   /** A glb sword; characters without one carry the plain built-in blade. */
   weaponModel?: string;

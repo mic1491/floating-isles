@@ -51,6 +51,7 @@ export interface AvatarLook {
   weaponColor: string;
   weaponModel?: string | null;
   hue?: number;
+  hairOnly?: boolean;
 }
 
 /** A VRM character posed from code, parented inside the player's view. */
@@ -124,7 +125,7 @@ export class Avatar {
     const gltf = await loader.loadAsync(url);
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
-    if (look.hue) shiftHue(avatar.vrm.scene, look.hue);
+    if (look.hue) shiftHue(avatar.vrm.scene, look.hue, look.hairOnly);
     addAccessories(avatar.vrm, look.element, look.color);
     let weapon: Group;
     if (look.weapon === 'staff') {

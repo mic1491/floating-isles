@@ -112,6 +112,7 @@ const boot = async (): Promise<void> => {
       weaponColor: member.weaponColor ?? member.color,
       weaponModel: member.weaponModel ? `${base}${member.weaponModel}` : null,
       hue: member.hue,
+      hairOnly: member.hueParts === 'hair',
     })
       .then((avatar) => player.addAvatar(member.id, avatar))
       .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));

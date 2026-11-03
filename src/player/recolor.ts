@@ -1,7 +1,8 @@
 import { Source, type Material, type Mesh, type Object3D, type Texture } from 'three';
 
 /** The painted parts that carry a character's identity; skin, face lines and shoes stay as drawn. */
-const TARGETS = /HAIR|Tops_|EyeIris/;
+const ALL_PARTS = /HAIR|Tops_|EyeIris/;
+const HAIR_PARTS = /HAIR|EyeIris/;
 const SLOTS = ['map', 'shadeMultiplyTexture'] as const;
 const MAX_SIZE = 512;
 
@@ -46,14 +47,15 @@ const rotated = (texture: Texture, degrees: number): Texture => {
 };
 
 /** Gives a model its own look by turning the hue of its hair, jacket and eyes. */
-export const shiftHue = (scene: Object3D, degrees: number): void => {
+export const shiftHue = (scene: Object3D, degrees: number, hairOnly = false): void => {
+  const parts = hairOnly ? HAIR_PARTS : ALL_PARTS;
   const done = new Map<Texture, Texture>();
   scene.traverse((node) => {
     const mesh = node as Mesh;
     if (!mesh.isMesh) return;
     const materials: Material[] = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     for (const material of materials) {
-      if (!TARGETS.test(material.name)) continue;
+      if (!parts.test(material.name)) continue;
       const slots = material as unknown as Record<string, Texture | null | undefined>;
       for (const slot of SLOTS) {
         const source = slots[slot];
