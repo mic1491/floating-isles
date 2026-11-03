@@ -8,6 +8,9 @@ import { addAccessories } from './accessories';
 import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type Clip, type ClipLibrary } from './clips';
 import { ATTACKS } from './attackTable';
 import { Locomotion } from './locomotion';
+import { plantWeight, solveKnee, swingBone } from './footIk';
+import { terrainHeight } from '../world/terrain';
+import type { Accessories } from './accessories';
 import { shiftHue } from './recolor';
 import { buildSword } from './swordModel';
 import { buildSpear, buildStaff } from './weaponModels';
@@ -92,6 +95,21 @@ export class Avatar {
   private weaponNode: Object3D | null = null;
   private clips: Map<string, Clip> | null = null;
   private move: Locomotion | null = null;
+  private cloth: Accessories | null = null;
+  private readonly ik = { weight: 0, offset: [0, 0], drop: 0 };
+  private readonly ikScratch = {
+    hip: new Vector3(),
+    knee: new Vector3(),
+    ankle: new Vector3(),
+    target: new Vector3(),
+    newKnee: new Vector3(),
+    clampedTarget: new Vector3(),
+    from: new Vector3(),
+    to: new Vector3(),
+    base: new Vector3(),
+    foot: new Quaternion(),
+    parent: new Quaternion(),
+  };
   private moveBones: string[] = [];
   private clipHipsScale = 1;
   /** Bones the recorded motion has moved that the hand-made one never touches, so they can be put back. */
@@ -171,7 +189,7 @@ export class Avatar {
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
     if (look.hue) shiftHue(avatar.vrm.scene, look.hue, look.hairOnly);
-    addAccessories(avatar.vrm, look.element, look.color);
+    avatar.cloth = addAccessories(avatar.vrm, look.element, look.color);
     let weapon: Group;
     if (look.weapon === 'staff') {
       weapon = buildStaff(look.weaponColor);
@@ -279,6 +297,73 @@ export class Avatar {
       this.node(bone as BoneName)?.quaternion.slerp(this.clipQuat, move.base);
     }
     this.hips.position.y += move.hipsY() * this.clipHipsScale * move.base;
+  }
+
+  /**
+   * Plants the feet on the ground under them. Each foot that is down is moved to the terrain's height at its own
+   * spot, by a two-bone solve through the knee, and the pelvis sinks so the lower foot can reach. Feet in the
+   * air part of a stride are left alone, so running still looks like running.
+   */
+  private applyFootIk(dt: number, motion: Motion): void {
+    const k = this.ikScratch;
+    const ik = this.ik;
+    const active = !motion.airborne && !motion.gliding && !motion.dashing;
+    ik.weight += ((active ? 1 : 0) - ik.weight) * (1 - Math.exp(-dt * 12));
+    if (ik.weight < 0.01) {
+      ik.drop = 0;
+      return;
+    }
+    this.root.updateWorldMatrix(true, true);
+    this.root.getWorldPosition(k.base);
+    const groundHere = terrainHeight(k.base.x, k.base.z);
+    const follow = 1 - Math.exp(-dt * 16);
+    const legs = [
+      ['leftUpperLeg', 'leftLowerLeg', 'leftFoot'],
+      ['rightUpperLeg', 'rightLowerLeg', 'rightFoot'],
+    ] as const;
+    const feet: Array<{ upper: Object3D; lower: Object3D; foot: Object3D; ankle: Vector3; facing: Quaternion }> = [];
+    let lowest = 0;
+    legs.forEach(([upperName, lowerName, footName], side) => {
+      const upper = this.node(upperName);
+      const lower = this.node(lowerName);
+      const foot = this.vrm.humanoid.getNormalizedBoneNode(footName);
+      if (!upper || !lower || !foot) return;
+      const ankle = foot.getWorldPosition(new Vector3());
+      const delta = terrainHeight(ankle.x, ankle.z) - groundHere;
+      const planted = plantWeight(ankle.y - k.base.y);
+      const want = Math.max(-0.4, Math.min(0.4, delta)) * planted;
+      ik.offset[side] += (want - ik.offset[side]) * follow;
+      lowest = Math.min(lowest, ik.offset[side]);
+      feet[side] = { upper, lower, foot, ankle, facing: foot.getWorldQuaternion(new Quaternion()) };
+    });
+    ik.drop += (Math.min(0.25, -lowest * 0.85) - ik.drop) * follow;
+    if (ik.drop < 0.002 && Math.abs(ik.offset[0]) < 0.003 && Math.abs(ik.offset[1]) < 0.003) return;
+    this.hips.position.y -= ik.drop * ik.weight;
+    this.root.updateWorldMatrix(true, true);
+    feet.forEach((leg, side) => {
+      if (!leg) return;
+      const { upper, lower, foot, ankle, facing } = leg;
+      k.target.copy(ankle);
+      k.target.y += ik.offset[side] * ik.weight;
+      upper.getWorldPosition(k.hip);
+      lower.getWorldPosition(k.knee);
+      foot.getWorldPosition(k.ankle);
+      solveKnee(k.hip, k.knee, k.ankle, k.target, k.newKnee, k.clampedTarget);
+      // Swing the thigh so the knee goes where the solve wants it, then the shin so the ankle follows.
+      k.from.copy(k.knee).sub(k.hip).normalize();
+      k.to.copy(k.newKnee).sub(k.hip).normalize();
+      swingBone(upper, k.from, k.to);
+      lower.getWorldPosition(k.knee);
+      foot.getWorldPosition(k.ankle);
+      k.from.copy(k.ankle).sub(k.knee).normalize();
+      k.to.copy(k.clampedTarget).sub(k.knee).normalize();
+      swingBone(lower, k.from, k.to);
+      // The foot keeps the way it was facing, rather than twisting with the shin.
+      lower.getWorldQuaternion(k.parent);
+      foot.quaternion.copy(k.parent.invert().multiply(facing));
+      foot.updateMatrix();
+      foot.updateWorldMatrix(false, true);
+    });
   }
 
   /** A short upper-body flinch when hurt. */
@@ -391,6 +476,8 @@ export class Avatar {
     this.aimSword(this.aimWeight, this.aimBlade);
     this.playClip(clip, motion);
     this.applyFlinch();
+    this.cloth?.update(dt, { time: motion.time, speed: motion.speed ?? motion.pace * 8.5, airborne: motion.airborne, turn: motion.turn ?? 0 });
+    this.applyFootIk(dt, motion);
     this.animateWeapon(motion);
     this.tickWeapon(motion.time);
     const blink = motion.time % BLINK_EVERY < BLINK_LENGTH ? 1 : 0;

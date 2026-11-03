@@ -26,6 +26,8 @@ export interface Motion {
   speed?: number;
   /** Seconds since the player was hurt. */
   hitAge?: number;
+  /** How fast the character is turning, in radians per second, for cloth to swing with. */
+  turn?: number;
   airborne: boolean;
   gliding: boolean;
   dashing: boolean;

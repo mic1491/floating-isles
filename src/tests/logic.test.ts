@@ -10,6 +10,7 @@ import { Stamina } from '../player/stamina';
 import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
+import { plantWeight, solveKnee } from '../player/footIk';
 import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
@@ -846,5 +847,37 @@ describe('recorded locomotion', () => {
     const last = sampleBone(jog, 'leftUpperLeg', jog.duration - 0.5 / jog.fps, q).clone();
     const first = sampleBone(jog, 'leftUpperLeg', 0, q).clone();
     expect(last.angleTo(first)).toBeLessThan(0.3);
+  });
+});
+
+describe('foot placement', () => {
+  it('holds a foot down only while it is near the ground', () => {
+    expect(plantWeight(0.05)).toBe(1);
+    expect(plantWeight(0.5)).toBe(0);
+    expect(plantWeight(0.2)).toBeGreaterThan(0);
+    expect(plantWeight(0.2)).toBeLessThan(1);
+  });
+
+  it('bends the knee so the ankle reaches a lower target, keeping the bone lengths', () => {
+    const hip = new Vector3(0, 1, 0);
+    const knee = new Vector3(0, 0.55, 0.1);
+    const ankle = new Vector3(0, 0.1, 0);
+    const newKnee = new Vector3();
+    const reached = new Vector3();
+    solveKnee(hip, knee, ankle, new Vector3(0, 0.2, 0.05), newKnee, reached);
+    expect(hip.distanceTo(newKnee)).toBeCloseTo(hip.distanceTo(knee), 4);
+    expect(newKnee.distanceTo(reached)).toBeCloseTo(knee.distanceTo(ankle), 4);
+    expect(reached.distanceTo(new Vector3(0, 0.2, 0.05))).toBeLessThan(1e-3);
+    expect(newKnee.z).toBeGreaterThan(0);
+  });
+
+  it('straightens the leg when the target is out of reach', () => {
+    const hip = new Vector3(0, 1, 0);
+    const knee = new Vector3(0, 0.55, 0.05);
+    const ankle = new Vector3(0, 0.1, 0);
+    const newKnee = new Vector3();
+    const reached = new Vector3();
+    solveKnee(hip, knee, ankle, new Vector3(0, -2, 0), newKnee, reached);
+    expect(hip.distanceTo(reached)).toBeCloseTo(hip.distanceTo(knee) + knee.distanceTo(ankle), 2);
   });
 });

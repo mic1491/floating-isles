@@ -66,6 +66,7 @@ export class Player {
   private invulnerable = 0;
   /** Seconds since the last hit taken, for the flinch. */
   private hitAge = 99;
+  private lastYaw = 0;
   private walkPhase = 0;
   private walkSpeed = 0;
   private attack: { step: number; elapsed: number; id: number; lungeScale: number } | null = null;
@@ -304,7 +305,10 @@ export class Player {
     const swinging = this.swinging;
     this.view.position.copy(this.position);
     this.view.position.y += this.grounded ? Math.abs(Math.sin(this.walkPhase)) * 0.06 * Math.min(1, speed) : 0;
-    this.view.rotation.y = Math.atan2(-this.facing.x, -this.facing.z);
+    const yaw = Math.atan2(-this.facing.x, -this.facing.z);
+    this.view.rotation.y = yaw;
+    const turn = dt > 0 ? Math.atan2(Math.sin(yaw - this.lastYaw), Math.cos(yaw - this.lastYaw)) / dt : 0;
+    this.lastYaw = yaw;
     this.view.rotation.x = this.gliding ? -0.5 : 0;
     this.clock += dt;
     this.avatar?.update(dt, {
@@ -313,6 +317,7 @@ export class Player {
       pace: Math.min(1, speed / cfg.sprintSpeed),
       speed,
       hitAge: this.hitAge,
+      turn,
       airborne: !this.grounded,
       gliding: this.gliding,
       dashing: this.dashTime > 0,
