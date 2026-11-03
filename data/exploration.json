@@ -4,10 +4,10 @@
   "viewpointRange": 4.5,
   "puzzleHitPadding": 1,
   "rewards": {
-    "chest": { "coins": 50, "shards": 0 },
-    "collectible": { "coins": 0, "shards": 1 },
-    "puzzle": { "coins": 100, "shards": 3 },
-    "viewpoint": { "coins": 0, "shards": 2 }
+    "chest": { "coins": 50, "shards": 0, "xp": 40 },
+    "collectible": { "coins": 0, "shards": 1, "xp": 15 },
+    "puzzle": { "coins": 100, "shards": 3, "xp": 80 },
+    "viewpoint": { "coins": 0, "shards": 2, "xp": 25 }
   },
   "points": [
     { "id": "chest-ruins", "kind": "chest", "x": -24, "z": -14 },

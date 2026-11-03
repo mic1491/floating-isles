@@ -23,6 +23,7 @@ export type EnemyKind = 'melee' | 'ranged' | 'charger' | 'bomber' | 'guard';
 export interface EnemyCfg {
   hp: number;
   coins: number;
+  xp: number;
   speed: number;
   damage: number;
   attackRange: number;

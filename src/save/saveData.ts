@@ -1,4 +1,6 @@
-export const SAVE_VERSION = 7;
+import { totalXpFor } from '../party/growth';
+
+export const SAVE_VERSION = 8;
 
 export interface SaveData {
   version: number;
@@ -13,7 +15,7 @@ export interface SaveData {
   fog: string;
   waypoints: string[];
   markers: Array<[number, number]>;
-  levels: number[];
+  xp: number[];
   quest: number;
   bossDefeated: boolean;
 }
@@ -31,7 +33,7 @@ export const defaultSave = (): SaveData => ({
   fog: '',
   waypoints: [],
   markers: [],
-  levels: [1, 1, 1],
+  xp: [0, 0, 0],
   quest: 0,
   bossDefeated: false,
 });
@@ -58,7 +60,7 @@ export const migrateSave = (raw: unknown): SaveData => {
     save.version = 4;
   }
   if (save.version === 4) {
-    save.levels = [1, 1, 1];
+    (save as { levels?: number[] }).levels = [1, 1, 1];
     save.version = 5;
   }
   if (save.version === 5) {
@@ -68,6 +70,13 @@ export const migrateSave = (raw: unknown): SaveData => {
   if (save.version === 6) {
     save.bossDefeated = false;
     save.version = 7;
+  }
+  if (save.version === 7) {
+    // Levels used to be bought with coins; keep each one by giving the experience it is worth.
+    const old = (save as { levels?: number[] }).levels ?? [];
+    save.xp = [0, 1, 2].map((i) => totalXpFor(Math.floor(Number(old[i]) || 1)));
+    delete (save as { levels?: number[] }).levels;
+    save.version = 8;
   }
   const merged = { ...defaultSave(), ...save };
   return merged.position.every(Number.isFinite) ? merged : defaultSave();

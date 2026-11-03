@@ -1,6 +1,7 @@
 import { Mesh, MeshBasicMaterial, Scene, SphereGeometry, Vector3, type Camera } from 'three';
 import { balance, type Element } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
+import type { Reward } from '../exploration/progress';
 import { ELEMENT_COLORS, Enemy, type EnemyKind } from '../enemies/enemy';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
@@ -26,7 +27,7 @@ export interface CombatEvents {
   swing(step: number): void;
   skill(): void;
   burst(): void;
-  defeated(at: Vector3, coins: number, shards: number): void;
+  defeated(at: Vector3, reward: Reward): void;
   shake(strength: number): void;
   announce(textKey: string): void;
 }
@@ -247,7 +248,7 @@ export class Combat {
     const dealt = enemy.hurt(amount);
     if (wasAlive && !enemy.alive) {
       const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
-      this.events.defeated(enemy.position, enemy.cfg.coins, shards);
+      this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: enemy.cfg.xp });
     }
     this.events.damage(enemy.position, Math.round(dealt), color);
   }

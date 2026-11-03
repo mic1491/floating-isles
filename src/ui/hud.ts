@@ -20,6 +20,8 @@ export class Hud {
   private readonly hpFill: HTMLElement;
   private readonly staminaFill: HTMLElement;
   private readonly staminaBar: HTMLElement;
+  private readonly xpFill: HTMLElement;
+  private readonly slotLevels: HTMLElement[] = [];
   private readonly slots: HTMLElement[] = [];
   private readonly skillLabel: HTMLElement;
   private readonly burstLabel: HTMLElement;
@@ -60,6 +62,7 @@ export class Hud {
     this.staminaBar = div('bar stamina', bars);
     this.staminaFill = div('fill', this.staminaBar);
     div('bar-label', this.staminaBar, t('hud.stamina'));
+    this.xpFill = div('fill', div('bar xp', bars));
 
     this.explore = div('explore', root);
     this.goal = div('goal', root);
@@ -75,6 +78,9 @@ export class Hud {
     party.members.forEach((member, i) => {
       const slot = div('slot', partyBar, `${i + 1} ${t(`character.${member.element}`)}`);
       slot.style.setProperty('--accent', member.color);
+      const level = document.createElement('small');
+      slot.append(level);
+      this.slotLevels.push(level);
       slot.addEventListener('pointerdown', (event) => {
         event.stopPropagation();
         actions.switchTo = i;
@@ -119,6 +125,11 @@ export class Hud {
     this.staminaFill.style.width = `${player.stamina.ratio * 100}%`;
     this.staminaBar.classList.toggle('low', player.stamina.ratio < 0.2);
     this.slots.forEach((slot, i) => slot.classList.toggle('active', i === party.activeIndex));
+    this.slotLevels.forEach((label, i) => {
+      const text = `Lv${party.levels[i]}`;
+      if (label.textContent !== text) label.textContent = text;
+    });
+    this.xpFill.style.width = `${party.info(party.activeIndex).ratio * 100}%`;
 
     const i = party.activeIndex;
     const cooldown = party.skillCooldowns[i];

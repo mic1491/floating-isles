@@ -95,7 +95,7 @@ const boot = async (): Promise<void> => {
   const player = new Player(physics, start);
   scene.add(player.view);
 
-  const party = new Party(save.activeCharacter, save.levels);
+  const party = new Party(save.activeCharacter, save.xp);
   player.maxHp = maxHpFor(party.levels);
   player.setCharacter(party.active);
   // Each model is loaded the first time its character is in the field, not all at start, so phones
@@ -190,11 +190,25 @@ const boot = async (): Promise<void> => {
   const showProgress = () =>
     hud.setExploration(progress.count, exploration.points.length, progress.coins, progress.shards);
   showProgress();
+  // Experience goes to whoever is in the field, with a share for the rest; a level-up heals fully.
+  const award = (xp: number) => {
+    if (xp <= 0) return;
+    const ups = party.gainXp(xp);
+    if (ups.length === 0) return;
+    for (const up of ups) {
+      hud.toast(`${t(`character.${party.members[up.index].element}`)} ${t('growth.levelUp')} Lv ${up.level}`);
+    }
+    sfx.upgrade();
+    player.maxHp = maxHpFor(party.levels);
+    player.hp = player.maxHp;
+    void persist();
+  };
   const field = new ExplorationField(scene, progress, {
-    discovered: (point) => {
+    discovered: (point, reward) => {
       hud.toast(t(`found.${point.kind}`));
       sfx.pickup();
       showProgress();
+      award(reward.xp);
       void persist();
     },
   });
@@ -222,6 +236,7 @@ const boot = async (): Promise<void> => {
     progress.coins += done.reward.coins;
     progress.shards += done.reward.shards;
     showProgress();
+    award(done.reward.xp);
     sfx.questDone();
     hud.toast(`${t('quest.done')}:${done.title} · +${done.reward.coins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
     if (questLog.current) announceQuest();
@@ -258,15 +273,6 @@ const boot = async (): Promise<void> => {
     closed: () => {
       if (!touch) void Promise.resolve(canvas.requestPointerLock()).catch(() => undefined);
       queueMicrotask(() => (menu.keepPlaying = false));
-    },
-    upgraded: () => {
-      // The new health is a gift: raise the ceiling and fill the gained amount.
-      const gained = maxHpFor(party.levels) - player.maxHp;
-      player.maxHp += gained;
-      player.hp += gained;
-      sfx.upgrade();
-      showProgress();
-      void persist();
     },
   });
   hud.addButton(t('hud.growth'), () => growth.toggle());
@@ -317,13 +323,16 @@ const boot = async (): Promise<void> => {
       orbit.kick(strength);
       sfx.hit();
     },
-    defeated: (at, coins, shards) => {
-      progress.coins += coins;
-      progress.shards += shards;
+    defeated: (at, reward) => {
+      progress.coins += reward.coins;
+      progress.shards += reward.shards;
       showProgress();
-      const gained = shards > 0 ? `+${coins} ${t('explore.coins')} +${shards} ${t('explore.shards')}` : `+${coins} ${t('explore.coins')}`;
-      hud.floatText(at, gained, '#ffd98a', shards > 0);
+      const parts = [`+${reward.coins} ${t('explore.coins')}`];
+      if (reward.shards > 0) parts.push(`+${reward.shards} ${t('explore.shards')}`);
+      parts.push(`+${reward.xp} ${t('growth.xp')}`);
+      hud.floatText(at, parts.join(' '), '#ffd98a', reward.shards > 0);
       sfx.coin();
+      award(reward.xp);
       if (!combat.boss.alive) {
         sfx.questDone();
         void persist();
@@ -350,7 +359,7 @@ const boot = async (): Promise<void> => {
       fog: mapProgress.fog.encode(),
       waypoints: mapProgress.unlockedIds,
       markers: mapProgress.markers,
-      levels: party.levels,
+      xp: party.xp,
       quest: questLog.completed,
       bossDefeated: !combat.boss.alive,
     });

@@ -7,7 +7,7 @@ import { FogGrid } from '../map/fogGrid';
 import { mapConfig, MapProgress } from '../map/mapProgress';
 import { computePose, type Motion } from '../player/avatarPose';
 import { Stamina } from '../player/stamina';
-import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth';
+import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
 import { Boss, type BossHost } from '../enemies/boss';
@@ -308,19 +308,44 @@ describe('next objective', () => {
 });
 
 describe('character growth', () => {
-  it('costs more with each level and stops at the cap', () => {
-    expect(upgradeCost(2).coins).toBeGreaterThan(upgradeCost(1).coins);
-    expect(canUpgrade(1, upgradeCost(1).coins, upgradeCost(1).shards)).toBe(true);
-    expect(canUpgrade(1, upgradeCost(1).coins - 1, 99)).toBe(false);
-    expect(canUpgrade(1, 99999, upgradeCost(1).shards - 1)).toBe(false);
-    expect(canUpgrade(10, 99999, 99999)).toBe(false);
+  it('asks a little more experience for every level and stops at the cap', () => {
+    expect(xpToNext(2)).toBeGreaterThan(xpToNext(1));
+    expect(xpToNext(MAX_LEVEL)).toBe(0);
+    expect(totalXpFor(1)).toBe(0);
+    expect(totalXpFor(2)).toBe(xpToNext(1));
   });
 
-  it("raises damage and the whole party's health with levels", () => {
+  it('turns experience into a level and progress toward the next', () => {
+    expect(levelOf(0)).toMatchObject({ level: 1, into: 0 });
+    const justShort = levelOf(xpToNext(1) - 1);
+    expect(justShort.level).toBe(1);
+    expect(levelOf(xpToNext(1))).toMatchObject({ level: 2, into: 0 });
+    expect(levelOf(totalXpFor(MAX_LEVEL) + 99999).level).toBe(MAX_LEVEL);
+    expect(levelOf(totalXpFor(MAX_LEVEL) + 99999).ratio).toBe(1);
+    for (let level = 1; level <= MAX_LEVEL; level++) expect(levelOf(totalXpFor(level)).level).toBe(level);
+  });
+
+  it("raises damage with level and the party's health with its strongest member", () => {
     expect(damageScale(1)).toBe(1);
-    expect(damageScale(5)).toBeGreaterThan(damageScale(2));
+    expect(damageScale(20)).toBeGreaterThan(damageScale(10));
     expect(maxHpFor([1, 1, 1])).toBe(100);
-    expect(maxHpFor([3, 1, 2])).toBeGreaterThan(maxHpFor([2, 1, 1]));
+    expect(maxHpFor([3, 1, 2])).toBe(maxHpFor([1, 3, 1]));
+    expect(maxHpFor([5, 1, 1])).toBeGreaterThan(maxHpFor([3, 1, 1]));
+  });
+
+  it('gives the active character all the experience and the others a share, and reports level-ups', () => {
+    const party = new Party(0);
+    const gain = xpToNext(1) + 2;
+    const ups = party.gainXp(gain);
+    expect(party.levels[0]).toBe(2);
+    expect(party.xp[1]).toBe(benchShare(gain));
+    expect(ups).toEqual([{ index: 0, level: 2 }]);
+    expect(party.gainXp(1)).toEqual([]);
+  });
+
+  it('starts everyone at level 1 and tolerates junk experience values', () => {
+    expect(new Party(0).levels).toEqual([1, 1, 1]);
+    expect(new Party(0, [totalXpFor(5), -50, Number.NaN]).levels).toEqual([5, 1, 1]);
   });
 
   it('spending takes nothing when it cannot be afforded', () => {
@@ -331,10 +356,11 @@ describe('character growth', () => {
     expect([progress.coins, progress.shards]).toEqual([10, 0]);
   });
 
-  it('party levels are clamped and old saves start at level 1', () => {
-    expect(new Party(0, [3, 99, -4]).levels).toEqual([3, 10, 1]);
-    expect(new Party(0).levels).toEqual([1, 1, 1]);
-    expect(migrateSave({ version: 4, position: [0, 0, 0] }).levels).toEqual([1, 1, 1]);
+  it('keeps old coin-bought levels by turning them into experience', () => {
+    const migrated = migrateSave({ version: 7, position: [0, 0, 0], levels: [4, 1, 7] });
+    expect(migrated.xp).toEqual([totalXpFor(4), 0, totalXpFor(7)]);
+    expect(migrated.version).toBe(SAVE_VERSION);
+    expect(new Party(0, migrated.xp).levels).toEqual([4, 1, 7]);
   });
 });
 

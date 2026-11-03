@@ -29,7 +29,7 @@
     "defaultDistance": 5.2
   },
   "party": { "switchCooldown": 1 },
-  "growth": { "maxLevel": 10, "coinsPerLevel": 50, "shardsPerLevel": 2, "damagePerLevel": 0.12, "hpPerLevel": 8 },
+  "growth": { "maxLevel": 20, "baseXp": 30, "xpPerLevel": 12, "damagePerLevel": 0.06, "hpPerLevel": 6, "benchShare": 0.5 },
   "combat": {
     "attackInterval": 0.38,
     "comboResetTime": 0.9,
@@ -91,6 +91,7 @@
     "melee": {
       "hp": 120,
       "coins": 12,
+      "xp": 12,
       "speed": 3.4,
       "damage": 10,
       "attackRange": 1.9,
@@ -103,6 +104,7 @@
     "ranged": {
       "hp": 80,
       "coins": 10,
+      "xp": 10,
       "speed": 2.6,
       "damage": 8,
       "attackRange": 11,
@@ -116,6 +118,7 @@
     "charger": {
       "hp": 150,
       "coins": 16,
+      "xp": 20,
       "speed": 3,
       "damage": 16,
       "attackRange": 11,
@@ -131,6 +134,7 @@
     "bomber": {
       "hp": 45,
       "coins": 8,
+      "xp": 8,
       "speed": 5.2,
       "damage": 18,
       "attackRange": 2.4,
@@ -143,6 +147,7 @@
     "guard": {
       "hp": 260,
       "coins": 22,
+      "xp": 28,
       "speed": 1.9,
       "damage": 14,
       "attackRange": 2.2,
@@ -158,6 +163,7 @@
       "hp": 800,
       "coins": 500,
       "shards": 6,
+      "xp": 400,
       "speed": 2.2,
       "damage": 20,
       "attackRange": 6,

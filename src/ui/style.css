@@ -646,7 +646,10 @@ body {
 
 .growth-note {
   margin: 0;
+  max-width: 560px;
   font-size: 12px;
+  line-height: 1.6;
+  text-align: center;
   opacity: 0.8;
 }
 
@@ -698,4 +701,30 @@ body {
   .boss {
     top: 96px;
   }
+}
+
+.growth-xpbar {
+  height: 8px;
+  border-radius: 5px;
+  background: rgb(255 255 255 / 18%);
+  overflow: hidden;
+}
+
+.growth-xpfill {
+  height: 100%;
+  background: linear-gradient(90deg, #6ac8ff, #b6e8ff);
+}
+
+.bar.xp {
+  height: 5px;
+}
+
+.bar.xp .fill {
+  background: linear-gradient(90deg, #6ac8ff, #b6e8ff);
+}
+
+.slot small {
+  margin-left: 6px;
+  font-size: 11px;
+  opacity: 0.85;
 }

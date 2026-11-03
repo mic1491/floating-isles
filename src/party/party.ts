@@ -1,5 +1,5 @@
 import { balance, type CharacterDef } from '../core/balance';
-import { damageScale } from './growth';
+import { benchShare, damageScale, levelOf, type LevelInfo } from './growth';
 
 export class Party {
   readonly members: CharacterDef[] = balance.characters;
@@ -8,11 +8,31 @@ export class Party {
   activeIndex: number;
   private switchCooldown = 0;
 
+  /** Experience each character has earned. */
+  readonly xp: number[];
+  /** Their levels, kept in step with `xp`. */
   readonly levels: number[];
 
-  constructor(activeIndex: number, levels: number[] = []) {
+  constructor(activeIndex: number, xp: number[] = []) {
     this.activeIndex = Math.min(activeIndex, this.members.length - 1);
-    this.levels = this.members.map((_, i) => Math.max(1, Math.min(balance.growth.maxLevel, Math.floor(levels[i] ?? 1))));
+    this.xp = this.members.map((_, i) => Math.max(0, Math.floor(Number(xp[i]) || 0)));
+    this.levels = this.xp.map((value) => levelOf(value).level);
+  }
+
+  info(index: number): LevelInfo {
+    return levelOf(this.xp[index]);
+  }
+
+  /** Shares out experience: the one in the field gets all of it, the rest half. Returns who levelled up. */
+  gainXp(amount: number): Array<{ index: number; level: number }> {
+    const ups: Array<{ index: number; level: number }> = [];
+    this.xp.forEach((value, i) => {
+      this.xp[i] = value + (i === this.activeIndex ? amount : benchShare(amount));
+      const level = levelOf(this.xp[i]).level;
+      if (level > this.levels[i]) ups.push({ index: i, level });
+      this.levels[i] = level;
+    });
+    return ups;
   }
 
   /** Damage multiplier of whoever is in the field. */

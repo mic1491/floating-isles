@@ -16,6 +16,7 @@ export const exploration = raw as Omit<typeof raw, 'points'> & { points: Explora
 export interface Reward {
   coins: number;
   shards: number;
+  xp: number;
 }
 
 /** What the player has found so far. Claiming a point twice never pays twice. */

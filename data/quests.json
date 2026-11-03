@@ -5,14 +5,14 @@
       "title": "第一道光",
       "intro": "島上藏著古老的寶箱。去找到第一個吧。",
       "steps": [{ "type": "find", "kind": "chest", "count": 1 }],
-      "reward": { "coins": 100, "shards": 1 }
+      "reward": { "coins": 100, "shards": 1, "xp": 60 }
     },
     {
       "id": "shard-trail",
       "title": "碎片的低語",
       "intro": "浮光碎片會回應旅人的腳步,收集三枚。",
       "steps": [{ "type": "find", "kind": "collectible", "count": 3 }],
-      "reward": { "coins": 150, "shards": 2 }
+      "reward": { "coins": 150, "shards": 2, "xp": 80 }
     },
     {
       "id": "gate-of-elements",
@@ -22,14 +22,14 @@
         { "type": "waypoint", "count": 2 },
         { "type": "find", "kind": "puzzle", "count": 1 }
       ],
-      "reward": { "coins": 300, "shards": 4 }
+      "reward": { "coins": 300, "shards": 4, "xp": 120 }
     },
     {
       "id": "guardian",
       "title": "浮石守衛",
       "intro": "遺跡深處的守衛正在甦醒。做好準備,把它擊倒。",
       "steps": [{ "type": "boss", "count": 1 }],
-      "reward": { "coins": 400, "shards": 6 }
+      "reward": { "coins": 400, "shards": 6, "xp": 200 }
     }
   ]
 }

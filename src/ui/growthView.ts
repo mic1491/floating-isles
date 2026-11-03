@@ -1,12 +1,11 @@
 import type { ExplorationProgress } from '../exploration/progress';
-import { canUpgrade, damageScale, MAX_LEVEL, upgradeCost } from '../party/growth';
+import { damageScale, MAX_LEVEL } from '../party/growth';
 import type { Party } from '../party/party';
 import { t } from './i18n';
 
 export interface GrowthEvents {
   opened(): void;
   closed(): void;
-  upgraded(): void;
 }
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, parent: HTMLElement, text = ''): HTMLElementTagNameMap[K] => {
@@ -19,12 +18,12 @@ const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, pa
 
 interface Card {
   level: HTMLElement;
+  fill: HTMLElement;
+  xp: HTMLElement;
   power: HTMLElement;
-  cost: HTMLElement;
-  upgrade: HTMLButtonElement;
 }
 
-/** The party screen: spend coins and shards to raise each character. */
+/** The party screen: each character's level, experience and strength. */
 export class GrowthView {
   open = false;
   private readonly overlay: HTMLElement;
@@ -41,16 +40,16 @@ export class GrowthView {
     el('h2', 'growth-title', this.overlay, t('growth.title'));
     this.wallet = el('div', 'growth-wallet', this.overlay);
     const row = el('div', 'growth-cards', this.overlay);
-    party.members.forEach((member, i) => {
+    party.members.forEach((member) => {
       const card = el('div', 'growth-card', row);
       card.style.setProperty('--accent', member.color);
       el('div', 'growth-name', card, t(`character.${member.element}`));
       const level = el('div', 'growth-level', card);
+      const bar = el('div', 'growth-xpbar', card);
+      const fill = el('div', 'growth-xpfill', bar);
+      const xp = el('div', 'growth-stat', card);
       const power = el('div', 'growth-stat', card);
-      const cost = el('div', 'growth-cost', card);
-      const upgrade = el('button', 'growth-upgrade', card, t('growth.upgrade'));
-      upgrade.addEventListener('click', () => this.upgrade(i));
-      this.cards.push({ level, power, cost, upgrade });
+      this.cards.push({ level, fill, xp, power });
     });
     el('p', 'growth-note', this.overlay, t('growth.note'));
     el('button', 'growth-close', this.overlay, t('map.close')).addEventListener('click', () => this.hide());
@@ -79,26 +78,14 @@ export class GrowthView {
     this.events.closed();
   }
 
-  private upgrade(index: number): void {
-    const level = this.party.levels[index];
-    if (!canUpgrade(level, this.progress.coins, this.progress.shards)) return;
-    const cost = upgradeCost(level);
-    if (!this.progress.spend(cost.coins, cost.shards)) return;
-    this.party.levels[index] = level + 1;
-    this.events.upgraded();
-    this.refresh();
-  }
-
   private refresh(): void {
     this.wallet.textContent = `${t('explore.coins')} ${this.progress.coins} · ${t('explore.shards')} ${this.progress.shards}`;
     this.cards.forEach((card, i) => {
-      const level = this.party.levels[i];
-      const maxed = level >= MAX_LEVEL;
-      const cost = upgradeCost(level);
-      card.level.textContent = `Lv ${level}${maxed ? ' (MAX)' : ''}`;
-      card.power.textContent = `${t('growth.damage')} ×${damageScale(level).toFixed(2)}`;
-      card.cost.textContent = maxed ? t('growth.maxed') : `${cost.coins} ${t('explore.coins')} + ${cost.shards} ${t('explore.shards')}`;
-      card.upgrade.disabled = !canUpgrade(level, this.progress.coins, this.progress.shards);
+      const info = this.party.info(i);
+      card.level.textContent = `Lv ${info.level}${info.level >= MAX_LEVEL ? ' (MAX)' : ''}`;
+      card.fill.style.width = `${info.ratio * 100}%`;
+      card.xp.textContent = info.need === 0 ? t('growth.maxed') : `${t('growth.xp')} ${info.into} / ${info.need}`;
+      card.power.textContent = `${t('growth.damage')} ×${damageScale(info.level).toFixed(2)}`;
     });
   }
 }
