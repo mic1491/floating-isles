@@ -16,6 +16,7 @@ const zhTW = {
   'hud.hp': '生命',
   'hud.stamina': '體力',
   'hud.quality.high': '畫質:高',
+  'hud.autoQuality': '偵測到畫面較卡,已自動改為低畫質',
   'hud.quality.low': '畫質:低',
   'hud.sound.on': '音效:開',
   'hud.sound.off': '音效:關',

@@ -7,6 +7,7 @@ import { ExplorationField } from './exploration/field';
 import { bearingTo, exploration, ExplorationProgress, nextObjective } from './exploration/progress';
 import { Actions } from './input/actions';
 import { Sfx } from './audio/sfx';
+import { FpsWatch } from './core/fpsWatch';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
@@ -117,6 +118,7 @@ const boot = async (): Promise<void> => {
   const orbit = new OrbitCamera(camera, physics, player.body);
   orbit.yaw = save.cameraYaw;
 
+  const fpsWatch = new FpsWatch();
   const applyQuality = () => {
     graphics.setQuality(tier, sky.sun);
     const settings = qualitySettings(tier);
@@ -140,6 +142,7 @@ const boot = async (): Promise<void> => {
     tier,
     () => {
       tier = tier === 'high' ? 'low' : 'high';
+      fpsWatch.stop();
       applyQuality();
       hud.setQuality(tier);
     },
@@ -328,12 +331,20 @@ const boot = async (): Promise<void> => {
 
   const frame = (now: number) => {
     requestAnimationFrame(frame);
-    const dt = Math.min((now - last) / 1000, MAX_FRAME);
+    const rawDt = (now - last) / 1000;
+    const dt = Math.min(rawDt, MAX_FRAME);
     last = now;
 
     terrain.update(player.position);
     grass.update(dt, player.position);
 
+    // On a slow device, step down to the light setting by itself rather than leave the player lagging.
+    if (tier === 'high' && menu.playing && fpsWatch.add(rawDt)) {
+      tier = 'low';
+      applyQuality();
+      hud.setQuality(tier);
+      hud.toast(t('hud.autoQuality'));
+    }
     if (menu.playing && !announced) {
       announced = true;
       announceQuest();

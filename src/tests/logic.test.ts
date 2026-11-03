@@ -7,6 +7,7 @@ import { mapConfig, MapProgress } from '../map/mapProgress';
 import { computePose, type Motion } from '../player/avatarPose';
 import { Stamina } from '../player/stamina';
 import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth';
+import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
 import { countsOf, QuestLog, quests, statusOf, targetOf } from '../quests/quests';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
@@ -376,5 +377,38 @@ describe('main quests', () => {
     expect(new QuestLog(99).current).toBeNull();
     expect(new QuestLog(-3).completed).toBe(0);
     expect(migrateSave({ version: 5, position: [0, 0, 0] }).quest).toBe(0);
+  });
+});
+
+describe('fps watch', () => {
+  const run = (watch: FpsWatch, frameSeconds: number, seconds: number): boolean => {
+    let fired = false;
+    for (let t = 0; t < seconds; t += frameSeconds) fired = watch.add(frameSeconds) || fired;
+    return fired;
+  };
+
+  it('leaves a device that holds its frame rate alone', () => {
+    expect(run(new FpsWatch(), 1 / 60, 60)).toBe(false);
+  });
+
+  it('fires after two slow windows in a row, only once', () => {
+    const watch = new FpsWatch();
+    expect(run(watch, 1 / 20, 4.9)).toBe(false);
+    expect(run(watch, 1 / 20, 5.2)).toBe(true);
+    expect(run(watch, 1 / 20, 30)).toBe(false);
+  });
+
+  it('forgives a single slow window, such as loading', () => {
+    const watch = new FpsWatch();
+    expect(run(watch, 1 / 20, 5.2)).toBe(false);
+    expect(run(watch, 1 / 60, 5.2)).toBe(false);
+    expect(run(watch, 1 / 20, 5.2)).toBe(false);
+  });
+
+  it('ignores stalls and stops when told to', () => {
+    const watch = new FpsWatch();
+    expect(run(watch, 2, 40)).toBe(false);
+    watch.stop();
+    expect(run(watch, 1 / 20, 30)).toBe(false);
   });
 });
