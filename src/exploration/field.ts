@@ -6,6 +6,7 @@ import {
   MeshBasicMaterial,
   DoubleSide,
   OctahedronGeometry,
+  PlaneGeometry,
   RingGeometry,
   SphereGeometry,
   TorusGeometry,
@@ -28,6 +29,7 @@ interface Site {
   glow: Mesh | null;
   orbiters: Mesh[];
   glyph: Mesh | null;
+  flag: Mesh | null;
   /** Counts down a short pop as a shard is collected. */
   pop: number;
   phase: number;
@@ -135,16 +137,41 @@ const buildPuzzle = (root: Group, element: Element): { crystal: Mesh; glyph: Mes
   return { crystal, glyph };
 };
 
-const buildViewpoint = (root: Group): Mesh => {
+const flagCloth = toonMaterial('#ff9a7a');
+flagCloth.side = DoubleSide;
+const FLAG_WIDTH = 1;
+const FLAG_COLUMNS = 8;
+
+/** A little lookout: stepped stone base, a pillar topped by a gem and beacon, and a flag that waves. */
+const buildViewpoint = (root: Group): { gem: Mesh; flag: Mesh } => {
+  const lower = outlined(new Mesh(new CylinderGeometry(1.9, 2.1, 0.25, 12), stone));
+  lower.position.y = 0.125;
+  const upper = outlined(new Mesh(new CylinderGeometry(1.35, 1.55, 0.25, 12), stone));
+  upper.position.y = 0.375;
   const post = outlined(new Mesh(new CylinderGeometry(0.28, 0.45, 2.4, 8), stone));
-  post.position.y = 1.2;
+  post.position.y = 1.7;
   const beacon = new Mesh(new CylinderGeometry(0.22, 0.22, 26, 8, 1, true), beaconMaterial);
   const gem = new Mesh(shardGeometry, shardMaterial);
-  gem.position.y = 2.8;
+  gem.position.y = 3.6;
   gem.add(beacon);
   beacon.position.y = 12;
-  root.add(post, gem);
-  return gem;
+
+  const pole = outlined(new Mesh(new CylinderGeometry(0.04, 0.05, 2.4, 6), gold));
+  pole.position.set(1.15, 1.7, 0);
+  const flag = new Mesh(new PlaneGeometry(FLAG_WIDTH, 0.55, FLAG_COLUMNS, 1), flagCloth);
+  flag.position.set(1.15 + FLAG_WIDTH / 2, 2.65, 0);
+  root.add(lower, upper, post, gem, pole, flag);
+  return { gem, flag };
+};
+
+/** Ripples the flag with the wind; the cloth is pinned to its pole and freer toward the tip. */
+const waveFlag = (flag: Mesh, time: number): void => {
+  const positions = flag.geometry.getAttribute('position');
+  for (let i = 0; i < positions.count; i++) {
+    const along = positions.getX(i) / FLAG_WIDTH + 0.5;
+    positions.setZ(i, Math.sin(time * 4 - along * 5) * 0.14 * along);
+  }
+  positions.needsUpdate = true;
 };
 
 /** Places every exploration point in the world and reacts to the player reaching them. */
@@ -162,7 +189,7 @@ export class ExplorationField {
       const position = new Vector3(point.x, terrainHeight(point.x, point.z), point.z);
       root.position.copy(position);
       root.rotation.y = (point.x + point.z) * 0.7;
-      const site: Site = { point, position, root, spinner: null, lid: null, glow: null, orbiters: [], glyph: null, pop: 0, phase: point.x };
+      const site: Site = { point, position, root, spinner: null, lid: null, glow: null, orbiters: [], glyph: null, flag: null, pop: 0, phase: point.x };
       if (point.kind === 'chest') {
         const chest = buildChest(root);
         site.lid = chest.lid;
@@ -178,7 +205,11 @@ export class ExplorationField {
         site.spinner = built.crystal;
         site.glyph = built.glyph;
       }
-      if (point.kind === 'viewpoint') site.spinner = buildViewpoint(root);
+      if (point.kind === 'viewpoint') {
+        const built = buildViewpoint(root);
+        site.spinner = built.gem;
+        site.flag = built.flag;
+      }
       scene.add(root);
       if (this.progress.has(point.id)) this.showDone(site, true);
       return site;
@@ -209,6 +240,7 @@ export class ExplorationField {
           if (site.pop <= 0) site.spinner.visible = false;
         }
       }
+      if (site.flag) waveFlag(site.flag, site.phase);
       if (site.glow?.visible) {
         site.glow.position.y = 1.5 + Math.sin(site.phase * 2.4) * 0.1;
         site.glow.scale.setScalar(1 + Math.sin(site.phase * 4) * 0.2);
