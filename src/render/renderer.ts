@@ -14,12 +14,15 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { qualitySettings, type QualitySettings, type QualityTier } from '../core/quality';
 import type { DirectionalLight } from 'three';
 
+const PIXEL_SIZE = 3;
+
 export class GameRenderer {
   readonly scene = new Scene();
   readonly camera = new PerspectiveCamera(58, 1, 0.1, 1800);
   private readonly renderer: WebGLRenderer;
   private readonly composer: EffectComposer;
   private settings!: QualitySettings;
+  private pixelArt = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
@@ -50,14 +53,22 @@ export class GameRenderer {
     this.resize();
   }
 
+  setPixelArt(on: boolean): void {
+    this.pixelArt = on;
+    this.resize();
+  }
+
   resize(): void {
     const width = innerWidth;
     const height = innerHeight;
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    this.renderer.setPixelRatio(this.settings.pixelRatio);
+    // Pixel style renders at a third of the resolution and scales up with hard edges.
+    const ratio = this.pixelArt ? 1 / PIXEL_SIZE : this.settings.pixelRatio;
+    this.renderer.domElement.style.imageRendering = this.pixelArt ? 'pixelated' : '';
+    this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(width, height);
-    this.composer.setPixelRatio(this.settings.pixelRatio);
+    this.composer.setPixelRatio(ratio);
     this.composer.setSize(width, height);
   }
 

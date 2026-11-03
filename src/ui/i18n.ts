@@ -17,6 +17,8 @@ const zhTW = {
   'hud.stamina': '體力',
   'hud.quality.high': '畫質:高',
   'hud.quality.low': '畫質:低',
+  'hud.pixel.on': '像素風:開',
+  'hud.pixel.off': '像素風:關',
   'character.fire': '燼羽',
   'character.water': '汐音',
   'character.thunder': '鳴川',

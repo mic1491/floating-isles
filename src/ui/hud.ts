@@ -26,6 +26,7 @@ export class Hud {
   private readonly floats: HTMLElement;
   private readonly hurtFlash: HTMLElement;
   private readonly quality: HTMLButtonElement;
+  private readonly pixel: HTMLButtonElement;
   private readonly explore: HTMLElement;
   private readonly prompt: HTMLElement;
   private readonly toasts: HTMLElement;
@@ -38,6 +39,8 @@ export class Hud {
     party: Party,
     tier: QualityTier,
     onQuality: () => void,
+    pixelArt: boolean,
+    onPixel: () => void,
   ) {
     this.floats = div('floats', root);
     this.hurtFlash = div('hurt-flash', root);
@@ -70,15 +73,22 @@ export class Hud {
     this.skillLabel = div('ability', abilities);
     this.burstLabel = div('ability', abilities);
 
+    const settings = div('settings', root);
     this.quality = document.createElement('button');
-    this.quality.className = 'quality';
     this.quality.addEventListener('click', onQuality);
-    root.append(this.quality);
+    this.pixel = document.createElement('button');
+    this.pixel.addEventListener('click', onPixel);
+    settings.append(this.pixel, this.quality);
     this.setQuality(tier);
+    this.setPixel(pixelArt);
   }
 
   setQuality(tier: QualityTier): void {
     this.quality.textContent = t(tier === 'high' ? 'hud.quality.high' : 'hud.quality.low');
+  }
+
+  setPixel(on: boolean): void {
+    this.pixel.textContent = t(on ? 'hud.pixel.on' : 'hud.pixel.off');
   }
 
   update(player: Player, party: Party): void {

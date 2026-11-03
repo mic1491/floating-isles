@@ -290,12 +290,17 @@ body {
   background: rgb(255 214 120 / 35%);
 }
 
-.quality {
-  pointer-events: auto;
+.settings {
   position: absolute;
   z-index: 5;
   right: max(20px, env(safe-area-inset-right));
   top: 18px;
+  display: flex;
+  gap: 8px;
+}
+
+.settings button {
+  pointer-events: auto;
   height: 38px;
   padding: 0 14px;
   border: 1px solid rgb(255 255 255 / 40%);

@@ -116,11 +116,33 @@ const boot = async (): Promise<void> => {
   applyQuality();
 
   bindKeyboardMouse(canvas, actions);
-  const hud = new Hud(ui, camera, actions, party, tier, () => {
-    tier = tier === 'high' ? 'low' : 'high';
-    applyQuality();
-    hud.setQuality(tier);
-  });
+  // A per-device look preference, so it lives in local storage rather than the save.
+  let pixelArt = false;
+  try {
+    pixelArt = localStorage.getItem('pixelArt') === '1';
+  } catch {}
+  graphics.setPixelArt(pixelArt);
+  const hud = new Hud(
+    ui,
+    camera,
+    actions,
+    party,
+    tier,
+    () => {
+      tier = tier === 'high' ? 'low' : 'high';
+      applyQuality();
+      hud.setQuality(tier);
+    },
+    pixelArt,
+    () => {
+      pixelArt = !pixelArt;
+      graphics.setPixelArt(pixelArt);
+      hud.setPixel(pixelArt);
+      try {
+        localStorage.setItem('pixelArt', pixelArt ? '1' : '0');
+      } catch {}
+    },
+  );
   if (touch) {
     bindTouch(ui, actions);
     const rotate = document.createElement('div');
