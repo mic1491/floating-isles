@@ -56,6 +56,10 @@
       "id": "water",
       "element": "water",
       "color": "#45b6ff",
+      "model": "assets/characters/ember_wing.vrm",
+      "hue": 210,
+      "weaponColor": "#45b6ff",
+      "weaponModel": "assets/weapons/ember_blade.glb",
       "attack": 10,
       "skill": { "damage": 26, "cooldown": 5, "radius": 5 },
       "burst": { "damage": 65, "radius": 9 }
@@ -64,6 +68,10 @@
       "id": "thunder",
       "element": "thunder",
       "color": "#b97aff",
+      "model": "assets/characters/ember_wing.vrm",
+      "hue": 275,
+      "weaponColor": "#b97aff",
+      "weaponModel": "assets/weapons/ember_blade.glb",
       "attack": 11,
       "skill": { "damage": 28, "cooldown": 4, "radius": 4 },
       "burst": { "damage": 70, "radius": 8 }

@@ -3,6 +3,7 @@ import { AdditiveBlending, Group, MathUtils, Mesh, MeshBasicMaterial, Quaternion
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { computePose, type BoneName, type Motion } from './avatarPose';
 import { addOutline, toonMaterial } from '../render/toon';
+import { shiftHue } from './recolor';
 import { buildSword } from './swordModel';
 
 const BLINK_EVERY = 3.6;
@@ -101,12 +102,13 @@ export class Avatar {
     return sword;
   }
 
-  static async load(url: string, weaponColor: string, weaponUrl: string | null = null): Promise<Avatar> {
+  static async load(url: string, weaponColor: string, weaponUrl: string | null = null, hue = 0): Promise<Avatar> {
     const loader = new GLTFLoader();
     loader.register((parser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(url);
     VRMUtils.combineSkeletons(gltf.scene);
     const avatar = new Avatar(gltf.userData.vrm as VRM);
+    if (hue) shiftHue(avatar.vrm.scene, hue);
     const sword = weaponUrl
       ? await Avatar.loadSword(weaponUrl, weaponColor).catch(() => buildSword(weaponColor))
       : buildSword(weaponColor);

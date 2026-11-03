@@ -8,6 +8,8 @@ export interface CharacterDef {
   color: string;
   /** Path under the site root; characters without one use the placeholder body. */
   model?: string;
+  /** Turns the model's hair, jacket and eyes by this many degrees, so one model can play several characters. */
+  hue?: number;
   weaponColor?: string;
   /** A glb sword; characters without one carry the plain built-in blade. */
   weaponModel?: string;

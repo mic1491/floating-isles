@@ -1,3 +1,4 @@
+import type { CharacterDef } from './core/balance';
 import { Vector3 } from 'three';
 import { OrbitCamera } from './camera/orbitCamera';
 import { Combat } from './combat/combat';
@@ -97,15 +98,19 @@ const boot = async (): Promise<void> => {
   const party = new Party(save.activeCharacter, save.levels);
   player.maxHp = maxHpFor(party.levels);
   player.setCharacter(party.active);
-  for (const member of party.members) {
-    if (!member.model) continue;
-    // The placeholder keeps the game playable while a model downloads, or if it fails.
+  // Each model is loaded the first time its character is in the field, not all at start, so phones
+  // do not decode three copies at once. The placeholder body stands in until it arrives, or if it fails.
+  const requested = new Set<string>();
+  const ensureAvatar = (member: CharacterDef) => {
+    if (!member.model || requested.has(member.id)) return;
+    requested.add(member.id);
     const base = import.meta.env.BASE_URL;
     const weapon = member.weaponModel ? `${base}${member.weaponModel}` : null;
-    Avatar.load(`${base}${member.model}`, member.weaponColor ?? member.color, weapon)
+    Avatar.load(`${base}${member.model}`, member.weaponColor ?? member.color, weapon, member.hue)
       .then((avatar) => player.addAvatar(member.id, avatar))
       .catch((error: unknown) => console.warn(`Could not load ${member.model}`, error));
-  }
+  };
+  ensureAvatar(party.active);
 
   const actions = new Actions();
   let muted = false;
@@ -372,6 +377,7 @@ const boot = async (): Promise<void> => {
 
     if (actions.switchTo !== null && party.trySwitch(actions.switchTo)) {
       player.setCharacter(party.active);
+      ensureAvatar(party.active);
     }
     party.update(dt);
     player.update(dt, actions, orbit.yaw);
