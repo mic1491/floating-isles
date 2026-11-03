@@ -112,6 +112,20 @@
       "leashRange": 24,
       "respawnDelay": 15,
       "projectileSpeed": 11
+    },
+    "boss": {
+      "hp": 800,
+      "coins": 500,
+      "shards": 6,
+      "speed": 2.2,
+      "damage": 20,
+      "attackRange": 6,
+      "attackWindup": 1,
+      "attackCooldown": 1.4,
+      "aggroRange": 26,
+      "leashRange": 46,
+      "respawnDelay": 0,
+      "home": [-46, -84]
     }
   }
 }

@@ -26,6 +26,7 @@ export class Enemy {
   readonly view = new Group();
   readonly position: Vector3;
   readonly cfg;
+  readonly radius = 0;
   state: EnemyState = 'patrol';
   hp: number;
   aura: Element | null = null;

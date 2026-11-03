@@ -1,5 +1,6 @@
 import { Mesh, MeshBasicMaterial, Scene, SphereGeometry, Vector3, type Camera } from 'three';
 import { balance, type Element } from '../core/balance';
+import { Boss, type BossHost } from '../enemies/boss';
 import { ELEMENT_COLORS, Enemy, type EnemyKind } from '../enemies/enemy';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
@@ -25,8 +26,13 @@ export interface CombatEvents {
   swing(step: number): void;
   skill(): void;
   burst(): void;
-  defeated(at: Vector3, coins: number): void;
+  defeated(at: Vector3, coins: number, shards: number): void;
+  shake(strength: number): void;
+  announce(textKey: string): void;
 }
+
+/** Anything the player's attacks can land on. */
+export type Fighter = Enemy | Boss;
 
 interface Projectile {
   mesh: Mesh;
@@ -53,7 +59,8 @@ const orb = new SphereGeometry(0.22, 10, 8);
 const orbMaterial = new MeshBasicMaterial({ color: '#ff8fd0' });
 
 export class Combat {
-  readonly enemies: Enemy[];
+  readonly enemies: Fighter[];
+  readonly boss: Boss;
   private readonly fx: Fx;
   private readonly projectiles: Projectile[] = [];
   private comboTimer = 0;
@@ -69,6 +76,7 @@ export class Combat {
     private readonly player: Player,
     private readonly party: Party,
     private readonly events: CombatEvents,
+    bossDefeated = false,
   ) {
     this.fx = new Fx(scene);
     this.enemies = SPAWNS.map(([kind, x, z]) => {
@@ -76,6 +84,18 @@ export class Combat {
       scene.add(enemy.view);
       return enemy;
     });
+    const host: BossHost = {
+      hurtPlayer: (amount) => {
+        if (this.player.takeDamage(amount)) this.events.playerHurt();
+      },
+      shoot: (from, velocity, damage) => this.launch(from, velocity, damage),
+      burst: (at, radius, color, life) => this.fx.ring(at, radius, color, life),
+      shake: (strength) => this.events.shake(strength),
+      announce: (key) => this.events.announce(key),
+    };
+    this.boss = new Boss(bossDefeated, host, scene);
+    scene.add(this.boss.view);
+    this.enemies.push(this.boss);
   }
 
   update(dt: number, actions: Actions, camera: Camera): void {
@@ -91,7 +111,7 @@ export class Combat {
 
     for (const enemy of this.enemies) {
       const landed = enemy.update(dt, this.player.position, this.player.alive, camera);
-      if (landed) this.enemyAttack(enemy);
+      if (landed && enemy instanceof Enemy) this.enemyAttack(enemy);
       this.tickElectro(enemy, dt);
     }
     this.updateProjectiles(dt);
@@ -125,7 +145,7 @@ export class Combat {
     this.comboTimer = style.duration + 0.35;
     const target = this.faceNearest();
     // Step in only as far as needed to reach a target; stop short of walking through it.
-    const gap = target ? target.position.distanceTo(this.player.position) : Infinity;
+    const gap = target ? this.reach(target, this.player.position) : Infinity;
     const lungeScale = Number.isFinite(gap) ? Math.min(1, Math.max(0.15, (gap - 1.3) / style.lunge)) : 1;
     this.player.startAttack(this.comboStep, lungeScale);
     this.events.swing(this.comboStep);
@@ -186,11 +206,11 @@ export class Combat {
   private area(center: Vector3, radius: number, damage: number, element: Element): void {
     this.events.elementArea(center, radius, element);
     for (const enemy of this.enemies) {
-      if (enemy.alive && enemy.position.distanceTo(center) <= radius) this.hit(enemy, damage, element);
+      if (enemy.alive && this.reach(enemy, center) <= radius) this.hit(enemy, damage, element);
     }
   }
 
-  private hit(enemy: Enemy, base: number, element: Element | null): void {
+  private hit(enemy: Fighter, base: number, element: Element | null): void {
     let damage = base;
     let color = element ? ELEMENT_COLORS[element] : '#ffffff';
     const reaction = element ? reactionOf(enemy.aura, element) : null;
@@ -211,24 +231,27 @@ export class Combat {
     this.hitstop = Math.max(this.hitstop, cfg.hitstop);
   }
 
-  private applyDamage(enemy: Enemy, amount: number, color: string): void {
+  private applyDamage(enemy: Fighter, amount: number, color: string): void {
     const wasAlive = enemy.alive;
     enemy.hurt(amount);
-    if (wasAlive && !enemy.alive) this.events.defeated(enemy.position, enemy.cfg.coins);
+    if (wasAlive && !enemy.alive) {
+      const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
+      this.events.defeated(enemy.position, enemy.cfg.coins, shards);
+    }
     this.events.damage(enemy.position, Math.round(amount), color);
   }
 
-  private overload(source: Enemy): void {
+  private overload(source: Fighter): void {
     const center = source.position.clone();
     this.fx.dome(center.clone().setY(center.y + 0.6), rx.overloadRadius, ELEMENT_COLORS.fire, 0.45);
     for (const enemy of this.enemies) {
-      if (!enemy.alive || enemy.position.distanceTo(center) > rx.overloadRadius) continue;
+      if (!enemy.alive || this.reach(enemy, center) > rx.overloadRadius) continue;
       this.applyDamage(enemy, rx.overloadDamage, ELEMENT_COLORS.fire);
       enemy.push(center, rx.overloadKnockback);
     }
   }
 
-  private tickElectro(enemy: Enemy, dt: number): void {
+  private tickElectro(enemy: Fighter, dt: number): void {
     if (enemy.electroTicks <= 0 || !enemy.alive) return;
     enemy.electroTimer -= dt;
     if (enemy.electroTimer > 0) return;
@@ -245,19 +268,24 @@ export class Combat {
     }
   }
 
-  private inArc(enemy: Enemy): boolean {
+  private inArc(enemy: Fighter): boolean {
     const to = new Vector3().subVectors(enemy.position, this.player.position).setY(0);
-    if (to.length() > cfg.attackRange) return false;
-    return to.length() < 0.6 || to.normalize().angleTo(this.player.facing.clone().setY(0).normalize()) < cfg.attackArc;
+    if (to.length() - enemy.radius > cfg.attackRange) return false;
+    return to.length() - enemy.radius < 0.6 || to.normalize().angleTo(this.player.facing.clone().setY(0).normalize()) < cfg.attackArc;
   }
 
   /** Light auto-aim so attacks stay usable on touch screens. */
-  private faceNearest(): Enemy | null {
-    let best: Enemy | null = null;
+  /** Distance to the edge of a fighter rather than its centre, so a giant is not out of reach at arm's length. */
+  private reach(enemy: Fighter, point: Vector3): number {
+    return Math.max(0, enemy.position.distanceTo(point) - enemy.radius);
+  }
+
+  private faceNearest(): Fighter | null {
+    let best: Fighter | null = null;
     let bestDistance = cfg.attackRange + 3;
     for (const enemy of this.enemies) {
       if (!enemy.alive) continue;
-      const distance = enemy.position.distanceTo(this.player.position);
+      const distance = this.reach(enemy, this.player.position);
       if (distance < bestDistance) {
         best = enemy;
         bestDistance = distance;
@@ -269,16 +297,21 @@ export class Combat {
 
   private enemyAttack(enemy: Enemy): void {
     if (enemy.kind === 'ranged') {
-      const mesh = new Mesh(orb, orbMaterial);
-      mesh.position.copy(enemy.position).setY(enemy.position.y + 1);
+      const from = enemy.position.clone().setY(enemy.position.y + 1);
       const target = this.player.position.clone().setY(this.player.position.y + 0.9);
-      const velocity = target.sub(mesh.position).normalize().multiplyScalar(enemy.cfg.projectileSpeed ?? 10);
-      this.scene.add(mesh);
-      this.projectiles.push({ mesh, velocity, damage: enemy.cfg.damage, life: 2.5 });
+      const velocity = target.sub(from).normalize().multiplyScalar(enemy.cfg.projectileSpeed ?? 10);
+      this.launch(from, velocity, enemy.cfg.damage);
       return;
     }
     if (enemy.position.distanceTo(this.player.position) > enemy.cfg.attackRange * 1.3) return;
     if (this.player.takeDamage(enemy.cfg.damage)) this.events.playerHurt();
+  }
+
+  private launch(from: Vector3, velocity: Vector3, damage: number): void {
+    const mesh = new Mesh(orb, orbMaterial);
+    mesh.position.copy(from);
+    this.scene.add(mesh);
+    this.projectiles.push({ mesh, velocity, damage, life: 2.5 });
   }
 
   private updateProjectiles(dt: number): void {

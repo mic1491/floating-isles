@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 
 export interface SaveData {
   version: number;
@@ -15,6 +15,7 @@ export interface SaveData {
   markers: Array<[number, number]>;
   levels: number[];
   quest: number;
+  bossDefeated: boolean;
 }
 
 export const defaultSave = (): SaveData => ({
@@ -32,6 +33,7 @@ export const defaultSave = (): SaveData => ({
   markers: [],
   levels: [1, 1, 1],
   quest: 0,
+  bossDefeated: false,
 });
 
 /** Upgrades older saves one version at a time and rejects anything unreadable. */
@@ -62,6 +64,10 @@ export const migrateSave = (raw: unknown): SaveData => {
   if (save.version === 5) {
     save.quest = 0;
     save.version = 6;
+  }
+  if (save.version === 6) {
+    save.bossDefeated = false;
+    save.version = 7;
   }
   const merged = { ...defaultSave(), ...save };
   return merged.position.every(Number.isFinite) ? merged : defaultSave();

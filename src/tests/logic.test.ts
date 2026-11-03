@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reactionOf } from '../combat/reactions';
+import { Group, Vector3 } from 'three';
 import { exploration, ExplorationProgress, nextObjective, puzzleResponds } from '../exploration/progress';
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
 import { FogGrid } from '../map/fogGrid';
@@ -9,6 +10,7 @@ import { Stamina } from '../player/stamina';
 import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
+import { Boss, type BossHost } from '../enemies/boss';
 import { countsOf, QuestLog, quests, statusOf, targetOf } from '../quests/quests';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
@@ -410,5 +412,89 @@ describe('fps watch', () => {
     expect(run(watch, 2, 40)).toBe(false);
     watch.stop();
     expect(run(watch, 1 / 20, 30)).toBe(false);
+  });
+});
+
+describe('world boss', () => {
+  const host = () => {
+    const calls = { announced: [] as string[], hurt: [] as number[] };
+    const api: BossHost = {
+      hurtPlayer: (amount) => calls.hurt.push(amount),
+      shoot: () => undefined,
+      burst: () => undefined,
+      shake: () => undefined,
+      announce: (key) => calls.announced.push(key),
+    };
+    return { calls, api };
+  };
+  const near = new Vector3(-46, 0, -76);
+
+  it('sleeps until the player comes close, then wakes', () => {
+    const { api } = host();
+    const boss = new Boss(false, api, new Group());
+    boss.update(0.016, new Vector3(0, 0, 0), true);
+    expect(boss.awake).toBe(false);
+    boss.update(0.016, near, true);
+    expect(boss.awake).toBe(true);
+  });
+
+  it('moves through three phases as its health falls, announcing each once', () => {
+    const { api, calls } = host();
+    const boss = new Boss(false, api, new Group());
+    boss.update(0.016, near, true);
+    expect(boss.phase).toBe(1);
+    boss.hurt(boss.cfg.hp * 0.4);
+    expect(boss.phase).toBe(2);
+    boss.hurt(1);
+    expect(boss.phase).toBe(2);
+    boss.hurt(boss.cfg.hp * 0.3);
+    expect(boss.phase).toBe(3);
+    expect(calls.announced).toEqual(['boss.phase2', 'boss.phase3']);
+  });
+
+  it('dies for good once its health runs out', () => {
+    const { api } = host();
+    const boss = new Boss(false, api, new Group());
+    boss.update(0.016, near, true);
+    boss.hurt(boss.cfg.hp + 1);
+    expect(boss.alive).toBe(false);
+    expect(new Boss(true, api, new Group()).alive).toBe(false);
+    expect(new Boss(true, api, new Group()).view.visible).toBe(false);
+  });
+
+  it('heals and goes back to sleep when the player falls', () => {
+    const { api } = host();
+    const boss = new Boss(false, api, new Group());
+    boss.update(0.016, near, true);
+    boss.hurt(300);
+    boss.update(0.016, near, false);
+    expect(boss.awake).toBe(false);
+    expect(boss.hp).toBe(boss.cfg.hp);
+    expect(boss.phase).toBe(1);
+  });
+
+  it('warns on the ground before anything hits, and every attack waits at least half a second', () => {
+    const { api, calls } = host();
+    const arena = new Group();
+    const boss = new Boss(false, api, arena);
+    const player = near.clone();
+    let firstWarning = -1;
+    let firstHit = -1;
+    for (let frame = 0; frame < 60 * 12 && firstHit < 0; frame++) {
+      boss.update(1 / 60, player, true);
+      if (firstWarning < 0 && arena.children.length > 0) firstWarning = frame / 60;
+      if (calls.hurt.length > 0) firstHit = frame / 60;
+    }
+    expect(firstWarning).toBeGreaterThanOrEqual(0);
+    expect(firstHit - firstWarning).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('counts as a quest step once defeated', () => {
+    const progress = new ExplorationProgress([], 0, 0);
+    const map = new MapProgress('', [], []);
+    const guardian = quests.find((q) => q.id === 'guardian')!;
+    expect(statusOf(guardian, countsOf(progress, map, false)).done).toBe(false);
+    expect(statusOf(guardian, countsOf(progress, map, true)).done).toBe(true);
+    expect(migrateSave({ version: 6, position: [0, 0, 0] }).bossDefeated).toBe(false);
   });
 });

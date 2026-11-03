@@ -23,6 +23,13 @@
         { "type": "find", "kind": "puzzle", "count": 1 }
       ],
       "reward": { "coins": 300, "shards": 4 }
+    },
+    {
+      "id": "guardian",
+      "title": "浮石守衛",
+      "intro": "遺跡深處的守衛正在甦醒。做好準備,把它擊倒。",
+      "steps": [{ "type": "boss", "count": 1 }],
+      "reward": { "coins": 400, "shards": 6 }
     }
   ]
 }

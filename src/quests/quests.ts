@@ -1,9 +1,12 @@
 import raw from '../../data/quests.json';
 import { exploration, type ExplorationProgress, type ExplorationPoint, type PointKind, type Reward } from '../exploration/progress';
-import type { Element } from '../core/balance';
+import { balance, type Element } from '../core/balance';
 import { mapConfig, type MapProgress } from '../map/mapProgress';
 
-export type Step = { type: 'find'; kind: PointKind; count: number } | { type: 'waypoint'; count: number };
+export type Step =
+  | { type: 'find'; kind: PointKind; count: number }
+  | { type: 'waypoint'; count: number }
+  | { type: 'boss'; count: number };
 
 export interface Quest {
   id: string;
@@ -20,17 +23,18 @@ export interface Counts {
   find: Record<PointKind, number>;
   /** Waypoints the player lit up themselves; the one they start at does not count. */
   waypoints: number;
+  bossDefeated: boolean;
 }
 
-export const countsOf = (progress: ExplorationProgress, map: MapProgress): Counts => {
+export const countsOf = (progress: ExplorationProgress, map: MapProgress, bossDefeated = false): Counts => {
   const find: Record<PointKind, number> = { chest: 0, collectible: 0, puzzle: 0, viewpoint: 0 };
   for (const point of exploration.points) if (progress.has(point.id)) find[point.kind]++;
   const waypoints = mapConfig.waypoints.filter((w) => !w.starter && map.isUnlocked(w.id)).length;
-  return { find, waypoints };
+  return { find, waypoints, bossDefeated };
 };
 
 const have = (step: Step, counts: Counts): number =>
-  step.type === 'find' ? counts.find[step.kind] : counts.waypoints;
+  step.type === 'find' ? counts.find[step.kind] : step.type === 'waypoint' ? counts.waypoints : Number(counts.bossDefeated);
 
 export interface Status {
   /** The first step not yet met; the last one when everything is met. */
@@ -54,6 +58,10 @@ export const targetOf = (
   x: number,
   z: number,
 ): { x: number; z: number; element?: Element } | null => {
+  if (step.type === 'boss') {
+    const [x, z] = balance.enemies.boss.home;
+    return { x, z };
+  }
   const candidates: Array<{ x: number; z: number; element?: Element }> =
     step.type === 'find'
       ? exploration.points.filter((p: ExplorationPoint) => p.kind === step.kind && !progress.has(p.id))

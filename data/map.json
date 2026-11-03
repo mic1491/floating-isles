@@ -10,6 +10,7 @@
     { "id": "wp-east-rise", "x": 74, "z": -26 },
     { "id": "wp-south-field", "x": 10, "z": 88 },
     { "id": "wp-north-shore", "x": -20, "z": -86 },
-    { "id": "wp-west-coast", "x": -100, "z": 48 }
+    { "id": "wp-west-coast", "x": -100, "z": 48 },
+    { "id": "wp-guardian", "x": -30, "z": -62 }
   ]
 }

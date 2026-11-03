@@ -32,6 +32,9 @@ export class Hud {
   private readonly goal: HTMLElement;
   private readonly goalArrow: HTMLElement;
   private readonly goalText: HTMLElement;
+  private readonly boss: HTMLElement;
+  private readonly bossFill: HTMLElement;
+  private readonly bossName: HTMLElement;
   private readonly prompt: HTMLElement;
   private readonly toasts: HTMLElement;
   private readonly fadeLayer: HTMLElement;
@@ -62,6 +65,9 @@ export class Hud {
     this.goal = div('goal', root);
     this.goalArrow = div('goal-arrow', this.goal, '▲');
     this.goalText = div('goal-text', this.goal);
+    this.boss = div('boss', root);
+    this.bossName = div('boss-name', this.boss);
+    this.bossFill = div('fill', div('boss-bar', this.boss));
     this.prompt = div('prompt', root, t('explore.prompt'));
     this.toasts = div('toasts', root);
 
@@ -143,6 +149,14 @@ export class Hud {
     this.goal.classList.toggle('done', text === null || bearing === null);
     this.goalText.textContent = text ?? t('goal.done');
     if (bearing !== null) this.goalArrow.style.transform = `rotate(${bearing}rad)`;
+  }
+
+  /** The big health bar shown while a boss is awake; `null` hides it. */
+  setBoss(name: string | null, ratio = 1, phase = 1): void {
+    this.boss.classList.toggle('on', name !== null);
+    if (name === null) return;
+    this.bossName.textContent = `${name} · ${'●'.repeat(phase)}${'○'.repeat(3 - phase)}`;
+    this.bossFill.style.width = `${Math.max(0, ratio) * 100}%`;
   }
 
   setPrompt(visible: boolean): void {

@@ -22,7 +22,7 @@ import { GameRenderer } from './render/renderer';
 import { SAVE_VERSION } from './save/saveData';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
-import { t } from './ui/i18n';
+import { t, type TextKey } from './ui/i18n';
 import { GrowthView } from './ui/growthView';
 import { MapView } from './ui/mapView';
 import { TerrainStreamer } from './world/chunks';
@@ -217,7 +217,7 @@ const boot = async (): Promise<void> => {
   };
   // Quests read straight from what has been done, so a quest already met pays out at once.
   const updateQuests = () => {
-    const done = questLog.advance(countsOf(progress, mapProgress));
+    const done = questLog.advance(countsOf(progress, mapProgress, !combat.boss.alive));
     if (!done) return;
     progress.coins += done.reward.coins;
     progress.shards += done.reward.shards;
@@ -232,9 +232,14 @@ const boot = async (): Promise<void> => {
     const { x, z } = player.position;
     const quest = questLog.current;
     if (quest) {
-      const status = statusOf(quest, countsOf(progress, mapProgress));
+      const status = statusOf(quest, countsOf(progress, mapProgress, !combat.boss.alive));
       const target = targetOf(status.step, progress, mapProgress, x, z);
-      let label = status.step.type === 'find' ? t(`quest.find.${status.step.kind}`) : t('quest.waypoint');
+      let label =
+        status.step.type === 'find'
+          ? t(`quest.find.${status.step.kind}`)
+          : status.step.type === 'boss'
+            ? t('quest.boss')
+            : t('quest.waypoint');
       // A seal only answers its own element, so say who can open the one ahead.
       if (target?.element) label += ` · ${t('quest.use')}${t(`character.${target.element}`)}${t('quest.hit')}`;
       const where = target ? ` · ${Math.round(Math.hypot(target.x - x, target.z - z))} m` : '';
@@ -312,16 +317,24 @@ const boot = async (): Promise<void> => {
       orbit.kick(strength);
       sfx.hit();
     },
-    defeated: (at, coins) => {
+    defeated: (at, coins, shards) => {
       progress.coins += coins;
+      progress.shards += shards;
       showProgress();
-      hud.floatText(at, `+${coins} ${t('explore.coins')}`, '#ffd98a');
+      const gained = shards > 0 ? `+${coins} ${t('explore.coins')} +${shards} ${t('explore.shards')}` : `+${coins} ${t('explore.coins')}`;
+      hud.floatText(at, gained, '#ffd98a', shards > 0);
       sfx.coin();
+      if (!combat.boss.alive) {
+        sfx.questDone();
+        void persist();
+      }
     },
+    shake: (strength) => orbit.kick(strength),
+    announce: (key) => hud.toast(t(key as TextKey)),
     swing: (step) => sfx.swing(step),
     skill: () => sfx.skill(),
     burst: () => sfx.burst(),
-  });
+  }, save.bossDefeated);
 
   const persist = () =>
     writeSave({
@@ -339,6 +352,7 @@ const boot = async (): Promise<void> => {
       markers: mapProgress.markers,
       levels: party.levels,
       quest: questLog.completed,
+      bossDefeated: !combat.boss.alive,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -417,6 +431,7 @@ const boot = async (): Promise<void> => {
     sky.update(dt, player.position);
     updateQuests();
     updateGoal();
+    hud.setBoss(combat.boss.awake && combat.boss.alive ? t('boss.name') : null, combat.boss.ratio, combat.boss.phase);
     hud.update(player, party);
     actions.endFrame();
     graphics.render();
