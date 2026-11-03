@@ -10,6 +10,7 @@ import { Stamina } from '../player/stamina';
 import { benchShare, damageScale, levelOf, MAX_LEVEL, maxHpFor, totalXpFor, xpToNext } from '../party/growth';
 import { FpsWatch } from '../core/fpsWatch';
 import { Party } from '../party/party';
+import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
 import { balance } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
 import { Enemy } from '../enemies/enemy';
@@ -583,5 +584,101 @@ describe('weapons', () => {
     expect(staff.splash).toBeGreaterThan(0);
     expect(sword.splash).toBe(0);
     expect(spear.lunge).toBeGreaterThan(staff.lunge);
+  });
+});
+
+describe('weapons and gear', () => {
+  const elements = balance.characters.map((c) => c.element);
+  const wallet = (coins: number, shards: number) => {
+    const w = {
+      coins,
+      shards,
+      spend(c: number, sh: number) {
+        if (w.coins < c || w.shards < sh) return false;
+        w.coins -= c;
+        w.shards -= sh;
+        return true;
+      },
+    };
+    return w;
+  };
+  const fresh = () => new Gear(defaultGear(elements), elements);
+
+  it('starts everyone with their own weapon equipped and nothing else', () => {
+    const gear = fresh();
+    for (const [i, element] of elements.entries()) {
+      const start = GEAR_ITEMS.find((item) => item.start && item.for === element)!;
+      expect(gear.loadouts[i].weapon).toBe(start.id);
+      expect(gear.level(start.id)).toBe(1);
+      expect(gear.loadouts[i].accessories).toEqual(Array(ACCESSORY_SLOTS).fill(null));
+    }
+  });
+
+  it('buying takes the price once and cannot be repeated or afforded short', () => {
+    const gear = fresh();
+    const w = wallet(1000, 10);
+    expect(gear.buy('charm-guard', w)).toBe(true);
+    expect(w.coins).toBe(1000 - 150);
+    expect(gear.buy('charm-guard', w)).toBe(false);
+    expect(gear.buy('sword-sun', wallet(10, 0))).toBe(false);
+    expect(gear.level('sword-sun')).toBe(0);
+  });
+
+  it('upgrades cost more at each level and stop at the cap', () => {
+    const gear = fresh();
+    const item = GEAR_ITEMS.find((i) => i.id === 'charm-guard')!;
+    expect(gearUpgradeCost(item, 2).coins).toBeGreaterThan(gearUpgradeCost(item, 1).coins);
+    const rich = wallet(1e6, 1e6);
+    gear.buy('charm-guard', rich);
+    for (let i = 1; i < MAX_GEAR_LEVEL; i++) expect(gear.upgrade('charm-guard', rich)).toBe(true);
+    expect(gear.level('charm-guard')).toBe(MAX_GEAR_LEVEL);
+    expect(gear.upgrade('charm-guard', rich)).toBe(false);
+  });
+
+  it('keeps weapons with their own character and moves an accessory rather than copying it', () => {
+    const gear = fresh();
+    const rich = wallet(1e6, 1e6);
+    gear.buy('staff-tide', rich);
+    gear.buy('badge-flame', rich);
+    expect(gear.equip(0, 'staff-tide')).toBe(false);
+    expect(gear.equip(1, 'staff-tide')).toBe(true);
+    gear.equip(0, 'badge-flame', 0);
+    gear.equip(2, 'badge-flame', 1);
+    expect(gear.wearer('badge-flame')).toBe(2);
+    expect(gear.loadouts[0].accessories[0]).toBeNull();
+    expect(gear.equip(0, 'ring-resonance')).toBe(false);
+  });
+
+  it('adds up bonuses from what is worn, and shares health, coins and experience across the party', () => {
+    const gear = fresh();
+    const rich = wallet(1e6, 1e6);
+    for (const id of ['badge-flame', 'charm-guard', 'pendant-coin']) gear.buy(id, rich);
+    gear.equip(0, 'badge-flame', 0);
+    gear.equip(1, 'charm-guard', 0);
+    gear.equip(2, 'pendant-coin', 0);
+    expect(gear.bonus(0).damage).toBeGreaterThan(gear.bonus(1).damage - 1);
+    expect(gear.bonus(1).hp).toBeGreaterThan(0);
+    expect(gear.bonus(0).hp).toBe(0);
+    expect(gear.partyBonus().hp).toBe(gear.bonus(1).hp);
+    expect(gear.partyBonus().coins).toBeGreaterThan(0);
+  });
+
+  it('cleans a damaged save: unknown, unowned, wrong-owner and duplicated items come off', () => {
+    const clean = sanitizeGear(
+      {
+        owned: { 'charm-guard': 3, ghost: 9, 'sword-sun': 2 },
+        loadouts: [
+          { weapon: 'staff-tide', accessories: ['charm-guard', 'badge-flame'] },
+          { weapon: 'staff-apprentice', accessories: ['charm-guard', null] },
+          { weapon: 'spear-iron', accessories: [null, null] },
+        ],
+      },
+      elements,
+    );
+    expect(clean.owned.ghost).toBeUndefined();
+    expect(clean.loadouts[0].weapon).toBe('sword-ember');
+    expect(clean.loadouts[0].accessories).toEqual(['charm-guard', null]);
+    expect(clean.loadouts[1].accessories[0]).toBeNull();
+    expect(sanitizeGear(undefined, elements)).toEqual(defaultGear(elements));
   });
 });

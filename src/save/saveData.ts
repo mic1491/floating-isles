@@ -1,6 +1,10 @@
+import { balance } from '../core/balance';
+import { defaultGear, sanitizeGear, type GearSave } from '../party/gear';
 import { totalXpFor } from '../party/growth';
 
-export const SAVE_VERSION = 8;
+const ELEMENTS = balance.characters.map((c) => c.element);
+
+export const SAVE_VERSION = 9;
 
 export interface SaveData {
   version: number;
@@ -18,6 +22,7 @@ export interface SaveData {
   xp: number[];
   quest: number;
   bossDefeated: boolean;
+  gear: GearSave;
 }
 
 export const defaultSave = (): SaveData => ({
@@ -36,6 +41,7 @@ export const defaultSave = (): SaveData => ({
   xp: [0, 0, 0],
   quest: 0,
   bossDefeated: false,
+  gear: defaultGear(ELEMENTS),
 });
 
 /** Upgrades older saves one version at a time and rejects anything unreadable. */
@@ -78,6 +84,8 @@ export const migrateSave = (raw: unknown): SaveData => {
     delete (save as { levels?: number[] }).levels;
     save.version = 8;
   }
+  if (save.version === 8) save.version = 9;
   const merged = { ...defaultSave(), ...save };
+  merged.gear = sanitizeGear(save.gear, ELEMENTS);
   return merged.position.every(Number.isFinite) ? merged : defaultSave();
 };

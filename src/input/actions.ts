@@ -13,6 +13,7 @@ export class Actions {
   burstPressed = false;
   interactPressed = false;
   mapPressed = false;
+  gearPressed = false;
   growthPressed = false;
   switchTo: number | null = null;
 
@@ -27,6 +28,7 @@ export class Actions {
     this.burstPressed = false;
     this.interactPressed = false;
     this.mapPressed = false;
+    this.gearPressed = false;
     this.growthPressed = false;
     this.switchTo = null;
   }

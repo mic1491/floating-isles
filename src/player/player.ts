@@ -59,6 +59,8 @@ export class Player {
   private characterId = '';
   private clock = 0;
   private grounded = true;
+  /** Jumps already spent in the air since leaving the ground. */
+  private airJumps = 0;
   private dashTime = 0;
   private dashCooldown = 0;
   private invulnerable = 0;
@@ -208,6 +210,7 @@ export class Player {
     if (this.grounded) {
       this.verticalSpeed = Math.max(this.verticalSpeed, -1);
       this.gliding = false;
+      this.airJumps = 0;
     }
 
     this.position.set(next.x, next.y - FOOT_OFFSET, next.z);
@@ -262,6 +265,13 @@ export class Player {
     }
     if (this.gliding) {
       this.gliding = false;
+      return;
+    }
+    // The first press in the air is a second jump; only after that does a press open the glider.
+    if (this.airJumps < cfg.airJumps) {
+      this.airJumps++;
+      this.verticalSpeed = cfg.jumpVelocity * cfg.airJumpScale;
+      this.events.jump?.();
       return;
     }
     const height = this.position.y - terrainHeight(this.position.x, this.position.z);

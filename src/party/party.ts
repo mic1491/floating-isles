@@ -1,4 +1,5 @@
 import { balance, type CharacterDef } from '../core/balance';
+import { defaultGear, Gear } from './gear';
 import { benchShare, damageScale, levelOf, type LevelInfo } from './growth';
 
 export class Party {
@@ -13,7 +14,11 @@ export class Party {
   /** Their levels, kept in step with `xp`. */
   readonly levels: number[];
 
-  constructor(activeIndex: number, xp: number[] = []) {
+  readonly gear: Gear;
+
+  constructor(activeIndex: number, xp: number[] = [], gear?: Gear) {
+    const elements = this.members.map((m) => m.element);
+    this.gear = gear ?? new Gear(defaultGear(elements), elements);
     this.activeIndex = Math.min(activeIndex, this.members.length - 1);
     this.xp = this.members.map((_, i) => Math.max(0, Math.floor(Number(xp[i]) || 0)));
     this.levels = this.xp.map((value) => levelOf(value).level);
@@ -37,7 +42,7 @@ export class Party {
 
   /** Damage multiplier of whoever is in the field. */
   get power(): number {
-    return damageScale(this.levels[this.activeIndex]);
+    return damageScale(this.levels[this.activeIndex]) * (1 + this.gear.bonus(this.activeIndex).damage);
   }
 
   get active(): CharacterDef {
@@ -56,7 +61,8 @@ export class Party {
   }
 
   gainEnergy(amount: number): void {
-    this.energy[this.activeIndex] = Math.min(balance.combat.energyMax, this.energy[this.activeIndex] + amount);
+    const gained = amount * (1 + this.gear.bonus(this.activeIndex).energy);
+    this.energy[this.activeIndex] = Math.min(balance.combat.energyMax, this.energy[this.activeIndex] + gained);
   }
 
   update(dt: number): void {

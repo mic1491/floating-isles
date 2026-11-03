@@ -3,6 +3,8 @@
     "walkSpeed": 5,
     "sprintSpeed": 8.5,
     "jumpVelocity": 8.5,
+    "airJumps": 1,
+    "airJumpScale": 0.9,
     "gravity": 24,
     "maxHp": 100,
     "respawnY": -20,

@@ -1,4 +1,4 @@
-import type { CharacterDef } from './core/balance';
+import { balance, type CharacterDef } from './core/balance';
 import { Vector3 } from 'three';
 import { OrbitCamera } from './camera/orbitCamera';
 import { Combat } from './combat/combat';
@@ -13,6 +13,7 @@ import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
+import { Gear } from './party/gear';
 import { maxHpFor } from './party/growth';
 import { Party } from './party/party';
 import { countsOf, QuestLog, statusOf, targetOf } from './quests/quests';
@@ -23,6 +24,7 @@ import { SAVE_VERSION } from './save/saveData';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
 import { t, type TextKey } from './ui/i18n';
+import { GearView } from './ui/gearView';
 import { GrowthView } from './ui/growthView';
 import { MapView } from './ui/mapView';
 import { TerrainStreamer } from './world/chunks';
@@ -95,8 +97,11 @@ const boot = async (): Promise<void> => {
   const player = new Player(physics, start);
   scene.add(player.view);
 
-  const party = new Party(save.activeCharacter, save.xp);
-  player.maxHp = maxHpFor(party.levels);
+  const elements = balance.characters.map((c) => c.element);
+  const gear = new Gear(save.gear, elements);
+  const party = new Party(save.activeCharacter, save.xp, gear);
+  const healthCap = () => maxHpFor(party.levels) + gear.partyBonus().hp;
+  player.maxHp = healthCap();
   player.setCharacter(party.active);
   // Each model is loaded the first time its character is in the field, not all at start, so phones
   // do not decode three copies at once. The placeholder body stands in until it arrives, or if it fails.
@@ -197,16 +202,17 @@ const boot = async (): Promise<void> => {
   const showProgress = () =>
     hud.setExploration(progress.count, exploration.points.length, progress.coins, progress.shards);
   showProgress();
+  const coinGain = (coins: number) => Math.round(coins * (1 + gear.partyBonus().coins));
   // Experience goes to whoever is in the field, with a share for the rest; a level-up heals fully.
   const award = (xp: number) => {
     if (xp <= 0) return;
-    const ups = party.gainXp(xp);
+    const ups = party.gainXp(Math.round(xp * (1 + gear.partyBonus().xp)));
     if (ups.length === 0) return;
     for (const up of ups) {
       hud.toast(`${t(`character.${party.members[up.index].element}`)} ${t('growth.levelUp')} Lv ${up.level}`);
     }
     sfx.upgrade();
-    player.maxHp = maxHpFor(party.levels);
+    player.maxHp = healthCap();
     player.hp = player.maxHp;
     void persist();
   };
@@ -240,12 +246,13 @@ const boot = async (): Promise<void> => {
   const updateQuests = () => {
     const done = questLog.advance(countsOf(progress, mapProgress, !combat.boss.alive));
     if (!done) return;
-    progress.coins += done.reward.coins;
+    const questCoins = coinGain(done.reward.coins);
+    progress.coins += questCoins;
     progress.shards += done.reward.shards;
     showProgress();
     award(done.reward.xp);
     sfx.questDone();
-    hud.toast(`${t('quest.done')}:${done.title} · +${done.reward.coins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
+    hud.toast(`${t('quest.done')}:${done.title} · +${questCoins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
     if (questLog.current) announceQuest();
     else hud.toast(t('quest.chapter'));
     void persist();
@@ -282,6 +289,25 @@ const boot = async (): Promise<void> => {
       queueMicrotask(() => (menu.keepPlaying = false));
     },
   });
+  const gearView = new GearView(ui, party, progress, {
+    opened: () => {
+      menu.keepPlaying = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    },
+    closed: () => {
+      if (!touch) void Promise.resolve(canvas.requestPointerLock()).catch(() => undefined);
+      queueMicrotask(() => (menu.keepPlaying = false));
+    },
+    changed: () => {
+      // New health applies at once: the ceiling moves, and current health keeps its share of it.
+      const share = player.hp / player.maxHp;
+      player.maxHp = healthCap();
+      player.hp = Math.min(player.maxHp, Math.max(1, share * player.maxHp));
+      showProgress();
+      void persist();
+    },
+  });
+  hud.addButton(t('hud.gear'), () => gearView.toggle());
   hud.addButton(t('hud.growth'), () => growth.toggle());
   const soundButton = hud.addButton('', () => {
     muted = !muted;
@@ -331,10 +357,11 @@ const boot = async (): Promise<void> => {
       sfx.hit();
     },
     defeated: (at, reward) => {
-      progress.coins += reward.coins;
+      const coins = coinGain(reward.coins);
+      progress.coins += coins;
       progress.shards += reward.shards;
       showProgress();
-      const parts = [`+${reward.coins} ${t('explore.coins')}`];
+      const parts = [`+${coins} ${t('explore.coins')}`];
       if (reward.shards > 0) parts.push(`+${reward.shards} ${t('explore.shards')}`);
       parts.push(`+${reward.xp} ${t('growth.xp')}`);
       hud.floatText(at, parts.join(' '), '#ffd98a', reward.shards > 0);
@@ -369,6 +396,7 @@ const boot = async (): Promise<void> => {
       xp: party.xp,
       quest: questLog.completed,
       bossDefeated: !combat.boss.alive,
+      gear: gear.toSave(),
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -400,10 +428,12 @@ const boot = async (): Promise<void> => {
       announced = true;
       announceQuest();
     }
-    if (actions.mapPressed && menu.playing && !growth.open) map.toggle();
-    if (actions.growthPressed && menu.playing && !map.open) growth.toggle();
+    const screenOpen = map.open || growth.open || gearView.open;
+    if (actions.mapPressed && menu.playing && !growth.open && !gearView.open) map.toggle();
+    if (actions.growthPressed && menu.playing && !map.open && !gearView.open) growth.toggle();
+    if (actions.gearPressed && menu.playing && !map.open && !growth.open) gearView.toggle();
 
-    if (!menu.playing || map.open || growth.open) {
+    if (!menu.playing || screenOpen) {
       player.refreshView(dt);
       if (!map.open) map.update(dt, player.position, player.facing);
       orbit.update(dt, actions, player.position);
@@ -461,7 +491,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, sfx } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, gearView, gear, sfx } });
   }
 };
 

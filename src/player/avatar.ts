@@ -130,10 +130,10 @@ export class Avatar {
     let weapon: Group;
     if (look.weapon === 'staff') {
       weapon = buildStaff(look.weaponColor);
-      weapon.scale.setScalar(1.15);
+      weapon.scale.setScalar(0.8);
     } else if (look.weapon === 'spear') {
       weapon = buildSpear(look.weaponColor);
-      weapon.scale.setScalar(1.1);
+      weapon.scale.setScalar(0.76);
     } else {
       weapon = look.weaponModel
         ? await Avatar.loadSword(look.weaponModel, look.weaponColor).catch(() => buildSword(look.weaponColor))

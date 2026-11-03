@@ -1,0 +1,23 @@
+{
+  "maxLevel": 5,
+  "items": [
+    { "id": "sword-ember", "slot": "weapon", "for": "fire", "name": "燼羽之劍", "stat": "damage", "perLevel": 0.04, "buy": { "coins": 0, "shards": 0 }, "up": { "coins": 40, "shards": 1 }, "start": true },
+    { "id": "sword-crimson", "slot": "weapon", "for": "fire", "name": "赤焰長劍", "stat": "damage", "perLevel": 0.07, "buy": { "coins": 300, "shards": 3 }, "up": { "coins": 80, "shards": 2 } },
+    { "id": "sword-sun", "slot": "weapon", "for": "fire", "name": "熾陽之刃", "stat": "damage", "perLevel": 0.1, "buy": { "coins": 800, "shards": 8 }, "up": { "coins": 120, "shards": 3 } },
+
+    { "id": "staff-apprentice", "slot": "weapon", "for": "water", "name": "學徒法杖", "stat": "damage", "perLevel": 0.04, "buy": { "coins": 0, "shards": 0 }, "up": { "coins": 40, "shards": 1 }, "start": true },
+    { "id": "staff-tide", "slot": "weapon", "for": "water", "name": "潮汐法杖", "stat": "damage", "perLevel": 0.07, "buy": { "coins": 300, "shards": 3 }, "up": { "coins": 80, "shards": 2 } },
+    { "id": "staff-abyss", "slot": "weapon", "for": "water", "name": "深海之冠", "stat": "damage", "perLevel": 0.1, "buy": { "coins": 800, "shards": 8 }, "up": { "coins": 120, "shards": 3 } },
+
+    { "id": "spear-iron", "slot": "weapon", "for": "thunder", "name": "鐵製長槍", "stat": "damage", "perLevel": 0.04, "buy": { "coins": 0, "shards": 0 }, "up": { "coins": 40, "shards": 1 }, "start": true },
+    { "id": "spear-rune", "slot": "weapon", "for": "thunder", "name": "雷紋長槍", "stat": "damage", "perLevel": 0.07, "buy": { "coins": 300, "shards": 3 }, "up": { "coins": 80, "shards": 2 } },
+    { "id": "spear-sky", "slot": "weapon", "for": "thunder", "name": "天雷之槍", "stat": "damage", "perLevel": 0.1, "buy": { "coins": 800, "shards": 8 }, "up": { "coins": 120, "shards": 3 } },
+
+    { "id": "charm-guard", "slot": "accessory", "name": "守護護符", "stat": "hp", "perLevel": 12, "buy": { "coins": 150, "shards": 1 }, "up": { "coins": 60, "shards": 1 } },
+    { "id": "cloak-traveler", "slot": "accessory", "name": "旅人披肩", "stat": "hp", "perLevel": 10, "buy": { "coins": 150, "shards": 1 }, "up": { "coins": 60, "shards": 1 } },
+    { "id": "badge-flame", "slot": "accessory", "name": "烈焰徽章", "stat": "damage", "perLevel": 0.03, "buy": { "coins": 200, "shards": 2 }, "up": { "coins": 70, "shards": 1 } },
+    { "id": "ring-resonance", "slot": "accessory", "name": "共鳴戒指", "stat": "energy", "perLevel": 0.1, "buy": { "coins": 200, "shards": 2 }, "up": { "coins": 70, "shards": 1 } },
+    { "id": "pendant-coin", "slot": "accessory", "name": "光幣吊墜", "stat": "coins", "perLevel": 0.08, "buy": { "coins": 150, "shards": 1 }, "up": { "coins": 60, "shards": 1 } },
+    { "id": "necklace-wisdom", "slot": "accessory", "name": "智慧項鍊", "stat": "xp", "perLevel": 0.08, "buy": { "coins": 150, "shards": 1 }, "up": { "coins": 60, "shards": 1 } }
+  ]
+}
