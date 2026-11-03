@@ -153,6 +153,12 @@ export class Combat {
     if (finisher) this.fx.ring(this.player.position, 2.6, active.color, 0.25);
   }
 
+  /** A ring of dust at the player's feet, for jumps, landings and dashes. */
+  dust(radius: number): void {
+    // Lifted a little so the ring sits over the grass tips instead of disappearing into them.
+    this.fx.ring(this.player.position.clone().setY(this.player.position.y + 0.4), radius, '#c9bc98', 0.35);
+  }
+
   private useSkill(): void {
     const i = this.party.activeIndex;
     if (this.party.skillCooldowns[i] > 0) return;
