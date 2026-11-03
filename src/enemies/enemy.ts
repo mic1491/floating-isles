@@ -1,6 +1,4 @@
 import {
-  BoxGeometry,
-  ConeGeometry,
   Group,
   Mesh,
   MeshBasicMaterial,
@@ -11,9 +9,10 @@ import {
   type MeshToonMaterial,
 } from 'three';
 import { balance, type Element } from '../core/balance';
-import { addOutline, toonMaterial } from '../render/toon';
+import { toonMaterial } from '../render/toon';
 import { terrainHeight } from '../world/terrain';
 import { nextEnemyState, type EnemyState } from './fsm';
+import { buildBlob, buildWisp, type Rig } from './models';
 
 export type EnemyKind = 'melee' | 'ranged';
 
@@ -40,6 +39,8 @@ export class Enemy {
   private patrolAngle = Math.random() * Math.PI * 2;
   private readonly knockback = new Vector3();
   private readonly material: MeshToonMaterial;
+  private readonly rig: Rig;
+  private clock = Math.random() * 10;
   private readonly hpBar = new Mesh(
     new PlaneGeometry(1, 0.09),
     new MeshBasicMaterial({ color: '#ff5a5a', depthTest: false }),
@@ -56,22 +57,14 @@ export class Enemy {
     this.position = home.clone();
     this.material = toonMaterial(kind === 'melee' ? '#7c5cc4' : '#c45c8a');
 
-    const body = new Mesh(
-      kind === 'melee' ? new BoxGeometry(0.95, 1.05, 0.8) : new ConeGeometry(0.55, 1.35, 8),
-      this.material,
-    );
-    body.position.y = 0.62;
-    body.castShadow = true;
-    addOutline(body);
-    const eyes = new Mesh(new BoxGeometry(0.6, 0.11, 0.05), new MeshBasicMaterial({ color: '#fff3a8' }));
-    eyes.position.set(0, 0.8, kind === 'melee' ? -0.42 : -0.34);
+    this.rig = kind === 'melee' ? buildBlob(this.material) : buildWisp(this.material);
     this.hpBack.position.y = 1.72;
     this.hpBar.position.y = 1.72;
     this.hpBack.renderOrder = 10;
     this.hpBar.renderOrder = 11;
     this.auraOrb.position.y = 2;
     this.auraOrb.visible = false;
-    this.view.add(body, eyes, this.hpBack, this.hpBar, this.auraOrb);
+    this.view.add(this.rig.root, this.hpBack, this.hpBar, this.auraOrb);
     this.syncView();
   }
 
@@ -150,6 +143,7 @@ export class Enemy {
     const face = this.state === 'attack' || this.state === 'chase' ? toPlayer : move;
     if (face.lengthSq() > 0.001) this.view.rotation.y = Math.atan2(-face.x, -face.z);
     this.flash = Math.max(0, this.flash - dt);
+    this.clock += dt;
     this.syncView(camera);
     return landed;
   }
@@ -175,6 +169,7 @@ export class Enemy {
 
   private syncView(camera?: Camera): void {
     this.view.position.copy(this.position);
+    this.rig.update(this.clock, this.windup);
     const telegraph = this.windup > 0 ? 1 : 0;
     this.material.emissive.setRGB(this.flash > 0 ? 1 : telegraph * 0.5, this.flash > 0 ? 1 : 0, this.flash > 0 ? 1 : 0);
     const ratio = Math.max(0, this.hp / this.cfg.hp);
