@@ -1,4 +1,4 @@
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 
 export interface SaveData {
   version: number;
@@ -13,6 +13,7 @@ export interface SaveData {
   fog: string;
   waypoints: string[];
   markers: Array<[number, number]>;
+  levels: number[];
 }
 
 export const defaultSave = (): SaveData => ({
@@ -28,6 +29,7 @@ export const defaultSave = (): SaveData => ({
   fog: '',
   waypoints: [],
   markers: [],
+  levels: [1, 1, 1],
 });
 
 /** Upgrades older saves one version at a time and rejects anything unreadable. */
@@ -50,6 +52,10 @@ export const migrateSave = (raw: unknown): SaveData => {
     save.waypoints = [];
     save.markers = [];
     save.version = 4;
+  }
+  if (save.version === 4) {
+    save.levels = [1, 1, 1];
+    save.version = 5;
   }
   const merged = { ...defaultSave(), ...save };
   return merged.position.every(Number.isFinite) ? merged : defaultSave();

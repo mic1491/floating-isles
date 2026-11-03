@@ -131,7 +131,7 @@ export class Combat {
     const style = ATTACKS[step - 1];
     const finisher = step === COMBO_LENGTH;
     const { active } = this.party;
-    const damage = active.attack * style.damageScale;
+    const damage = active.attack * style.damageScale * this.party.power;
     let hit = false;
     for (const enemy of this.enemies) {
       if (!enemy.alive || !this.inArc(enemy)) continue;
@@ -157,7 +157,7 @@ export class Combat {
     const center = this.player.position.clone().addScaledVector(this.player.facing, 3);
     center.y = terrainHeight(center.x, center.z) + 0.4;
     this.fx.dome(center, skill.radius, color);
-    this.area(center, skill.radius, skill.damage, element);
+    this.area(center, skill.radius, skill.damage * this.party.power, element);
   }
 
   private useBurst(): void {
@@ -167,7 +167,7 @@ export class Combat {
     this.party.energy[i] = 0;
     this.fx.dome(this.player.position, burst.radius, color, 0.6);
     this.fx.ring(this.player.position, burst.radius, '#ffffff', 0.6);
-    this.area(this.player.position, burst.radius, burst.damage, element);
+    this.area(this.player.position, burst.radius, burst.damage * this.party.power, element);
   }
 
   private area(center: Vector3, radius: number, damage: number, element: Element): void {

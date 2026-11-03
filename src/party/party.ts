@@ -1,4 +1,5 @@
 import { balance, type CharacterDef } from '../core/balance';
+import { damageScale } from './growth';
 
 export class Party {
   readonly members: CharacterDef[] = balance.characters;
@@ -7,8 +8,16 @@ export class Party {
   activeIndex: number;
   private switchCooldown = 0;
 
-  constructor(activeIndex: number) {
+  readonly levels: number[];
+
+  constructor(activeIndex: number, levels: number[] = []) {
     this.activeIndex = Math.min(activeIndex, this.members.length - 1);
+    this.levels = this.members.map((_, i) => Math.max(1, Math.min(balance.growth.maxLevel, Math.floor(levels[i] ?? 1))));
+  }
+
+  /** Damage multiplier of whoever is in the field. */
+  get power(): number {
+    return damageScale(this.levels[this.activeIndex]);
   }
 
   get active(): CharacterDef {

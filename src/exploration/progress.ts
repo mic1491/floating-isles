@@ -42,6 +42,14 @@ export class ExplorationProgress {
     return this.found.has(id);
   }
 
+  /** Pays for something if the player can afford it; takes nothing otherwise. */
+  spend(coins: number, shards: number): boolean {
+    if (this.coins < coins || this.shards < shards) return false;
+    this.coins -= coins;
+    this.shards -= shards;
+    return true;
+  }
+
   claim(point: ExplorationPoint): Reward | null {
     if (this.found.has(point.id)) return null;
     this.found.add(point.id);

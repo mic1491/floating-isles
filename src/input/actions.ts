@@ -13,6 +13,7 @@ export class Actions {
   burstPressed = false;
   interactPressed = false;
   mapPressed = false;
+  growthPressed = false;
   switchTo: number | null = null;
 
   /** Clears everything that lasts a single frame. */
@@ -26,6 +27,7 @@ export class Actions {
     this.burstPressed = false;
     this.interactPressed = false;
     this.mapPressed = false;
+    this.growthPressed = false;
     this.switchTo = null;
   }
 }

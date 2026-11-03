@@ -1,7 +1,6 @@
 import { Vector3 } from 'three';
 import { OrbitCamera } from './camera/orbitCamera';
 import { Combat } from './combat/combat';
-import { balance } from './core/balance';
 import { isTouchDevice } from './core/device';
 import { qualitySettings, type QualityTier } from './core/quality';
 import { ExplorationField } from './exploration/field';
@@ -11,6 +10,7 @@ import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
 import { MapProgress } from './map/mapProgress';
 import { WaypointField } from './map/waypointField';
+import { maxHpFor } from './party/growth';
 import { Party } from './party/party';
 import { Avatar } from './player/avatar';
 import { Player } from './player/player';
@@ -19,6 +19,7 @@ import { SAVE_VERSION } from './save/saveData';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
 import { t } from './ui/i18n';
+import { GrowthView } from './ui/growthView';
 import { MapView } from './ui/mapView';
 import { TerrainStreamer } from './world/chunks';
 import { GrassField } from './world/grass';
@@ -88,10 +89,10 @@ const boot = async (): Promise<void> => {
   physics.step(1 / 60);
 
   const player = new Player(physics, start);
-  player.hp = save.hp > 0 ? save.hp : balance.player.maxHp;
   scene.add(player.view);
 
-  const party = new Party(save.activeCharacter);
+  const party = new Party(save.activeCharacter, save.levels);
+  player.maxHp = maxHpFor(party.levels);
   player.setCharacter(party.active);
   for (const member of party.members) {
     if (!member.model) continue;
@@ -174,6 +175,26 @@ const boot = async (): Promise<void> => {
     hud.toast(t('found.waypoint'));
     void persist();
   });
+  player.hp = save.hp > 0 ? Math.min(save.hp, player.maxHp) : player.maxHp;
+  const growth = new GrowthView(ui, party, progress, {
+    opened: () => {
+      menu.keepPlaying = true;
+      if (document.pointerLockElement) document.exitPointerLock();
+    },
+    closed: () => {
+      if (!touch) void Promise.resolve(canvas.requestPointerLock()).catch(() => undefined);
+      queueMicrotask(() => (menu.keepPlaying = false));
+    },
+    upgraded: () => {
+      // The new health is a gift: raise the ceiling and fill the gained amount.
+      const gained = maxHpFor(party.levels) - player.maxHp;
+      player.maxHp += gained;
+      player.hp += gained;
+      showProgress();
+      void persist();
+    },
+  });
+  hud.addButton(t('hud.growth'), () => growth.toggle());
   const map = new MapView(ui, mapProgress, progress, {
     opened: () => {
       menu.keepPlaying = true;
@@ -219,6 +240,7 @@ const boot = async (): Promise<void> => {
       fog: mapProgress.fog.encode(),
       waypoints: mapProgress.unlockedIds,
       markers: mapProgress.markers,
+      levels: party.levels,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -237,9 +259,10 @@ const boot = async (): Promise<void> => {
     terrain.update(player.position);
     grass.update(dt, player.position);
 
-    if (actions.mapPressed && menu.playing) map.toggle();
+    if (actions.mapPressed && menu.playing && !growth.open) map.toggle();
+    if (actions.growthPressed && menu.playing && !map.open) growth.toggle();
 
-    if (!menu.playing || map.open) {
+    if (!menu.playing || map.open || growth.open) {
       player.refreshView(dt);
       if (!map.open) map.update(dt, player.position, player.facing);
       orbit.update(dt, actions, player.position);
@@ -294,7 +317,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth } });
   }
 };
 

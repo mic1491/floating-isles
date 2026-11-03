@@ -6,6 +6,8 @@ import { FogGrid } from '../map/fogGrid';
 import { mapConfig, MapProgress } from '../map/mapProgress';
 import { computePose, type Motion } from '../player/avatarPose';
 import { Stamina } from '../player/stamina';
+import { canUpgrade, damageScale, maxHpFor, upgradeCost } from '../party/growth';
+import { Party } from '../party/party';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
 import { edgeRatio, ISLAND_RADIUS, terrainHeight } from '../world/terrain';
@@ -296,5 +298,36 @@ describe('next objective', () => {
   it('is null once everything is found', () => {
     const all = new ExplorationProgress(exploration.points.map((p) => p.id), 0, 0);
     expect(nextObjective(all, 0, 0, 0)).toBeNull();
+  });
+});
+
+describe('character growth', () => {
+  it('costs more with each level and stops at the cap', () => {
+    expect(upgradeCost(2).coins).toBeGreaterThan(upgradeCost(1).coins);
+    expect(canUpgrade(1, upgradeCost(1).coins, upgradeCost(1).shards)).toBe(true);
+    expect(canUpgrade(1, upgradeCost(1).coins - 1, 99)).toBe(false);
+    expect(canUpgrade(1, 99999, upgradeCost(1).shards - 1)).toBe(false);
+    expect(canUpgrade(10, 99999, 99999)).toBe(false);
+  });
+
+  it("raises damage and the whole party's health with levels", () => {
+    expect(damageScale(1)).toBe(1);
+    expect(damageScale(5)).toBeGreaterThan(damageScale(2));
+    expect(maxHpFor([1, 1, 1])).toBe(100);
+    expect(maxHpFor([3, 1, 2])).toBeGreaterThan(maxHpFor([2, 1, 1]));
+  });
+
+  it('spending takes nothing when it cannot be afforded', () => {
+    const progress = new ExplorationProgress([], 60, 1);
+    expect(progress.spend(50, 2)).toBe(false);
+    expect([progress.coins, progress.shards]).toEqual([60, 1]);
+    expect(progress.spend(50, 1)).toBe(true);
+    expect([progress.coins, progress.shards]).toEqual([10, 0]);
+  });
+
+  it('party levels are clamped and old saves start at level 1', () => {
+    expect(new Party(0, [3, 99, -4]).levels).toEqual([3, 10, 1]);
+    expect(new Party(0).levels).toEqual([1, 1, 1]);
+    expect(migrateSave({ version: 4, position: [0, 0, 0] }).levels).toEqual([1, 1, 1]);
   });
 });

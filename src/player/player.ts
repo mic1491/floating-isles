@@ -30,6 +30,7 @@ export class Player {
   readonly position = new Vector3();
   readonly facing = new Vector3(0, 0, -1);
   readonly body: RAPIER.RigidBody;
+  maxHp: number = cfg.maxHp;
   hp: number = cfg.maxHp;
   gliding = false;
   verticalSpeed = 0;
@@ -139,7 +140,7 @@ export class Player {
   }
 
   revive(position: Vector3): void {
-    this.hp = cfg.maxHp;
+    this.hp = this.maxHp;
     this.stamina.value = balance.stamina.max;
     this.teleport(position);
   }

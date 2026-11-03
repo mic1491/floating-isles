@@ -29,6 +29,7 @@
     "defaultDistance": 5.2
   },
   "party": { "switchCooldown": 1 },
+  "growth": { "maxLevel": 10, "coinsPerLevel": 50, "shardsPerLevel": 2, "damagePerLevel": 0.12, "hpPerLevel": 8 },
   "combat": {
     "attackInterval": 0.38,
     "comboResetTime": 0.9,

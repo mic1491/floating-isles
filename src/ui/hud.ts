@@ -28,6 +28,7 @@ export class Hud {
   private readonly hurtFlash: HTMLElement;
   private readonly quality: HTMLButtonElement;
   private readonly pixel: HTMLButtonElement;
+  private readonly settings: HTMLElement;
   private readonly explore: HTMLElement;
   private readonly goal: HTMLElement;
   private readonly goalArrow: HTMLElement;
@@ -85,9 +86,18 @@ export class Hud {
     this.quality.addEventListener('click', onQuality);
     this.pixel = document.createElement('button');
     this.pixel.addEventListener('click', onPixel);
+    this.settings = settings;
     settings.append(this.pixel, this.quality);
     this.setQuality(tier);
     this.setPixel(pixelArt);
+  }
+
+  /** Adds a button to the top-right cluster, left of the existing ones. */
+  addButton(label: string, onClick: () => void): void {
+    const node = document.createElement('button');
+    node.textContent = label;
+    node.addEventListener('click', onClick);
+    this.settings.prepend(node);
   }
 
   setQuality(tier: QualityTier): void {
@@ -99,7 +109,7 @@ export class Hud {
   }
 
   update(player: Player, party: Party): void {
-    this.hpFill.style.width = `${(player.hp / balance.player.maxHp) * 100}%`;
+    this.hpFill.style.width = `${(player.hp / player.maxHp) * 100}%`;
     this.staminaFill.style.width = `${player.stamina.ratio * 100}%`;
     this.staminaBar.classList.toggle('low', player.stamina.ratio < 0.2);
     this.slots.forEach((slot, i) => slot.classList.toggle('active', i === party.activeIndex));
