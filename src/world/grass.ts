@@ -21,8 +21,7 @@ const TILES_PER_FRAME = 1;
 const GRASS_FADE_END = 46;
 
 /** Thin tapered blade: arcs forward, dark at the root and bright at the tip. */
-const bladeGeometry = (): BufferGeometry => {
-  const rows = 6;
+const bladeGeometry = (rows: number): BufferGeometry => {
   const height = 0.52;
   const positions: number[] = [];
   const normals: number[] = [];
@@ -66,7 +65,7 @@ const pick = (palette: Color[], roll: number): Color => palette.at(Math.floor(ro
 
 /** Tiles of instanced grass kept around the player and recycled as they walk. */
 export class GrassField {
-  private readonly geometry = bladeGeometry();
+  private geometry = bladeGeometry(6);
   private readonly material: MeshToonMaterial;
   private readonly time: IUniform<number> = { value: 0 };
   private readonly active = new Map<string, InstancedMesh>();
@@ -111,10 +110,13 @@ export class GrassField {
     return this.active.size;
   }
 
-  configure(radius: number, density: number): void {
+  /** `rows` sets how finely each blade is built: phones use fewer, since thousands of blades add up fast. */
+  configure(radius: number, density: number, rows = 6): void {
     for (const mesh of this.active.values()) this.scene.remove(mesh);
     this.active.clear();
     this.pool.length = 0;
+    this.geometry.dispose();
+    this.geometry = bladeGeometry(rows);
     this.tileRadius = Math.ceil(radius / TILE_SIZE);
     this.blades = Math.round(density * TILE_SIZE * TILE_SIZE);
   }
@@ -129,6 +131,13 @@ export class GrassField {
       this.scene.remove(mesh);
       this.pool.push(mesh);
       this.active.delete(key);
+    }
+    // Tiles beyond the near ones keep only part of their blades; far grass reads as lawn anyway.
+    for (const [key, mesh] of this.active) {
+      const [ix, iz] = key.split(',').map(Number);
+      const d = Math.hypot(ix - fx, iz - fz);
+      const share = d <= 1.2 ? 1 : d <= 2.2 ? 0.55 : 0.3;
+      mesh.count = Math.ceil((mesh.userData.placed as number) * share);
     }
     let budget = TILES_PER_FRAME;
     for (const cell of cellsAround(focus.x, focus.z, TILE_SIZE, this.tileRadius)) {
@@ -165,6 +174,7 @@ export class GrassField {
       mesh.setColorAt(placed, pick(petal ? PETALS : SHADES, shade));
       placed++;
     }
+    mesh.userData.placed = placed;
     mesh.count = placed;
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;

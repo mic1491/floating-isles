@@ -143,7 +143,7 @@ const boot = async (): Promise<void> => {
   const applyQuality = () => {
     graphics.setQuality(tier, sky.sun);
     const settings = qualitySettings(tier);
-    grass.configure(settings.grassRadius, settings.grassDensity);
+    grass.configure(settings.grassRadius, settings.grassDensity, settings.grassRows);
     terrain.setRadius(settings.chunkRadius);
   };
   applyQuality();

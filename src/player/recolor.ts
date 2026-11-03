@@ -3,6 +3,7 @@ import { Source, type Material, type Mesh, type Object3D, type Texture } from 't
 /** The painted parts that carry a character's identity; skin, face lines and shoes stay as drawn. */
 const TARGETS = /HAIR|Tops_|EyeIris/;
 const SLOTS = ['map', 'shadeMultiplyTexture'] as const;
+const MAX_SIZE = 512;
 
 /** The standard hue-rotation matrix, acting on sRGB values the way the CSS hue-rotate filter does. */
 const hueMatrix = (degrees: number): number[] => {
@@ -18,11 +19,13 @@ const hueMatrix = (degrees: number): number[] => {
 
 const rotated = (texture: Texture, degrees: number): Texture => {
   const image = texture.image as CanvasImageSource & { width: number; height: number };
+  // Painted hair and cloth hold up fine at half size, and a quarter of the pixels is a quarter of the stall.
+  const scale = Math.min(1, MAX_SIZE / Math.max(image.width, image.height));
   const canvas = document.createElement('canvas');
-  canvas.width = image.width;
-  canvas.height = image.height;
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
   const context = canvas.getContext('2d', { willReadFrequently: true })!;
-  context.drawImage(image, 0, 0);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
   const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
   const m = hueMatrix(degrees);
   const data = pixels.data;
