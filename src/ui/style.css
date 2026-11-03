@@ -91,6 +91,33 @@ body {
   font-size: 13px;
 }
 
+.goal {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 18px;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  background: rgb(20 20 40 / 40%);
+  text-shadow: 0 1px 3px rgb(0 0 0 / 50%);
+}
+
+.goal-arrow {
+  width: 20px;
+  text-align: center;
+  color: #ffd98a;
+  transition: transform 0.15s;
+}
+
+.goal.done .goal-arrow {
+  display: none;
+}
+
 .prompt {
   display: none;
   position: absolute;

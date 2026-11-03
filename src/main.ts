@@ -5,7 +5,7 @@ import { balance } from './core/balance';
 import { isTouchDevice } from './core/device';
 import { qualitySettings, type QualityTier } from './core/quality';
 import { ExplorationField } from './exploration/field';
-import { exploration, ExplorationProgress } from './exploration/progress';
+import { exploration, ExplorationProgress, nextObjective } from './exploration/progress';
 import { Actions } from './input/actions';
 import { bindKeyboardMouse } from './input/keyboardMouse';
 import { bindTouch } from './input/touch';
@@ -280,6 +280,7 @@ const boot = async (): Promise<void> => {
     }
 
     sky.update(dt, player.position);
+    hud.setObjective(nextObjective(progress, player.position.x, player.position.z, orbit.yaw));
     hud.update(player, party);
     actions.endFrame();
     graphics.render();

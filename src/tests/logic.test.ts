@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { reactionOf } from '../combat/reactions';
-import { exploration, ExplorationProgress, puzzleResponds } from '../exploration/progress';
+import { exploration, ExplorationProgress, nextObjective, puzzleResponds } from '../exploration/progress';
 import { nextEnemyState, type EnemySenses } from '../enemies/fsm';
 import { FogGrid } from '../map/fogGrid';
 import { mapConfig, MapProgress } from '../map/mapProgress';
@@ -269,5 +269,32 @@ describe('computePose', () => {
     const rest = computePose(still).bones.rightUpperArm;
     const end = computePose({ ...still, attack: { step: 2, t: 1, id: 1 } }).bones.rightUpperArm;
     expect(end[2]).toBeCloseTo(rest[2], 1);
+  });
+});
+
+describe('next objective', () => {
+  const [first] = exploration.points;
+
+  it('points at the closest point not yet found', () => {
+    const goal = nextObjective(new ExplorationProgress([], 0, 0), first.x, first.z, 0)!;
+    expect(goal.point.id).toBe(first.id);
+    const skipped = nextObjective(new ExplorationProgress([first.id], 0, 0), first.x, first.z, 0)!;
+    expect(skipped.point.id).not.toBe(first.id);
+  });
+
+  it('turns toward the target relative to the camera', () => {
+    const progress = new ExplorationProgress(
+      exploration.points.filter((p) => p.id !== first.id).map((p) => p.id),
+      0,
+      0,
+    );
+    // Camera yaw 0 looks toward -Z, so a target to the north is straight ahead and one to the east is right.
+    expect(nextObjective(progress, first.x, first.z + 10, 0)!.bearing).toBeCloseTo(0);
+    expect(nextObjective(progress, first.x - 10, first.z, 0)!.bearing).toBeCloseTo(Math.PI / 2);
+  });
+
+  it('is null once everything is found', () => {
+    const all = new ExplorationProgress(exploration.points.map((p) => p.id), 0, 0);
+    expect(nextObjective(all, 0, 0, 0)).toBeNull();
   });
 });

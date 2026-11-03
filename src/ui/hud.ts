@@ -4,6 +4,7 @@ import type { QualityTier } from '../core/quality';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
+import type { Objective } from '../exploration/progress';
 import { t } from './i18n';
 
 const div = (className: string, parent: HTMLElement, text = ''): HTMLDivElement => {
@@ -28,6 +29,9 @@ export class Hud {
   private readonly quality: HTMLButtonElement;
   private readonly pixel: HTMLButtonElement;
   private readonly explore: HTMLElement;
+  private readonly goal: HTMLElement;
+  private readonly goalArrow: HTMLElement;
+  private readonly goalText: HTMLElement;
   private readonly prompt: HTMLElement;
   private readonly toasts: HTMLElement;
   private readonly fadeLayer: HTMLElement;
@@ -55,6 +59,9 @@ export class Hud {
     div('bar-label', this.staminaBar, t('hud.stamina'));
 
     this.explore = div('explore', root);
+    this.goal = div('goal', root);
+    this.goalArrow = div('goal-arrow', this.goal, '▲');
+    this.goalText = div('goal-text', this.goal);
     this.prompt = div('prompt', root, t('explore.prompt'));
     this.toasts = div('toasts', root);
 
@@ -119,6 +126,18 @@ export class Hud {
   setExploration(found: number, total: number, coins: number, shards: number): void {
     this.explore.textContent =
       `${t('explore.progress')} ${found}/${total} · ${t('explore.coins')} ${coins} · ${t('explore.shards')} ${shards}`;
+  }
+
+  /** The quest line: what to look for next, how far, and an arrow toward it. */
+  setObjective(objective: Objective | null): void {
+    this.goal.classList.toggle('done', objective === null);
+    if (!objective) {
+      this.goalText.textContent = t('goal.done');
+      return;
+    }
+    this.goalArrow.style.transform = `rotate(${objective.bearing}rad)`;
+    this.goalText.textContent =
+      `${t('goal.prefix')}${t(`goal.${objective.point.kind}`)} · ${Math.round(objective.distance)} m`;
   }
 
   setPrompt(visible: boolean): void {

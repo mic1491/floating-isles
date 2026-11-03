@@ -47,7 +47,14 @@ const skyFragment = /* glsl */ `
     float t = pow(clamp(dir.y, 0.0, 1.0), 0.55);
     vec3 color = mix(horizon, zenith, t);
     float sun = max(dot(dir, sunDir), 0.0);
-    color += sunColor * (pow(sun, 900.0) * 3.0 + pow(sun, 24.0) * 0.28);
+    color += sunColor * (pow(sun, 900.0) * 3.0 + pow(sun, 24.0) * 0.28 + pow(sun, 6.0) * 0.16);
+    // Soft fanned rays around the sun for a backlit, storybook glow.
+    vec3 axis = abs(sunDir.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 tx = normalize(cross(axis, sunDir));
+    vec3 ty = cross(sunDir, tx);
+    float around = atan(dot(dir, ty), dot(dir, tx));
+    float fan = 0.5 + 0.5 * sin(around * 11.0 + sin(around * 4.0) * 2.0);
+    color += sunColor * fan * fan * pow(sun, 9.0) * 0.22;
     gl_FragColor = vec4(color, 1.0);
     #include <colorspace_fragment>
   }`;

@@ -60,3 +60,35 @@ export const puzzleResponds = (
   radius: number,
 ): boolean =>
   point.kind === 'puzzle' && point.element === element && distance <= radius + exploration.puzzleHitPadding;
+
+export interface Objective {
+  point: ExplorationPoint;
+  distance: number;
+  /** Where the point lies relative to the camera: 0 is straight ahead, positive is to the right. */
+  bearing: number;
+}
+
+/** The closest point not yet found, and which way to turn to face it. Null once everything is found. */
+export const nextObjective = (
+  progress: ExplorationProgress,
+  x: number,
+  z: number,
+  cameraYaw: number,
+): Objective | null => {
+  let best: ExplorationPoint | null = null;
+  let bestDistance = Infinity;
+  for (const point of exploration.points) {
+    if (progress.has(point.id)) continue;
+    const distance = Math.hypot(point.x - x, point.z - z);
+    if (distance < bestDistance) {
+      best = point;
+      bestDistance = distance;
+    }
+  }
+  if (!best) return null;
+  const dx = best.x - x;
+  const dz = best.z - z;
+  const ahead = dx * -Math.sin(cameraYaw) + dz * -Math.cos(cameraYaw);
+  const right = dx * Math.cos(cameraYaw) + dz * -Math.sin(cameraYaw);
+  return { point: best, distance: bestDistance, bearing: Math.atan2(right, ahead) };
+};
