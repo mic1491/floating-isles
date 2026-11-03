@@ -288,6 +288,12 @@ const boot = async (): Promise<void> => {
       orbit.kick(strength);
       sfx.hit();
     },
+    defeated: (at, coins) => {
+      progress.coins += coins;
+      showProgress();
+      hud.floatText(at, `+${coins} ${t('explore.coins')}`, '#ffd98a');
+      sfx.coin();
+    },
     swing: (step) => sfx.swing(step),
     skill: () => sfx.skill(),
     burst: () => sfx.burst(),
@@ -395,4 +401,14 @@ const boot = async (): Promise<void> => {
   }
 };
 
-void boot();
+const hideLoading = (): void => {
+  const loading = document.querySelector<HTMLElement>('#loading');
+  loading?.classList.add('done');
+  setTimeout(() => loading?.remove(), 800);
+};
+
+boot().then(hideLoading, (error: unknown) => {
+  console.error(error);
+  const note = document.querySelector<HTMLElement>('#loading small');
+  if (note) note.textContent = '載入失敗,請重新整理頁面';
+});

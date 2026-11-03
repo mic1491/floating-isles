@@ -25,6 +25,7 @@ export interface CombatEvents {
   swing(step: number): void;
   skill(): void;
   burst(): void;
+  defeated(at: Vector3, coins: number): void;
 }
 
 interface Projectile {
@@ -205,7 +206,9 @@ export class Combat {
   }
 
   private applyDamage(enemy: Enemy, amount: number, color: string): void {
+    const wasAlive = enemy.alive;
     enemy.hurt(amount);
+    if (wasAlive && !enemy.alive) this.events.defeated(enemy.position, enemy.cfg.coins);
     this.events.damage(enemy.position, Math.round(amount), color);
   }
 

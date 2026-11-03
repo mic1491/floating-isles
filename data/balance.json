@@ -82,6 +82,7 @@
   "enemies": {
     "melee": {
       "hp": 120,
+      "coins": 12,
       "speed": 3.4,
       "damage": 10,
       "attackRange": 1.9,
@@ -93,6 +94,7 @@
     },
     "ranged": {
       "hp": 80,
+      "coins": 10,
       "speed": 2.6,
       "damage": 8,
       "attackRange": 11,

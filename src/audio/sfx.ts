@@ -74,6 +74,11 @@ export class Sfx {
     this.tone(220, 0.22, 'sawtooth', 0.14, 70);
   }
 
+  coin(): void {
+    this.tone(1318.5, 0.09, 'triangle', 0.09);
+    this.tone(1760, 0.16, 'triangle', 0.09, 1760, 0.07);
+  }
+
   pickup(): void {
     this.arpeggio([523.25, 659.25, 783.99, 1046.5], 0.07, 0.16, 0.12);
   }
