@@ -26,11 +26,11 @@ const build = (element: Element, color: string): Array<[Bone, Object3D]> => {
 
   if (element === 'water') {
     // A flowing cape and a droplet hairpin.
-    const cape = new Mesh(new PlaneGeometry(0.46, 0.78, 3, 4), cloth);
-    cape.position.set(0, -0.28, -0.12);
+    const cape = new Mesh(new PlaneGeometry(0.3, 0.5, 3, 4), cloth);
+    cape.position.set(0, -0.2, -0.12);
     cape.rotation.x = 0.12;
-    const trim = new Mesh(new BoxGeometry(0.48, 0.03, 0.01), new MeshBasicMaterial({ color: '#e8f6ff' }));
-    trim.position.set(0, -0.67, -0.12);
+    const trim = new Mesh(new BoxGeometry(0.31, 0.025, 0.01), new MeshBasicMaterial({ color: '#e8f6ff' }));
+    trim.position.set(0, -0.45, -0.12);
     const group = new Group();
     group.add(cape, trim);
     items.push(['chest', group]);

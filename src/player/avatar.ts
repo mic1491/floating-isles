@@ -68,7 +68,7 @@ export interface AvatarLook {
   weaponModel?: string | null;
   hue?: number;
   hairOnly?: boolean;
-  /** Recorded sword motion; characters without a sword keep the hand-made swings. */
+  /** Recorded swings, played whatever the weapon: a staff sweeps and a spear lunges with the same body motion. */
   clips?: ClipLibrary | null;
 }
 
@@ -162,7 +162,7 @@ export class Avatar {
         ? await Avatar.loadSword(look.weaponModel, look.weaponColor).catch(() => buildSword(look.weaponColor))
         : buildSword(look.weaponColor);
     }
-    if (look.clips && look.weapon === 'sword') {
+    if (look.clips) {
       avatar.clips = new Map(look.clips.clips.map((clip) => [clip.name, clip]));
       avatar.clipHipsScale = avatar.hipsRestY / look.clips.restHipsY;
     }
