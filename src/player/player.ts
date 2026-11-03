@@ -17,6 +17,7 @@ import type { Physics } from '../world/physics';
 import { terrainHeight } from '../world/terrain';
 import type { Avatar } from './avatar';
 import { ATTACKS } from './attackTable';
+import { Glider } from './glider';
 import { Stamina } from './stamina';
 
 const cfg = balance.player;
@@ -40,7 +41,7 @@ export class Player {
   private readonly dashDirection = new Vector3();
   private readonly coat: MeshToonMaterial;
   private readonly weapon = new Mesh(new BoxGeometry(0.08, 0.08, 1.1), toonMaterial('#eef0f5'));
-  private readonly wing = new Mesh(new BoxGeometry(2.4, 0.04, 0.7), toonMaterial('#f6efe0'));
+  private readonly glider = new Glider();
   private readonly placeholder = new Group();
   private readonly avatars = new Map<string, Avatar>();
   private avatar: Avatar | null = null;
@@ -79,10 +80,8 @@ export class Player {
       addOutline(mesh);
     }
     this.weapon.position.set(0.42, 0.85, -0.45);
-    this.wing.position.y = 1.9;
-    this.wing.visible = false;
     this.placeholder.add(torso, head, hair, this.weapon);
-    this.view.add(this.placeholder, this.wing);
+    this.view.add(this.placeholder, this.glider.group);
   }
 
   get alive(): boolean {
@@ -91,6 +90,7 @@ export class Player {
 
   setCharacter(character: CharacterDef): void {
     this.coat.color.set(character.color);
+    this.glider.setColor(character.color);
     this.characterId = character.id;
     this.showActiveBody();
   }
@@ -274,7 +274,7 @@ export class Player {
       attack: swinging && this.attack ? { ...swinging, id: this.attack.id } : null,
     });
     this.weapon.rotation.y = swinging ? 1.2 - 2.4 * swinging.t : 0;
-    this.wing.visible = this.gliding;
+    this.glider.group.visible = this.gliding;
     this.view.visible = this.invulnerable <= 0 || Math.floor(this.invulnerable * 30) % 2 === 0;
   }
 }

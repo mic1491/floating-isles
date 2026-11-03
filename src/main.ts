@@ -198,8 +198,10 @@ const boot = async (): Promise<void> => {
     const quest = questLog.current;
     if (quest) {
       const status = statusOf(quest, countsOf(progress, mapProgress));
-      const label = status.step.type === 'find' ? t(`quest.find.${status.step.kind}`) : t('quest.waypoint');
       const target = targetOf(status.step, progress, mapProgress, x, z);
+      let label = status.step.type === 'find' ? t(`quest.find.${status.step.kind}`) : t('quest.waypoint');
+      // A seal only answers its own element, so say who can open the one ahead.
+      if (target?.element) label += ` · ${t('quest.use')}${t(`character.${target.element}`)}${t('quest.hit')}`;
       const where = target ? ` · ${Math.round(Math.hypot(target.x - x, target.z - z))} m` : '';
       hud.setGoal(`${quest.title} · ${label} ${status.have}/${status.need}${where}`, target ? bearingTo(target.x - x, target.z - z, orbit.yaw) : null);
       return;

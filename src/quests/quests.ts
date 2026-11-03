@@ -1,5 +1,6 @@
 import raw from '../../data/quests.json';
 import { exploration, type ExplorationProgress, type ExplorationPoint, type PointKind, type Reward } from '../exploration/progress';
+import type { Element } from '../core/balance';
 import { mapConfig, type MapProgress } from '../map/mapProgress';
 
 export type Step = { type: 'find'; kind: PointKind; count: number } | { type: 'waypoint'; count: number };
@@ -52,12 +53,12 @@ export const targetOf = (
   map: MapProgress,
   x: number,
   z: number,
-): { x: number; z: number } | null => {
-  const candidates: Array<{ x: number; z: number }> =
+): { x: number; z: number; element?: Element } | null => {
+  const candidates: Array<{ x: number; z: number; element?: Element }> =
     step.type === 'find'
       ? exploration.points.filter((p: ExplorationPoint) => p.kind === step.kind && !progress.has(p.id))
       : mapConfig.waypoints.filter((w) => !w.starter && !map.isUnlocked(w.id));
-  let best: { x: number; z: number } | null = null;
+  let best: { x: number; z: number; element?: Element } | null = null;
   let bestDistance = Infinity;
   for (const candidate of candidates) {
     const distance = Math.hypot(candidate.x - x, candidate.z - z);

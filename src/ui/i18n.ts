@@ -39,6 +39,8 @@ const zhTW = {
   'quest.find.collectible': '收集浮光碎片',
   'quest.find.puzzle': '解開元素封印',
   'quest.find.viewpoint': '登上觀景點',
+  'quest.use': '用',
+  'quest.hit': '攻擊',
   'quest.waypoint': '點亮傳送點',
   'goal.prefix': '目標:前往',
   'goal.done': '全部探索完成!',

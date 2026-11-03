@@ -437,8 +437,7 @@ body {
 }
 
 .touch .party {
-  top: 18px;
-  right: calc(max(20px, env(safe-area-inset-right)) + 96px);
+  top: 64px;
   grid-auto-flow: column;
 }
 
