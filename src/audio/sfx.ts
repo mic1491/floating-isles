@@ -74,6 +74,33 @@ export class Sfx {
     this.tone(220, 0.22, 'sawtooth', 0.14, 70);
   }
 
+  /** A soft footfall; each one is nudged a little so a run of steps never sounds like a loop. */
+  step(speed: number): void {
+    const run = Math.min(1, speed / 8.5);
+    this.noise(0.07, 0.05 + run * 0.05, 700 + Math.random() * 500, 160, 'lowpass');
+  }
+
+  jump(): void {
+    this.tone(240, 0.14, 'sine', 0.07, 430);
+    this.noise(0.1, 0.04, 1800, 600, 'bandpass');
+  }
+
+  land(impact: number): void {
+    const weight = Math.min(1, impact / 16);
+    this.tone(120, 0.14, 'sine', 0.08 + weight * 0.12, 55);
+    this.noise(0.1, 0.06 + weight * 0.1, 900, 150, 'lowpass');
+  }
+
+  dash(): void {
+    this.noise(0.22, 0.12, 700, 3400, 'bandpass');
+  }
+
+  /** The canopy opening: a quick billow of air. */
+  glide(): void {
+    this.noise(0.4, 0.1, 400, 1800, 'bandpass');
+    this.tone(180, 0.3, 'sine', 0.04, 320);
+  }
+
   coin(): void {
     this.tone(1318.5, 0.09, 'triangle', 0.09);
     this.tone(1760, 0.16, 'triangle', 0.09, 1760, 0.07);

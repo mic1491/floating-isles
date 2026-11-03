@@ -120,6 +120,13 @@ const boot = async (): Promise<void> => {
   const sfx = new Sfx(muted);
   addEventListener('pointerdown', () => sfx.unlock());
   addEventListener('keydown', () => sfx.unlock());
+  player.events = {
+    step: (speed) => sfx.step(speed),
+    jump: () => sfx.jump(),
+    land: (impact) => sfx.land(impact),
+    dash: () => sfx.dash(),
+    glide: () => sfx.glide(),
+  };
   const orbit = new OrbitCamera(camera, physics, player.body);
   orbit.yaw = save.cameraYaw;
 

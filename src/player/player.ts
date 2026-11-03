@@ -25,7 +25,18 @@ const HALF_HEIGHT = 0.5;
 const RADIUS = 0.36;
 const FOOT_OFFSET = HALF_HEIGHT + RADIUS;
 
+/** What the player's body does that the rest of the game may want to hear or show. */
+export interface PlayerEvents {
+  step?(speed: number): void;
+  jump?(): void;
+  /** `impact` is how fast the player was falling, so a long drop can land harder. */
+  land?(impact: number): void;
+  dash?(): void;
+  glide?(): void;
+}
+
 export class Player {
+  events: PlayerEvents = {};
   readonly view = new Group();
   readonly stamina = new Stamina();
   readonly position = new Vector3();
@@ -190,7 +201,10 @@ export class Player {
     const next = { x: current.x + move.x, y: current.y + move.y, z: current.z + move.z };
     this.body.setNextKinematicTranslation(next);
 
+    const wasGrounded = this.grounded;
+    const fallSpeed = -this.verticalSpeed;
     this.grounded = this.controller.computedGrounded();
+    if (this.grounded && !wasGrounded && fallSpeed > 3) this.events.land?.(fallSpeed);
     if (this.grounded) {
       this.verticalSpeed = Math.max(this.verticalSpeed, -1);
       this.gliding = false;
@@ -220,6 +234,7 @@ export class Player {
     if (!actions.dashPressed || this.dashCooldown > 0 || this.gliding) return;
     if (!this.stamina.spend(balance.stamina.dashCost)) return;
     this.dashTime = balance.dash.duration;
+    this.events.dash?.();
     this.dashCooldown = balance.dash.cooldown;
     this.invulnerable = balance.dash.invulnerable;
     this.dashDirection.copy(wish.lengthSq() > 0 ? wish : this.facing);
@@ -242,6 +257,7 @@ export class Player {
     if (this.grounded) {
       this.verticalSpeed = cfg.jumpVelocity;
       this.grounded = false;
+      this.events.jump?.();
       return;
     }
     if (this.gliding) {
@@ -249,11 +265,17 @@ export class Player {
       return;
     }
     const height = this.position.y - terrainHeight(this.position.x, this.position.z);
-    if (height >= cfg.glideMinHeight && !this.stamina.empty) this.gliding = true;
+    if (height >= cfg.glideMinHeight && !this.stamina.empty) {
+      this.gliding = true;
+      this.events.glide?.();
+    }
   }
 
   private updateView(dt: number, speed: number): void {
+    const before = Math.floor(this.walkPhase / Math.PI);
     this.walkPhase += speed * dt * 2.2;
+    // One footfall each time the stride passes a half-turn, only while actually walking on the ground.
+    if (this.grounded && speed > 1 && Math.floor(this.walkPhase / Math.PI) !== before) this.events.step?.(speed);
     if (this.attack) {
       this.attack.elapsed += dt;
       if (this.attack.elapsed >= ATTACKS[this.attack.step - 1].duration) this.attack = null;
