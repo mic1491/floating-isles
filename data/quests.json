@@ -4,32 +4,181 @@
       "id": "first-light",
       "title": "第一道光",
       "intro": "島上藏著古老的寶箱。去找到第一個吧。",
-      "steps": [{ "type": "find", "kind": "chest", "count": 1 }],
-      "reward": { "coins": 100, "shards": 1, "xp": 60 }
+      "steps": [
+        {
+          "type": "find",
+          "kind": "chest",
+          "count": 1
+        }
+      ],
+      "reward": {
+        "coins": 100,
+        "shards": 1,
+        "xp": 60
+      }
     },
     {
       "id": "shard-trail",
       "title": "碎片的低語",
       "intro": "浮光碎片會回應旅人的腳步,收集三枚。",
-      "steps": [{ "type": "find", "kind": "collectible", "count": 3 }],
-      "reward": { "coins": 150, "shards": 2, "xp": 80 }
+      "steps": [
+        {
+          "type": "find",
+          "kind": "collectible",
+          "count": 3
+        }
+      ],
+      "reward": {
+        "coins": 150,
+        "shards": 2,
+        "xp": 80
+      }
     },
     {
       "id": "gate-of-elements",
       "title": "元素之門",
       "intro": "傳送點是舊時代的航標。點亮兩座,再用對應的元素解開一道封印。",
       "steps": [
-        { "type": "waypoint", "count": 2 },
-        { "type": "find", "kind": "puzzle", "count": 1 }
+        {
+          "type": "waypoint",
+          "count": 2
+        },
+        {
+          "type": "find",
+          "kind": "puzzle",
+          "count": 1
+        }
       ],
-      "reward": { "coins": 300, "shards": 4, "xp": 120 }
+      "reward": {
+        "coins": 300,
+        "shards": 4,
+        "xp": 120
+      }
     },
     {
       "id": "guardian",
       "title": "浮石守衛",
       "intro": "遺跡深處的守衛正在甦醒。做好準備,把它擊倒。",
-      "steps": [{ "type": "boss", "count": 1 }],
-      "reward": { "coins": 400, "shards": 6, "xp": 200 }
+      "steps": [
+        {
+          "type": "boss",
+          "count": 1
+        }
+      ],
+      "reward": {
+        "coins": 400,
+        "shards": 6,
+        "xp": 200
+      }
+    },
+    {
+      "id": "trial-of-arms",
+      "title": "戰士的試煉",
+      "intro": "島上的魔物越來越多了。證明你的實力,擊敗 8 隻敵人。",
+      "steps": [
+        {
+          "type": "defeat",
+          "kind": "any",
+          "count": 8
+        }
+      ],
+      "reward": {
+        "coins": 200,
+        "shards": 3,
+        "xp": 150
+      }
+    },
+    {
+      "id": "resonance",
+      "title": "元素的共鳴",
+      "intro": "不同的元素相遇會產生反應。用技能讓火、水、雷彼此碰撞,觸發 3 次元素反應。",
+      "steps": [
+        {
+          "type": "reaction",
+          "count": 3
+        }
+      ],
+      "reward": {
+        "coins": 250,
+        "shards": 4,
+        "xp": 180
+      }
+    },
+    {
+      "id": "arm-yourself",
+      "title": "整裝待發",
+      "intro": "前方的敵人越來越強。到「裝備」畫面為隊伍添購 2 件新的武器或飾品。",
+      "steps": [
+        {
+          "type": "gear",
+          "count": 2
+        }
+      ],
+      "reward": {
+        "coins": 150,
+        "shards": 5,
+        "xp": 200
+      }
+    },
+    {
+      "id": "vantage",
+      "title": "登高望遠",
+      "intro": "站得高才看得遠。走上島上 3 座觀景台,記下這座島的全貌。",
+      "steps": [
+        {
+          "type": "find",
+          "kind": "viewpoint",
+          "count": 3
+        }
+      ],
+      "reward": {
+        "coins": 200,
+        "shards": 5,
+        "xp": 220
+      }
+    },
+    {
+      "id": "seasoned",
+      "title": "磨練",
+      "intro": "最後的試煉需要真正的實力。讓任何一位隊員升到 8 級。",
+      "steps": [
+        {
+          "type": "level",
+          "count": 8
+        }
+      ],
+      "reward": {
+        "coins": 400,
+        "shards": 6,
+        "xp": 300
+      }
+    },
+    {
+      "id": "island-trial",
+      "title": "島的試煉",
+      "intro": "魔物的巢穴就在島上各處。擊敗 2 隻岩殼龜、2 隻衝撞獸和 3 隻爆裂球,讓這座島恢復平靜。",
+      "steps": [
+        {
+          "type": "defeat",
+          "kind": "guard",
+          "count": 2
+        },
+        {
+          "type": "defeat",
+          "kind": "charger",
+          "count": 2
+        },
+        {
+          "type": "defeat",
+          "kind": "bomber",
+          "count": 3
+        }
+      ],
+      "reward": {
+        "coins": 800,
+        "shards": 10,
+        "xp": 500
+      }
     }
   ]
 }

@@ -2,7 +2,8 @@ import { Mesh, MeshBasicMaterial, Scene, SphereGeometry, Vector3, type Camera } 
 import { balance, type Element } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
 import type { Reward } from '../exploration/progress';
-import { ELEMENT_COLORS, Enemy, type EnemyKind } from '../enemies/enemy';
+import { ELEMENT_COLORS, Enemy } from '../enemies/enemy';
+import { SPAWNS } from './spawns';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
@@ -27,7 +28,7 @@ export interface CombatEvents {
   swing(step: number): void;
   skill(): void;
   burst(): void;
-  defeated(at: Vector3, reward: Reward): void;
+  defeated(at: Vector3, reward: Reward, kind: string): void;
   shake(strength: number): void;
   announce(textKey: string): void;
 }
@@ -42,29 +43,7 @@ interface Projectile {
   life: number;
 }
 
-export const SPAWNS: Array<[EnemyKind, number, number]> = [
-  ['melee', 18, 12],
-  ['melee', 21, 9],
-  ['melee', -10, 26],
-  ['melee', -26, -14],
-  ['ranged', 30, -2],
-  ['ranged', -18, 24],
-  ['melee', -86, -50],
-  ['melee', -96, -62],
-  ['ranged', -84, -64],
-  ['melee', 98, -2],
-  ['ranged', 108, -14],
-  ['charger', 62, -34],
-  ['charger', -58, 56],
-  ['charger', 88, 30],
-  ['bomber', 28, 48],
-  ['bomber', -34, -40],
-  ['bomber', -70, -8],
-  ['bomber', 50, -90],
-  ['guard', -64, -48],
-  ['guard', 72, 66],
-  ['guard', -12, -60],
-];
+
 
 const orb = new SphereGeometry(0.22, 10, 8);
 const orbMaterial = new MeshBasicMaterial({ color: '#ff8fd0' });
@@ -260,7 +239,7 @@ export class Combat {
     const dealt = enemy.hurt(amount);
     if (wasAlive && !enemy.alive) {
       const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
-      this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: enemy.cfg.xp });
+      this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: enemy.cfg.xp }, enemy instanceof Boss ? 'boss' : enemy.kind);
     }
     this.events.damage(enemy.position, Math.round(dealt), color);
   }

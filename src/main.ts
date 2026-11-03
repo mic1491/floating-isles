@@ -255,13 +255,22 @@ const boot = async (): Promise<void> => {
     void persist();
   });
   player.hp = save.hp > 0 ? Math.min(save.hp, player.maxHp) : player.maxHp;
+  const stats = save.stats;
+  /** Everything the quests can ask about, gathered fresh each time. */
+  const questCounts = () =>
+    countsOf(progress, mapProgress, !combat.boss.alive, {
+      kills: stats.kills,
+      reactions: stats.reactions,
+      newGear: Object.keys(gear.owned).length - elements.length,
+      topLevel: Math.max(...party.levels),
+    });
   const questLog = new QuestLog(save.quest);
   const announceQuest = () => {
     if (questLog.current) hud.toast(`${t('quest.title')}:${questLog.current.title} — ${questLog.current.intro}`);
   };
   // Quests read straight from what has been done, so a quest already met pays out at once.
   const updateQuests = () => {
-    const done = questLog.advance(countsOf(progress, mapProgress, !combat.boss.alive));
+    const done = questLog.advance(questCounts());
     if (!done) return;
     const questCoins = coinGain(done.reward.coins);
     progress.coins += questCoins;
@@ -278,14 +287,15 @@ const boot = async (): Promise<void> => {
     const { x, z } = player.position;
     const quest = questLog.current;
     if (quest) {
-      const status = statusOf(quest, countsOf(progress, mapProgress, !combat.boss.alive));
+      const status = statusOf(quest, questCounts());
       const target = targetOf(status.step, progress, mapProgress, x, z);
+      const step = status.step;
       let label =
-        status.step.type === 'find'
-          ? t(`quest.find.${status.step.kind}`)
-          : status.step.type === 'boss'
-            ? t('quest.boss')
-            : t('quest.waypoint');
+        step.type === 'find'
+          ? t(`quest.find.${step.kind}`)
+          : step.type === 'defeat'
+            ? t(`quest.defeat.${step.kind}`)
+            : t(`quest.${step.type}` as TextKey);
       // A seal only answers its own element, so say who can open the one ahead.
       if (target?.element) label += ` · ${t('quest.use')}${t(`character.${target.element}`)}${t('quest.hit')}`;
       const where = target ? ` · ${Math.round(Math.hypot(target.x - x, target.z - z))} m` : '';
@@ -361,6 +371,7 @@ const boot = async (): Promise<void> => {
   const combat = new Combat(scene, player, party, {
     damage: (at, amount, color) => hud.floatText(at, String(amount), color),
     reaction: (at, reaction) => {
+      stats.reactions++;
       hud.floatText(at, t(`reaction.${reaction}`), '#ffe27a', true);
       sfx.reaction();
     },
@@ -373,7 +384,9 @@ const boot = async (): Promise<void> => {
       orbit.kick(strength);
       sfx.hit();
     },
-    defeated: (at, reward) => {
+    defeated: (at, reward, kind) => {
+      stats.kills[kind] = (stats.kills[kind] ?? 0) + 1;
+      if (kind !== 'boss') stats.kills.any = (stats.kills.any ?? 0) + 1;
       const coins = coinGain(reward.coins);
       progress.coins += coins;
       progress.shards += reward.shards;
@@ -414,6 +427,7 @@ const boot = async (): Promise<void> => {
       quest: questLog.completed,
       bossDefeated: !combat.boss.alive,
       gear: gear.toSave(),
+      stats,
     });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) void persist();
@@ -509,7 +523,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, gearView, gear, sfx } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, gearView, gear, sfx, questLog, stats } });
   }
 };
 

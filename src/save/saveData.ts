@@ -4,7 +4,7 @@ import { totalXpFor } from '../party/growth';
 
 const ELEMENTS = balance.characters.map((c) => c.element);
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 
 export interface SaveData {
   version: number;
@@ -23,7 +23,18 @@ export interface SaveData {
   quest: number;
   bossDefeated: boolean;
   gear: GearSave;
+  stats: Stats;
 }
+
+/** Running totals that quests and the playtest metrics read. */
+export interface Stats {
+  /** Enemies defeated, by kind, plus a running total under `any`. */
+  kills: Record<string, number>;
+  /** Elemental reactions the player has set off. */
+  reactions: number;
+}
+
+export const emptyStats = (): Stats => ({ kills: {}, reactions: 0 });
 
 export const defaultSave = (): SaveData => ({
   version: SAVE_VERSION,
@@ -42,6 +53,7 @@ export const defaultSave = (): SaveData => ({
   quest: 0,
   bossDefeated: false,
   gear: defaultGear(ELEMENTS),
+  stats: emptyStats(),
 });
 
 /** Upgrades older saves one version at a time and rejects anything unreadable. */
@@ -85,7 +97,12 @@ export const migrateSave = (raw: unknown): SaveData => {
     save.version = 8;
   }
   if (save.version === 8) save.version = 9;
+  if (save.version === 9) save.version = 10;
   const merged = { ...defaultSave(), ...save };
   merged.gear = sanitizeGear(save.gear, ELEMENTS);
+  merged.stats = {
+    kills: Object.fromEntries(Object.entries(save.stats?.kills ?? {}).map(([k, v]) => [k, Math.max(0, Math.floor(Number(v)) || 0)])),
+    reactions: Math.max(0, Math.floor(Number(save.stats?.reactions)) || 0),
+  };
   return merged.position.every(Number.isFinite) ? merged : defaultSave();
 };

@@ -14,11 +14,12 @@ import { clipTime, clipWeight, COMBO_CLIPS, sampleBone, sampleHipsY, type ClipLi
 import clipData from '../../public/assets/animations/sword_clips.json';
 import { ATTACKS } from '../player/attackTable';
 import { Quaternion } from 'three';
+import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
 import { balance } from '../core/balance';
 import { Boss, type BossHost } from '../enemies/boss';
 import { Enemy } from '../enemies/enemy';
-import { SPAWNS } from '../combat/combat';
+import { SPAWNS } from '../combat/spawns';
 import { countsOf, QuestLog, quests, statusOf, targetOf } from '../quests/quests';
 import { defaultSave, migrateSave, SAVE_VERSION } from '../save/saveData';
 import { cellsAround } from '../world/streaming';
@@ -740,5 +741,59 @@ describe('recorded sword motion', () => {
     expect(Math.abs(first.angleTo(mid) - mid.angleTo(second))).toBeLessThan(0.02);
     expect(mid.angleTo(first)).toBeLessThan(first.angleTo(second) + 0.02);
     expect(Number.isFinite(sampleHipsY(clip, clip.duration * 2))).toBe(true);
+  });
+});
+
+describe('main quests five to ten', () => {
+  const blank = () => ({ progress: new ExplorationProgress([], 0, 0), map: new MapProgress('', [], []) });
+  const done = (index: number, record: Parameters<typeof countsOf>[3]) => {
+    const { progress, map } = blank();
+    return statusOf(quests[index], countsOf(progress, map, false, record)).done;
+  };
+
+  it('has ten quests with unique ids, rewards and only real enemy kinds', () => {
+    expect(quests).toHaveLength(10);
+    expect(new Set(quests.map((q) => q.id)).size).toBe(10);
+    const kinds = new Set(['any', ...SPAWN_LIST.map(([kind]) => kind)]);
+    for (const quest of quests) {
+      expect(quest.reward.xp, quest.id).toBeGreaterThan(0);
+      for (const step of quest.steps) if (step.type === 'defeat') expect(kinds.has(step.kind), `${quest.id}:${step.kind}`).toBe(true);
+    }
+  });
+
+  it('counts kills, reactions, new gear and levels toward their quests', () => {
+    const byId = (id: string) => quests.findIndex((q) => q.id === id);
+    expect(done(byId('trial-of-arms'), { kills: { any: 7 } })).toBe(false);
+    expect(done(byId('trial-of-arms'), { kills: { any: 8 } })).toBe(true);
+    expect(done(byId('resonance'), { reactions: 2 })).toBe(false);
+    expect(done(byId('resonance'), { reactions: 3 })).toBe(true);
+    expect(done(byId('arm-yourself'), { newGear: 1 })).toBe(false);
+    expect(done(byId('arm-yourself'), { newGear: 2 })).toBe(true);
+    expect(done(byId('seasoned'), { topLevel: 7 })).toBe(false);
+    expect(done(byId('seasoned'), { topLevel: 8 })).toBe(true);
+  });
+
+  it('asks for every kind in the final trial, one step at a time', () => {
+    const final = quests.findIndex((q) => q.id === 'island-trial');
+    const { progress, map } = blank();
+    const some = statusOf(quests[final], countsOf(progress, map, false, { kills: { guard: 2, charger: 1 } }));
+    expect(some.done).toBe(false);
+    expect(some.step).toMatchObject({ type: 'defeat', kind: 'charger' });
+    expect(done(final, { kills: { guard: 2, charger: 2, bomber: 3 } })).toBe(true);
+  });
+
+  it('points at where the right enemies live, and at nothing for goals met by playing', () => {
+    const { progress, map } = blank();
+    const guard = targetOf({ type: 'defeat', kind: 'guard', count: 1 }, progress, map, 0, 0)!;
+    expect(SPAWN_LIST.some(([kind, x, z]) => kind === 'guard' && x === guard.x && z === guard.z)).toBe(true);
+    for (const step of [{ type: 'reaction', count: 1 }, { type: 'gear', count: 1 }, { type: 'level', count: 2 }] as const) {
+      expect(targetOf(step, progress, map, 0, 0)).toBeNull();
+    }
+  });
+
+  it('keeps kill and reaction totals in the save and repairs bad ones', () => {
+    expect(migrateSave({ version: 9, position: [0, 0, 0] }).stats).toEqual({ kills: {}, reactions: 0 });
+    const kept = migrateSave({ version: 10, position: [0, 0, 0], stats: { kills: { any: 5, guard: -2 }, reactions: 4.9 } } as never).stats;
+    expect(kept).toEqual({ kills: { any: 5, guard: 0 }, reactions: 4 });
   });
 });
