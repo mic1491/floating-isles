@@ -4,7 +4,10 @@ import {
   Group,
   Mesh,
   MeshBasicMaterial,
+  DoubleSide,
   OctahedronGeometry,
+  RingGeometry,
+  SphereGeometry,
   TorusGeometry,
   Vector3,
   type Scene,
@@ -21,8 +24,16 @@ interface Site {
   root: Group;
   spinner: Mesh | null;
   lid: Group | null;
+  /** A marker that bobs above something still unclaimed, and goes out once it is. */
+  glow: Mesh | null;
+  orbiters: Mesh[];
+  glyph: Mesh | null;
+  /** Counts down a short pop as a shard is collected. */
+  pop: number;
   phase: number;
 }
+
+const POP_SECONDS = 0.25;
 
 export interface ExplorationEvents {
   discovered(point: ExplorationPoint, reward: Reward): void;
@@ -45,28 +56,67 @@ const outlined = (mesh: Mesh): Mesh => {
   return mesh;
 };
 
-const buildChest = (root: Group): Group => {
+const woodBothSides = toonMaterial('#a56a3a');
+woodBothSides.side = DoubleSide;
+const glowMaterial = new MeshBasicMaterial({ color: '#ffe08a', transparent: true, opacity: 0.85 });
+const sparkleMaterial = new MeshBasicMaterial({ color: '#fffbe0' });
+const sparkleGeometry = new SphereGeometry(0.05, 8, 6);
+const shellGeometry = new OctahedronGeometry(0.5);
+const shellMaterial = new MeshBasicMaterial({ color: '#ffe9a0', transparent: true, opacity: 0.28, depthWrite: false });
+
+interface Chest {
+  lid: Group;
+  glow: Mesh;
+}
+
+/** A treasure chest with a rounded lid, gold bands and a lock, and a glint floating above it. */
+const buildChest = (root: Group): Chest => {
   const body = outlined(new Mesh(new BoxGeometry(1.1, 0.6, 0.75), wood));
   body.position.y = 0.3;
-  const band = new Mesh(new BoxGeometry(1.14, 0.1, 0.8), gold);
-  band.position.y = 0.42;
+  root.add(body);
+  for (const side of [-1, 1]) {
+    const band = new Mesh(new BoxGeometry(0.1, 0.64, 0.8), gold);
+    band.position.set(side * 0.38, 0.3, 0);
+    root.add(band);
+  }
+  const lock = outlined(new Mesh(new BoxGeometry(0.2, 0.22, 0.06), gold));
+  lock.position.set(0, 0.5, 0.39);
+  root.add(lock);
+
   const hinge = new Group();
   hinge.position.set(0, 0.6, -0.37);
-  const lid = outlined(new Mesh(new BoxGeometry(1.14, 0.26, 0.77), wood));
-  lid.position.set(0, 0.13, 0.37);
-  hinge.add(lid);
-  root.add(body, band, hinge);
-  return hinge;
+  const dome = outlined(new Mesh(new CylinderGeometry(0.385, 0.385, 1.14, 18, 1, false, 0, Math.PI), woodBothSides));
+  dome.rotation.z = Math.PI / 2;
+  dome.position.z = 0.37;
+  hinge.add(dome);
+  for (const side of [-1, 1]) {
+    const strap = new Mesh(new CylinderGeometry(0.4, 0.4, 0.1, 18, 1, false, 0, Math.PI), gold);
+    strap.rotation.z = Math.PI / 2;
+    strap.position.set(side * 0.38, 0, 0.37);
+    hinge.add(strap);
+  }
+  root.add(hinge);
+
+  const glow = new Mesh(new SphereGeometry(0.14, 12, 10), glowMaterial);
+  glow.position.y = 1.5;
+  root.add(glow);
+  return { lid: hinge, glow };
 };
 
-const buildCollectible = (root: Group): Mesh => {
+const buildCollectible = (root: Group): { shard: Mesh; orbiters: Mesh[] } => {
   const shard = new Mesh(shardGeometry, shardMaterial);
   shard.position.y = 1;
+  shard.add(new Mesh(shellGeometry, shellMaterial));
+  const orbiters = [0, 1, 2].map(() => {
+    const spark = new Mesh(sparkleGeometry, sparkleMaterial);
+    shard.add(spark);
+    return spark;
+  });
   root.add(shard);
-  return shard;
+  return { shard, orbiters };
 };
 
-const buildPuzzle = (root: Group, element: Element): Mesh => {
+const buildPuzzle = (root: Group, element: Element): { crystal: Mesh; glyph: Mesh } => {
   const base = outlined(new Mesh(new CylinderGeometry(1.1, 1.3, 0.5, 10), stone));
   base.position.y = 0.25;
   const crystal = new Mesh(crystalGeometry, new MeshBasicMaterial({ color: ELEMENT_COLORS[element] }));
@@ -74,8 +124,15 @@ const buildPuzzle = (root: Group, element: Element): Mesh => {
   const ring = new Mesh(ringGeometry, new MeshBasicMaterial({ color: ELEMENT_COLORS[element] }));
   ring.rotation.x = Math.PI / 2;
   crystal.add(ring);
-  root.add(base, crystal);
-  return crystal;
+  // A glowing rune circle hovers just over the grass tips, marks the seal from afar and breathes while it is shut.
+  const glyph = new Mesh(
+    new RingGeometry(1.6, 2.1, 40),
+    new MeshBasicMaterial({ color: ELEMENT_COLORS[element], transparent: true, opacity: 0.5, side: DoubleSide, depthWrite: false }),
+  );
+  glyph.rotation.x = -Math.PI / 2;
+  glyph.position.y = 0.55;
+  root.add(base, crystal, glyph);
+  return { crystal, glyph };
 };
 
 const buildViewpoint = (root: Group): Mesh => {
@@ -105,13 +162,25 @@ export class ExplorationField {
       const position = new Vector3(point.x, terrainHeight(point.x, point.z), point.z);
       root.position.copy(position);
       root.rotation.y = (point.x + point.z) * 0.7;
-      const site: Site = { point, position, root, spinner: null, lid: null, phase: point.x };
-      if (point.kind === 'chest') site.lid = buildChest(root);
-      if (point.kind === 'collectible') site.spinner = buildCollectible(root);
-      if (point.kind === 'puzzle') site.spinner = buildPuzzle(root, point.element!);
+      const site: Site = { point, position, root, spinner: null, lid: null, glow: null, orbiters: [], glyph: null, pop: 0, phase: point.x };
+      if (point.kind === 'chest') {
+        const chest = buildChest(root);
+        site.lid = chest.lid;
+        site.glow = chest.glow;
+      }
+      if (point.kind === 'collectible') {
+        const built = buildCollectible(root);
+        site.spinner = built.shard;
+        site.orbiters = built.orbiters;
+      }
+      if (point.kind === 'puzzle') {
+        const built = buildPuzzle(root, point.element!);
+        site.spinner = built.crystal;
+        site.glyph = built.glyph;
+      }
       if (point.kind === 'viewpoint') site.spinner = buildViewpoint(root);
       scene.add(root);
-      if (this.progress.has(point.id)) this.showDone(site);
+      if (this.progress.has(point.id)) this.showDone(site, true);
       return site;
     });
   }
@@ -130,6 +199,22 @@ export class ExplorationField {
       }
       if (site.point.kind === 'collectible' && site.spinner?.visible) {
         site.spinner.position.y = 1 + Math.sin(site.phase * 2) * 0.12;
+        site.orbiters.forEach((spark, i) => {
+          const angle = site.phase * 2.2 + i * 2.094;
+          spark.position.set(Math.cos(angle) * 0.62, Math.sin(site.phase * 3 + i) * 0.2, Math.sin(angle) * 0.62);
+        });
+        if (site.pop > 0) {
+          site.pop -= dt;
+          site.spinner.scale.setScalar(1 + (1 - Math.max(0, site.pop) / POP_SECONDS) * 1.4);
+          if (site.pop <= 0) site.spinner.visible = false;
+        }
+      }
+      if (site.glow?.visible) {
+        site.glow.position.y = 1.5 + Math.sin(site.phase * 2.4) * 0.1;
+        site.glow.scale.setScalar(1 + Math.sin(site.phase * 4) * 0.2);
+      }
+      if (site.glyph && !this.progress.has(site.point.id)) {
+        (site.glyph.material as MeshBasicMaterial).opacity = 0.4 + Math.sin(site.phase * 2.2) * 0.2;
       }
       if (this.progress.has(site.point.id)) continue;
       const distance = site.position.distanceTo(player);
@@ -155,14 +240,19 @@ export class ExplorationField {
   private discover(site: Site): void {
     const reward = this.progress.claim(site.point);
     if (!reward) return;
-    this.showDone(site);
+    this.showDone(site, false);
     this.events.discovered(site.point, reward);
   }
 
-  private showDone(site: Site): void {
+  private showDone(site: Site, instant: boolean): void {
     const { kind } = site.point;
+    if (site.glow) site.glow.visible = false;
     if (kind === 'chest' && site.lid) site.lid.rotation.x = -1.9;
-    if (kind === 'collectible' && site.spinner) site.spinner.visible = false;
+    if (kind === 'collectible' && site.spinner) {
+      if (instant) site.spinner.visible = false;
+      else site.pop = POP_SECONDS;
+    }
+    if (kind === 'puzzle' && site.glyph) (site.glyph.material as MeshBasicMaterial).opacity = 0.12;
     if (kind === 'puzzle' && site.spinner) {
       site.spinner.material = opened;
       for (const child of site.spinner.children) (child as Mesh).material = opened;
