@@ -4,7 +4,7 @@ import { totalXpFor } from '../party/growth';
 
 const ELEMENTS = balance.characters.map((c) => c.element);
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 
 export interface SaveData {
   version: number;
@@ -98,6 +98,12 @@ export const migrateSave = (raw: unknown): SaveData => {
   }
   if (save.version === 8) save.version = 9;
   if (save.version === 9) save.version = 10;
+  if (save.version === 10) {
+    // The guardian quest moved from fourth to ninth: keep the player on the quest they were on.
+    const at = Math.floor(Number(save.quest)) || 0;
+    if (at >= 4 && at <= 8) save.quest = at - 1;
+    save.version = 11;
+  }
   const merged = { ...defaultSave(), ...save };
   merged.gear = sanitizeGear(save.gear, ELEMENTS);
   merged.stats = {

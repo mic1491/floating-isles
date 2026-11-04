@@ -88,6 +88,17 @@ describe('nextEnemyState', () => {
   });
 });
 
+describe('quest reorder migration', () => {
+  it('keeps the player on the same quest after the guardian moved', () => {
+    const at = (version: number, quest: number) => migrateSave({ version, quest, position: [0, 0, 0] } as never).quest;
+    expect(at(10, 3)).toBe(3);
+    expect(at(10, 4)).toBe(3);
+    expect(at(10, 8)).toBe(7);
+    expect(at(10, 9)).toBe(9);
+    expect(at(11, 4)).toBe(4);
+  });
+});
+
 describe('migrateSave', () => {
   it('falls back on unreadable or future saves', () => {
     expect(migrateSave(null)).toEqual(defaultSave());
