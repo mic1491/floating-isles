@@ -80,7 +80,7 @@ const levelBadge = (level: number): Sprite => {
     context.fillText(`Lv.${level}`, 64, 26);
   }
   const sprite = new Sprite(new SpriteMaterial({ map: canvas ? new CanvasTexture(canvas) : null, depthTest: false, transparent: true }));
-  sprite.scale.set(0.62, 0.23, 1);
+  sprite.scale.set(0.46, 0.17, 1);
   sprite.renderOrder = 12;
   return sprite;
 };
