@@ -24,64 +24,32 @@ export interface AttackStyle {
   };
 }
 
-const deg = (d: number): number => (d * Math.PI) / 180;
+import raw from '../../data/moves.json';
 
-export const ATTACKS: readonly AttackStyle[] = [
-  {
-    duration: 0.46,
-    strikeAt: 0.34,
-    chainAt: 0.62,
-    lunge: 0.8,
-    damageScale: 1,
-    hitstop: 0.045,
-    shake: 0.015,
-    trail: { roll: 0.1, from: deg(5), to: deg(170), radius: 1.5, width: 0.5, height: 1.05 },
-  },
-  {
-    duration: 0.46,
-    strikeAt: 0.33,
-    chainAt: 0.62,
-    lunge: 0.7,
-    damageScale: 1.1,
-    hitstop: 0.045,
-    shake: 0.015,
-    trail: { roll: -0.2, from: deg(175), to: deg(10), radius: 1.5, width: 0.5, height: 1.0 },
-  },
-  {
-    duration: 0.54,
-    strikeAt: 0.36,
-    chainAt: 0.68,
-    lunge: 1.0,
-    damageScale: 1.3,
-    hitstop: 0.06,
-    shake: 0.025,
-    trail: { roll: 0.95, from: deg(0), to: deg(175), radius: 1.6, width: 0.6, height: 1.05 },
-  },
-  {
-    duration: 0.78,
-    strikeAt: 0.44,
-    chainAt: 1,
-    lunge: 1.5,
-    damageScale: 1.8,
-    hitstop: 0.09,
-    shake: 0.05,
-    trail: { roll: 1.5, from: deg(0), to: deg(180), radius: 1.8, width: 0.8, height: 0.95 },
-  },
-  // The charged strike, released from a held button. It shares the finisher's overhead motion but swings harder.
-  {
-    duration: 0.8,
-    strikeAt: 0.44,
-    chainAt: 1,
-    lunge: 2.2,
-    damageScale: 2.2,
-    hitstop: 0.14,
-    shake: 0.14,
-    trail: { roll: 1.5, from: deg(0), to: deg(180), radius: 2.2, width: 1, height: 0.95 },
-  },
-];
+const rad = (d: number): number => (d * Math.PI) / 180;
+
+type RawHit = Omit<AttackStyle, 'trail'> & { trail: Omit<AttackStyle['trail'], 'from' | 'to'> & { fromDeg: number; toDeg: number } };
+
+const toStyle = (hit: RawHit): AttackStyle => {
+  const { fromDeg, toDeg, ...trail } = hit.trail;
+  return { ...hit, trail: { ...trail, from: rad(fromDeg), to: rad(toDeg) } };
+};
+
+/** Every hit's timing and shape, read from `data/moves.json`: the tap combo, then the charged strike. */
+export const ATTACKS: readonly AttackStyle[] = [...raw.combo, raw.charged].map((hit) => toStyle(hit as RawHit));
 
 /** Hits in the tap combo; the entry after them in `ATTACKS` is the charged strike. */
-export const COMBO_LENGTH = 4;
-export const CHARGED_STEP = 5;
+export const COMBO_LENGTH = raw.combo.length;
+export const CHARGED_STEP = COMBO_LENGTH + 1;
 /** The point of the overhead swing, as a fraction of it, where the weapon is raised and held while charging. */
-export const CHARGE_HOLD = 0.32;
+export const CHARGE_HOLD = raw.charge.holdPoint;
+/** Seconds the button must be held, after the tap's own swing is over, before power starts to gather. */
+export const CHARGE_AFTER = raw.charge.holdAfter;
+/** Seconds of gathering to a full charge. */
+export const CHARGE_TIME = raw.charge.fullTime;
+/** How far each weapon steps into its charged strike, as a share of the strike's own lunge. */
+export const CHARGED_LUNGE: Record<string, number> = raw.charge.lunge;
+/** Knockback distance per combo hit. */
+export const KNOCKBACK: readonly number[] = raw.knockback;
+/** Which recorded clip plays for each hit (and the charged strike last), per weapon. */
+export const MOVE_CLIPS: Record<string, string[]> = raw.clips;

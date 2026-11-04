@@ -9,7 +9,7 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
-import { ATTACKS, CHARGE_HOLD, CHARGED_STEP, COMBO_LENGTH } from '../player/attackTable';
+import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
@@ -18,13 +18,6 @@ const rx = balance.reactions;
 /** Seconds the slash trail starts before the blade lands, so the sweep reads as the cause of the hit. */
 const TRAIL_LEAD = 0.09;
 const INPUT_BUFFER = 0.25;
-const KNOCKBACK = [2.5, 2.5, 4.5, 9];
-/** Seconds the button must be held, after the tap's own swing is over, before power starts to gather. */
-const CHARGE_AFTER = 0.3;
-/** Seconds of gathering to a full charge. */
-const CHARGE_TIME = 1;
-/** How far each weapon steps into its charged strike, as a share of the strike's own lunge. */
-const CHARGED_LUNGE = { sword: 0.45, staff: 0.2, spear: 1.5 };
 
 export interface CombatEvents {
   damage(at: Vector3, amount: number, color: string): void;

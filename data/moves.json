@@ -1,0 +1,129 @@
+{
+  "_note": "Timing and shape of every attack. `combo` is the tap chain, `charged` the held-button strike. Times are seconds, angles in degrees, distances in metres.",
+  "combo": [
+    {
+      "duration": 0.46,
+      "strikeAt": 0.34,
+      "chainAt": 0.62,
+      "lunge": 0.8,
+      "damageScale": 1,
+      "hitstop": 0.045,
+      "shake": 0.015,
+      "trail": {
+        "roll": 0.1,
+        "fromDeg": 5,
+        "toDeg": 170,
+        "radius": 1.5,
+        "width": 0.5,
+        "height": 1.05
+      }
+    },
+    {
+      "duration": 0.46,
+      "strikeAt": 0.33,
+      "chainAt": 0.62,
+      "lunge": 0.7,
+      "damageScale": 1.1,
+      "hitstop": 0.045,
+      "shake": 0.015,
+      "trail": {
+        "roll": -0.2,
+        "fromDeg": 175,
+        "toDeg": 10,
+        "radius": 1.5,
+        "width": 0.5,
+        "height": 1.0
+      }
+    },
+    {
+      "duration": 0.54,
+      "strikeAt": 0.36,
+      "chainAt": 0.68,
+      "lunge": 1.0,
+      "damageScale": 1.3,
+      "hitstop": 0.06,
+      "shake": 0.025,
+      "trail": {
+        "roll": 0.95,
+        "fromDeg": 0,
+        "toDeg": 175,
+        "radius": 1.6,
+        "width": 0.6,
+        "height": 1.05
+      }
+    },
+    {
+      "duration": 0.78,
+      "strikeAt": 0.44,
+      "chainAt": 1,
+      "lunge": 1.5,
+      "damageScale": 1.8,
+      "hitstop": 0.09,
+      "shake": 0.05,
+      "trail": {
+        "roll": 1.5,
+        "fromDeg": 0,
+        "toDeg": 180,
+        "radius": 1.8,
+        "width": 0.8,
+        "height": 0.95
+      }
+    }
+  ],
+  "charged": {
+    "duration": 0.8,
+    "strikeAt": 0.44,
+    "chainAt": 1,
+    "lunge": 2.2,
+    "damageScale": 2.2,
+    "hitstop": 0.14,
+    "shake": 0.14,
+    "trail": {
+      "roll": 1.5,
+      "fromDeg": 0,
+      "toDeg": 180,
+      "radius": 2.2,
+      "width": 1,
+      "height": 0.95
+    }
+  },
+  "charge": {
+    "holdAfter": 0.3,
+    "fullTime": 1,
+    "holdPoint": 0.32,
+    "lunge": {
+      "sword": 0.45,
+      "staff": 0.2,
+      "spear": 1.5
+    }
+  },
+  "knockback": [
+    2.5,
+    2.5,
+    4.5,
+    9
+  ],
+  "clips": {
+    "sword": [
+      "Sword_Regular_A",
+      "Sword_Regular_B",
+      "Sword_Regular_C",
+      "Sword_Heavy_Combo",
+      "Sword_Heavy_Combo"
+    ],
+    "spear": [
+      "Sword_Regular_A",
+      "Sword_Regular_B",
+      "Sword_Regular_C",
+      "Sword_Heavy_Combo",
+      "Sword_Heavy_Combo"
+    ],
+    "staff": [
+      "Spell_Simple_Shoot",
+      "Sword_Regular_B",
+      "Spell_Simple_Shoot",
+      "Sword_Heavy_Combo",
+      "Sword_Heavy_Combo"
+    ]
+  }
+}

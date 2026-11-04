@@ -1,4 +1,5 @@
 import { Quaternion } from 'three';
+import { MOVE_CLIPS } from './attackTable';
 
 /** One recorded motion, sampled at a fixed rate, with every bone's rotation per frame (x, y, z, w). */
 export interface Clip {
@@ -21,12 +22,8 @@ export interface ClipLibrary {
   clips: Clip[];
 }
 
-/** Which recorded clip plays for each hit of the combo, per weapon: a staff casts where a sword cuts. */
-export const COMBO_CLIPS: Record<string, string[]> = {
-  sword: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
-  spear: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
-  staff: ['Spell_Simple_Shoot', 'Sword_Regular_B', 'Spell_Simple_Shoot', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
-};
+/** Which recorded clip plays for each hit of the combo, per weapon: a staff casts where a sword cuts. Lives in data/moves.json. */
+export const COMBO_CLIPS = MOVE_CLIPS;
 
 /** Merges several libraries recorded on the same rig into one lookup by clip name. */
 export const mergeClips = (...libraries: Array<ClipLibrary | null>): ClipLibrary | null => {

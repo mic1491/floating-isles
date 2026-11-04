@@ -15,7 +15,7 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS, CHARGE_HOLD, CHARGED_STEP, COMBO_LENGTH } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
 import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
@@ -85,6 +85,20 @@ describe('nextEnemyState', () => {
     expect(nextEnemyState('chase', senses({ distanceFromHome: 25, distanceToPlayer: 3 }))).toBe('return');
     expect(nextEnemyState('attack', senses({ distanceFromHome: 5, playerAlive: false }))).toBe('return');
     expect(nextEnemyState('return', senses({ distanceFromHome: 0.5 }))).toBe('patrol');
+  });
+});
+
+describe('move data', () => {
+  it('reads every hit from data/moves.json and keeps it sane', () => {
+    expect(ATTACKS).toHaveLength(COMBO_LENGTH + 1);
+    for (const hit of ATTACKS) {
+      expect(hit.strikeAt).toBeGreaterThan(0);
+      expect(hit.strikeAt).toBeLessThan(hit.chainAt + 1e-9);
+      expect(hit.duration).toBeGreaterThan(0.2);
+      expect(Number.isFinite(hit.trail.from + hit.trail.to)).toBe(true);
+    }
+    expect(KNOCKBACK).toHaveLength(COMBO_LENGTH);
+    for (const kind of ['sword', 'staff', 'spear']) expect(CHARGED_LUNGE[kind]).toBeGreaterThan(0);
   });
 });
 
