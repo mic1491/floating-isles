@@ -239,6 +239,11 @@ export class Combat {
     const dealt = enemy.hurt(amount);
     if (wasAlive && !enemy.alive) {
       const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
+      // The killing blow lands harder: a longer freeze, a bigger shake and a burst of light.
+      this.hitstop = Math.max(this.hitstop, enemy instanceof Boss ? 0.2 : 0.11);
+      this.events.shake(enemy instanceof Boss ? 0.2 : 0.06);
+      this.fx.ring(enemy.position, enemy instanceof Boss ? 3.5 : 1.6, color, 0.3);
+      this.fx.spark(enemy.position.clone().setY(enemy.position.y + 0.9), color, enemy instanceof Boss ? 1.6 : 0.9);
       this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: enemy.cfg.xp }, enemy instanceof Boss ? 'boss' : enemy.kind);
     }
     this.events.damage(enemy.position, Math.round(dealt), color);

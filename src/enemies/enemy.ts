@@ -309,6 +309,10 @@ export class Enemy {
 
   private syncView(camera?: Camera): void {
     this.view.position.copy(this.position);
+    // A blow squashes the body down and wide, then it springs back.
+    const squash = Math.min(1, this.flash / 0.14);
+    const bounce = squash * squash * (0.16 + Math.sin(this.clock * 50) * 0.04);
+    this.view.scale.set(1 + bounce, 1 - bounce * 1.2, 1 + bounce);
     this.rig.update(this.clock, {
       windup: this.windup > 0 ? 1 : 0,
       charging: this.charge > 0,
