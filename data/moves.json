@@ -134,5 +134,12 @@
     "hitstop": 0.12,
     "shake": 0.12,
     "stamina": 0
+  },
+  "perfectDodge": {
+    "slowDuration": 1.4,
+    "slowScale": 0.3,
+    "energy": 6,
+    "staminaRefund": 20,
+    "cooldown": 1.2
   }
 }

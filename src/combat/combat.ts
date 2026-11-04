@@ -9,7 +9,7 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
-import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PLUNGE } from '../player/attackTable';
+import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
@@ -67,6 +67,9 @@ export class Combat {
   private chargeFull = false;
   /** Seconds of hitstop still to play; the game loop freezes time for this long. */
   hitstop = 0;
+  /** Seconds of slowed enemy time still to run after a perfect dodge. */
+  slowTime = 0;
+  private dodgeCooldown = 0;
 
   constructor(
     private readonly scene: Scene,
@@ -128,14 +131,22 @@ export class Combat {
       if (actions.burstPressed) this.useBurst();
     }
 
+    this.dodgeCooldown = Math.max(0, this.dodgeCooldown - dt);
+    this.slowTime = Math.max(0, this.slowTime - dt);
+    const worldDt = this.slowTime > 0 ? dt * PERFECT_DODGE.slowScale : dt;
+
     const playerLevel = this.playerLevel;
     for (const enemy of this.enemies) {
       if (enemy instanceof Enemy) enemy.setViewerLevel(playerLevel);
-      const landed = enemy.update(dt, this.player.position, this.player.alive, camera);
+      const landed = enemy.update(worldDt, this.player.position, this.player.alive, camera);
       if (landed && enemy instanceof Enemy) this.enemyAttack(enemy);
       this.tickElectro(enemy, dt);
     }
-    this.updateProjectiles(dt);
+    this.updateProjectiles(worldDt);
+    if (this.player.dodged) {
+      this.player.dodged = false;
+      if (this.dodgeCooldown === 0) this.perfectDodge();
+    }
     this.fx.update(dt);
   }
 
@@ -217,6 +228,20 @@ export class Combat {
     this.events.swing(CHARGED_STEP);
     this.events.charge('release');
     this.strike = { step: CHARGED_STEP, trailed: true, landed: false, level };
+  }
+
+  /** A blow slipped by dashing through it: time slows for the enemies, and the player is paid back for the risk. */
+  private perfectDodge(): void {
+    this.dodgeCooldown = PERFECT_DODGE.cooldown;
+    this.slowTime = PERFECT_DODGE.slowDuration;
+    this.party.gainEnergy(PERFECT_DODGE.energy);
+    this.player.stamina.value = Math.min(balance.stamina.max, this.player.stamina.value + PERFECT_DODGE.staminaRefund);
+    const color = ELEMENT_COLORS[this.party.active.element];
+    const at = this.player.position.clone();
+    this.fx.ring(at, 2.2, '#ffffff', 0.4);
+    this.fx.ring(at, 1.4, color, 0.3);
+    this.fx.scatter(at.clone().setY(at.y + 1), color, 12, 2.4, 2, 0.06, 0.6);
+    this.events.impact(0.03);
   }
 
   /** The plunge reaches the ground: a shockwave that hits everything near and throws it clear. */

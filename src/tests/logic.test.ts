@@ -15,7 +15,7 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PLUNGE } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
 import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
@@ -107,6 +107,15 @@ describe('plunge data', () => {
     expect(PLUNGE.damageScale).toBeGreaterThan(ATTACKS[COMBO_LENGTH - 1].damageScale);
     expect(PLUNGE.radius).toBeGreaterThan(2);
     expect(PLUNGE.minHeight).toBeGreaterThan(1);
+  });
+});
+
+describe('perfect dodge data', () => {
+  it('slows enemies and pays back, within sane bounds', () => {
+    expect(PERFECT_DODGE.slowScale).toBeGreaterThan(0);
+    expect(PERFECT_DODGE.slowScale).toBeLessThan(1);
+    expect(PERFECT_DODGE.slowDuration).toBeGreaterThan(0);
+    expect(PERFECT_DODGE.cooldown).toBeGreaterThan(0);
   });
 });
 

@@ -55,3 +55,5 @@ export const KNOCKBACK: readonly number[] = raw.knockback;
 export const MOVE_CLIPS: Record<string, string[]> = raw.clips;
 /** The dive-and-smash attack: pressing attack high in the air drops the player onto the ground. */
 export const PLUNGE = raw.plunge;
+/** Slipping through an attack mid-dash: enemies slow down for a moment and the dodge pays back energy and stamina. */
+export const PERFECT_DODGE = raw.perfectDodge;

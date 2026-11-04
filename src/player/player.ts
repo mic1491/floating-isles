@@ -60,6 +60,8 @@ export class Player {
   plunging = false;
   /** Set on the frame a plunge reaches the ground; the combat system reads and clears it. */
   plungeLanded = false;
+  /** Set when a blow was slipped by dashing; the combat system reads and clears it. */
+  dodged = false;
   private readonly collider: RAPIER.Collider;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly lastSafe = new Vector3();
@@ -182,6 +184,7 @@ export class Player {
 
   /** Applies damage unless dashing through it; returns whether it landed. */
   takeDamage(amount: number): boolean {
+    if (this.invulnerable > 0 && this.alive) this.dodged = true;
     if (this.invulnerable > 0 || !this.alive) return false;
     this.hp = Math.max(0, this.hp - amount);
     this.hitAge = 0;
