@@ -955,3 +955,11 @@ describe('enemy levels', () => {
     expect(boss.cfg.hp).toBeGreaterThan(balance.enemies.boss.hp);
   });
 });
+
+describe('quest order', () => {
+  it('sends the player to the level 10 guardian only after the level quest and before the final trial', () => {
+    const at = (id: string) => quests.findIndex((q) => q.id === id);
+    expect(at('guardian')).toBeGreaterThan(at('seasoned'));
+    expect(at('guardian')).toBeLessThan(at('island-trial'));
+  });
+});

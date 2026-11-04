@@ -56,22 +56,6 @@
       }
     },
     {
-      "id": "guardian",
-      "title": "浮石守衛",
-      "intro": "遺跡深處的守衛正在甦醒。做好準備,把它擊倒。",
-      "steps": [
-        {
-          "type": "boss",
-          "count": 1
-        }
-      ],
-      "reward": {
-        "coins": 400,
-        "shards": 6,
-        "xp": 200
-      }
-    },
-    {
       "id": "trial-of-arms",
       "title": "戰士的試煉",
       "intro": "島上的魔物越來越多了。證明你的實力,擊敗 8 隻敵人。",
@@ -151,6 +135,22 @@
         "coins": 400,
         "shards": 6,
         "xp": 300
+      }
+    },
+    {
+      "id": "guardian",
+      "title": "浮石守衛",
+      "intro": "遺跡深處的守衛正在甦醒,牠有 10 級,建議練到 8 級以上再來。做好準備,把它擊倒。",
+      "steps": [
+        {
+          "type": "boss",
+          "count": 1
+        }
+      ],
+      "reward": {
+        "coins": 400,
+        "shards": 6,
+        "xp": 200
       }
     },
     {
