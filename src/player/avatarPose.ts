@@ -33,6 +33,8 @@ export interface Motion {
   dashing: boolean;
   /** Diving onto the ground for the plunge attack. */
   plunging?: boolean;
+  /** The player has fallen; the body lies back where it dropped. */
+  dead?: boolean;
   /** The sword hit in progress: which of the combo and how far through it (0 to 1). */
   attack: { step: number; t: number; id: number; hold?: boolean; cast?: boolean } | null;
   /** 0 to 1 while a charge is being gathered, for the weapon to swell with. */
@@ -125,6 +127,20 @@ export const computePose = (m: Motion): Pose => {
     bones.chest = [0.25, 0, 0];
     bones.leftUpperArm = [0.65, 0, -ARM_DOWN];
     bones.rightUpperArm = [0.65, 0, ARM_DOWN];
+  }
+  if (m.dead) {
+    bones.spine = [0, 0, 0];
+    bones.chest = [0, 0, 0];
+    bones.head = [0.15, 0.3, 0];
+    bones.leftUpperArm = [0, 0, -0.9];
+    bones.rightUpperArm = [0, 0, 0.9];
+    bones.leftLowerArm = [0, -0.2, 0];
+    bones.rightLowerArm = [0, 0.2, 0];
+    bones.leftUpperLeg = [0, 0, -0.12];
+    bones.rightUpperLeg = [0, 0, 0.12];
+    bones.leftLowerLeg = [0, 0, 0];
+    bones.rightLowerLeg = [0, 0, 0];
+    hipsDrop = 0;
   }
   if (m.attack) {
     const { bones: swing, weight, drop, blade: aim } = attackPose(m.attack.step, m.attack.t);

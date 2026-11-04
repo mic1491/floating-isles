@@ -33,9 +33,22 @@ interface Site {
   /** Counts down a short pop as a shard is collected. */
   pop: number;
   phase: number;
+  /** Seconds since the chest began to open, or -1 when it is not opening. */
+  opening: number;
+  /** The light and sparks thrown up as the lid lifts. */
+  burst: Group | null;
 }
 
 const POP_SECONDS = 0.25;
+const OPEN_SECONDS = 0.6;
+const LID_OPEN = -1.9;
+const BURST_MOTES = 8;
+
+/** Rises past its end and settles back, so the lid springs open rather than gliding. */
+const easeOutBack = (t: number): number => {
+  const u = Math.min(1, Math.max(0, t)) - 1;
+  return 1 + 2.70158 * u * u * u + 1.70158 * u * u;
+};
 
 export interface ExplorationEvents {
   discovered(point: ExplorationPoint, reward: Reward): void;
@@ -189,7 +202,7 @@ export class ExplorationField {
       const position = new Vector3(point.x, terrainHeight(point.x, point.z), point.z);
       root.position.copy(position);
       root.rotation.y = (point.x + point.z) * 0.7;
-      const site: Site = { point, position, root, spinner: null, lid: null, glow: null, orbiters: [], glyph: null, flag: null, pop: 0, phase: point.x };
+      const site: Site = { point, position, root, spinner: null, lid: null, glow: null, orbiters: [], glyph: null, flag: null, pop: 0, phase: point.x, opening: -1, burst: null };
       if (point.kind === 'chest') {
         const chest = buildChest(root);
         site.lid = chest.lid;
@@ -255,6 +268,7 @@ export class ExplorationField {
       if (kind === 'viewpoint' && distance <= exploration.viewpointRange) this.discover(site);
       if (kind === 'chest' && distance <= exploration.interactRange) this.nearChest = site;
     }
+    for (const site of this.sites) if (site.opening >= 0) this.animateOpening(site, dt);
     if (interactPressed && this.nearChest) {
       this.discover(this.nearChest);
       this.nearChest = null;
@@ -269,6 +283,44 @@ export class ExplorationField {
     }
   }
 
+  /** The lid springs up while a column of light and a few sparks rise out of the chest, then both fade. */
+  private animateOpening(site: Site, dt: number): void {
+    site.opening += dt;
+    const t = site.opening / OPEN_SECONDS;
+    if (site.lid) site.lid.rotation.x = LID_OPEN * easeOutBack(t);
+    const burst = site.burst;
+    if (burst) {
+      const fade = Math.max(0, 1 - Math.max(0, t - 0.4) / 1.4);
+      burst.visible = fade > 0;
+      const beam = burst.children[0] as Mesh;
+      (beam.material as MeshBasicMaterial).opacity = 0.5 * fade;
+      beam.scale.set(1 - Math.min(1, t) * 0.4, 0.4 + Math.min(1, t) * 1.2, 1 - Math.min(1, t) * 0.4);
+      burst.children.slice(1).forEach((spark, i) => {
+        const angle = (i / BURST_MOTES) * Math.PI * 2;
+        const rise = site.opening * (1.6 + (i % 3) * 0.5);
+        spark.position.set(Math.cos(angle) * 0.35 * (1 + site.opening), 0.7 + rise, Math.sin(angle) * 0.35 * (1 + site.opening));
+        spark.scale.setScalar(Math.max(0.01, fade));
+      });
+    }
+    if (site.opening >= OPEN_SECONDS + 1.4) {
+      site.opening = -1;
+      if (burst) site.root.remove(burst);
+      site.burst = null;
+    }
+  }
+
+  private startOpening(site: Site): void {
+    site.opening = 0;
+    const burst = new Group();
+    const beam = new Mesh(new CylinderGeometry(0.4, 0.55, 3, 16, 1, true), new MeshBasicMaterial({ color: '#fff0b0', transparent: true, opacity: 0.5, depthWrite: false, side: DoubleSide }));
+    beam.position.y = 1.6;
+    burst.add(beam);
+    for (let i = 0; i < BURST_MOTES; i++) burst.add(new Mesh(sparkleGeometry, sparkleMaterial));
+    burst.position.y = 0.3;
+    site.root.add(burst);
+    site.burst = burst;
+  }
+
   private discover(site: Site): void {
     const reward = this.progress.claim(site.point);
     if (!reward) return;
@@ -279,7 +331,10 @@ export class ExplorationField {
   private showDone(site: Site, instant: boolean): void {
     const { kind } = site.point;
     if (site.glow) site.glow.visible = false;
-    if (kind === 'chest' && site.lid) site.lid.rotation.x = -1.9;
+    if (kind === 'chest' && site.lid) {
+      if (instant) site.lid.rotation.x = LID_OPEN;
+      else this.startOpening(site);
+    }
     if (kind === 'collectible' && site.spinner) {
       if (instant) site.spinner.visible = false;
       else site.pop = POP_SECONDS;

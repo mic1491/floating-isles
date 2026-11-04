@@ -62,6 +62,8 @@ export class Player {
   plungeLanded = false;
   /** Set when a blow was slipped by dashing; the combat system reads and clears it. */
   dodged = false;
+  /** Seconds since the player fell, or 0 while alive. */
+  private deadAge = 0;
   private readonly collider: RAPIER.Collider;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly lastSafe = new Vector3();
@@ -356,7 +358,12 @@ export class Player {
     this.view.rotation.y = yaw + spin;
     const turn = dt > 0 ? Math.atan2(Math.sin(yaw - this.lastYaw), Math.cos(yaw - this.lastYaw)) / dt : 0;
     this.lastYaw = yaw;
-    this.view.rotation.x = this.gliding ? -0.5 : 0;
+    this.deadAge = this.alive ? 0 : this.deadAge + dt;
+    // A fallen player topples slowly backward and lies flat until revived.
+    const fall = Math.min(1, this.deadAge / 0.55);
+    this.view.rotation.order = this.alive ? 'XYZ' : 'YXZ';
+    this.view.rotation.x = this.alive ? (this.gliding ? -0.5 : 0) : 1.5 * fall * fall * (3 - 2 * fall);
+    if (!this.alive) this.view.position.y += 0.15 * fall;
     this.clock += dt;
     this.avatar?.update(dt, {
       time: this.clock,
@@ -369,9 +376,12 @@ export class Player {
       gliding: this.gliding,
       dashing: this.dashTime > 0,
       plunging: this.plunging,
+      dead: !this.alive,
       attack:
-        swinging && this.attack
-          ? { ...swinging, id: this.attack.id, cast: this.attack.step > CHARGED_STEP }
+        !this.alive
+          ? null
+          : swinging && this.attack
+            ? { ...swinging, id: this.attack.id, cast: this.attack.step > CHARGED_STEP }
           : this.chargeLevel >= 0
             ? { step: 4, t: CHARGE_HOLD, id: -1, hold: true }
             : null,
