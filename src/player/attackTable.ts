@@ -36,11 +36,14 @@ const toStyle = (hit: RawHit): AttackStyle => {
 };
 
 /** Every hit's timing and shape, read from `data/moves.json`: the tap combo, then the charged strike. */
-export const ATTACKS: readonly AttackStyle[] = [...raw.combo, raw.charged].map((hit) => toStyle(hit as RawHit));
+export const ATTACKS: readonly AttackStyle[] = [...raw.combo, raw.charged, raw.casts.skill, raw.casts.burst].map((hit) => toStyle(hit as RawHit));
 
 /** Hits in the tap combo; the entry after them in `ATTACKS` is the charged strike. */
 export const COMBO_LENGTH = raw.combo.length;
 export const CHARGED_STEP = COMBO_LENGTH + 1;
+/** The cast motions for the elemental skill and burst follow the charged strike in `ATTACKS`. */
+export const SKILL_STEP = CHARGED_STEP + 1;
+export const BURST_STEP = CHARGED_STEP + 2;
 /** The point of the overhead swing, as a fraction of it, where the weapon is raised and held while charging. */
 export const CHARGE_HOLD = raw.charge.holdPoint;
 /** Seconds the button must be held, after the tap's own swing is over, before power starts to gather. */

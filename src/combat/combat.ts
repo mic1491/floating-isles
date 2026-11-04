@@ -9,7 +9,7 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
-import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
+import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, BURST_STEP, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE, SKILL_STEP } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
@@ -414,11 +414,26 @@ export class Combat {
     this.party.skillCooldowns[i] = skill.cooldown;
     this.events.skill();
     this.faceNearest();
-    const center = this.player.position.clone().addScaledVector(this.player.facing, 3);
-    center.y = terrainHeight(center.x, center.z) + 0.4;
-    this.fx.dome(center, skill.radius * 0.55, color, 0.3);
-    this.skillFx(this.party.active.weapon, center, skill.radius, color);
-    this.area(center, skill.radius, skill.damage * this.party.power, element);
+    const weapon = this.party.active.weapon;
+    // The character takes the cast pose first; the skill goes off when the hand reaches its release point.
+    this.castMotion(SKILL_STEP, () => {
+      const center = this.player.position.clone().addScaledVector(this.player.facing, 3);
+      center.y = terrainHeight(center.x, center.z) + 0.4;
+      this.fx.dome(center, skill.radius * 0.55, color, 0.3);
+      this.skillFx(weapon, center, skill.radius, color);
+      this.area(center, skill.radius, skill.damage * this.party.power, element);
+    });
+  }
+
+  /** Plays a cast motion and runs `release` when it reaches its release point. */
+  private castMotion(step: number, release: () => void): void {
+    const style = ATTACKS[step - 1];
+    this.comboStep = 0;
+    this.comboTimer = 0;
+    this.strike = null;
+    this.cancelCharge();
+    this.player.startAttack(step, 0);
+    this.fx.after(style.strikeAt * style.duration, release);
   }
 
   /** A point scattered about a centre, within `radius`, standing on the ground. */
@@ -516,9 +531,12 @@ export class Combat {
     const { burst, element, color } = this.party.active;
     this.party.energy[i] = 0;
     this.events.burst();
-    this.fx.dome(this.player.position, burst.radius * 0.5, color, 0.5);
-    this.burstFx(this.party.active.weapon, this.player.position, burst.radius, color);
-    this.area(this.player.position, burst.radius, burst.damage * this.party.power, element);
+    const weapon = this.party.active.weapon;
+    this.castMotion(BURST_STEP, () => {
+      this.fx.dome(this.player.position, burst.radius * 0.5, color, 0.5);
+      this.burstFx(weapon, this.player.position, burst.radius, color);
+      this.area(this.player.position, burst.radius, burst.damage * this.party.power, element);
+    });
   }
 
   private area(center: Vector3, radius: number, damage: number, element: Element): void {

@@ -109,21 +109,27 @@
       "Sword_Regular_B",
       "Sword_Regular_C",
       "Sword_Heavy_Combo",
-      "Sword_Heavy_Combo"
+      "Sword_Heavy_Combo",
+      "Spell_Simple_Shoot",
+      ""
     ],
     "spear": [
       "Sword_Regular_A",
       "Sword_Regular_B",
       "Sword_Regular_C",
       "Sword_Heavy_Combo",
-      "Sword_Heavy_Combo"
+      "Sword_Heavy_Combo",
+      "Spell_Simple_Shoot",
+      ""
     ],
     "staff": [
       "Spell_Simple_Shoot",
       "Sword_Regular_B",
       "Spell_Simple_Shoot",
       "Sword_Heavy_Combo",
-      "Sword_Heavy_Combo"
+      "Sword_Heavy_Combo",
+      "Spell_Simple_Shoot",
+      ""
     ]
   },
   "plunge": {
@@ -141,5 +147,41 @@
     "energy": 6,
     "staminaRefund": 20,
     "cooldown": 1.2
+  },
+  "casts": {
+    "skill": {
+      "duration": 0.55,
+      "strikeAt": 0.45,
+      "chainAt": 1,
+      "lunge": 0,
+      "damageScale": 0,
+      "hitstop": 0,
+      "shake": 0,
+      "trail": {
+        "roll": 0,
+        "fromDeg": 0,
+        "toDeg": 0,
+        "radius": 0,
+        "width": 0,
+        "height": 0
+      }
+    },
+    "burst": {
+      "duration": 0.95,
+      "strikeAt": 0.5,
+      "chainAt": 1,
+      "lunge": 0,
+      "damageScale": 0,
+      "hitstop": 0,
+      "shake": 0,
+      "trail": {
+        "roll": 0,
+        "fromDeg": 0,
+        "toDeg": 0,
+        "radius": 0,
+        "width": 0,
+        "height": 0
+      }
+    }
   }
 }

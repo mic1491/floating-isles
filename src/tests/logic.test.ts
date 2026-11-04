@@ -15,7 +15,7 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, BURST_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
 import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
@@ -90,7 +90,7 @@ describe('nextEnemyState', () => {
 
 describe('move data', () => {
   it('reads every hit from data/moves.json and keeps it sane', () => {
-    expect(ATTACKS).toHaveLength(COMBO_LENGTH + 1);
+    expect(ATTACKS).toHaveLength(COMBO_LENGTH + 3);
     for (const hit of ATTACKS) {
       expect(hit.strikeAt).toBeGreaterThan(0);
       expect(hit.strikeAt).toBeLessThan(hit.chainAt + 1e-9);
@@ -740,7 +740,7 @@ describe('recorded sword motion', () => {
 
   it('has a clip for every hit of the combo, with every bone recorded for every frame', () => {
     for (const names of Object.values(COMBO_CLIPS)) expect(names).toHaveLength(ATTACKS.length);
-    for (const name of new Set(Object.values(COMBO_CLIPS).flat())) {
+    for (const name of new Set(Object.values(COMBO_CLIPS).flat().filter(Boolean))) {
       const clip = library.clips.find((c) => c.name === name)!;
       expect(clip, name).toBeDefined();
       const frames = Math.round(clip.duration * clip.fps) + 1;
@@ -761,6 +761,7 @@ describe('recorded sword motion', () => {
 
   it("lands the recording's strike exactly when the game's blade lands", () => {
     for (const [i, name] of COMBO_CLIPS.sword.entries()) {
+      if (!name) continue;
       const clip = library.clips.find((c) => c.name === name)!;
       const strikeAt = ATTACKS[i].strikeAt;
       expect(clipTime(clip, strikeAt, strikeAt)).toBeCloseTo(clip.strike, 5);
@@ -929,7 +930,7 @@ describe('foot placement', () => {
 describe('charged strike', () => {
   it('sits after the tap combo and shares its swing, striking after the held pose', () => {
     expect(CHARGED_STEP).toBe(COMBO_LENGTH + 1);
-    expect(ATTACKS).toHaveLength(CHARGED_STEP);
+    expect(ATTACKS).toHaveLength(BURST_STEP);
     expect(CHARGE_HOLD).toBeLessThan(ATTACKS[CHARGED_STEP - 1].strikeAt);
     expect(ATTACKS[CHARGED_STEP - 1].damageScale).toBeGreaterThan(ATTACKS[COMBO_LENGTH - 1].damageScale);
   });

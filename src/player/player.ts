@@ -371,7 +371,7 @@ export class Player {
       plunging: this.plunging,
       attack:
         swinging && this.attack
-          ? { ...swinging, id: this.attack.id }
+          ? { ...swinging, id: this.attack.id, cast: this.attack.step > CHARGED_STEP }
           : this.chargeLevel >= 0
             ? { step: 4, t: CHARGE_HOLD, id: -1, hold: true }
             : null,

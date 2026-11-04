@@ -34,7 +34,7 @@ export interface Motion {
   /** Diving onto the ground for the plunge attack. */
   plunging?: boolean;
   /** The sword hit in progress: which of the combo and how far through it (0 to 1). */
-  attack: { step: number; t: number; id: number; hold?: boolean } | null;
+  attack: { step: number; t: number; id: number; hold?: boolean; cast?: boolean } | null;
   /** 0 to 1 while a charge is being gathered, for the weapon to swell with. */
   charge?: number;
 }

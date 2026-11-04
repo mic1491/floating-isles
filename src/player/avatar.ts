@@ -396,7 +396,7 @@ export class Avatar {
       this.trailInScene = true;
     }
     let emit = false;
-    if (motion.attack && !motion.attack.hold) {
+    if (motion.attack && !motion.attack.hold && !motion.attack.cast) {
       const strike = ATTACKS[motion.attack.step - 1].strikeAt;
       emit = motion.attack.t > strike - 0.3 && motion.attack.t < strike + 0.2;
     }
@@ -411,7 +411,7 @@ export class Avatar {
     const node = this.weaponNode;
     if (!node) return;
     let punch = 0;
-    if (motion.attack && !motion.attack.hold) {
+    if (motion.attack && !motion.attack.hold && !motion.attack.cast) {
       const strike = ATTACKS[motion.attack.step - 1].strikeAt;
       const near = Math.max(0, 1 - Math.abs(motion.attack.t - strike) / 0.2);
       punch = near * near * (3 - 2 * near);

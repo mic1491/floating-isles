@@ -76,7 +76,18 @@ const TRACKS: Frame[][] = [
     [0.78, 'out', { chest: [0.6, 0.15, 0], rightUpperArm: [-0.7, 0, 1.4], rightLowerArm: [0, 0.54, 0], leftUpperArm: [-0.9, 0, -2.0] }, 0.13, [0, -1.0]],
     [1, 'io', {}, 0.05],
   ]),
+  // 5: casting the skill, a thrust forward with the free hand steadying it
+  track([
+    [0, 'io', { hips: [0, -0.1, 0], spine: [0, -0.1, 0], chest: [0, -0.2, 0], ...READY_RIGHT, ...GUARD_LEFT, leftUpperLeg: [-0.1, 0, -0.04], rightUpperLeg: [0.2, 0, 0.04] }, 0.02, [0.3, 0.6]],
+    [0.3, 'io', { hips: [0, -0.2, 0], chest: [-0.1, -0.35, 0], rightUpperArm: [-1.0, 0, 0.9], rightLowerArm: [0, 1.2, 0] }, 0.04, [0, 0.9]],
+    [0.5, 'in', { hips: [0, 0.15, 0], chest: [0.2, 0.2, 0], rightUpperArm: [-1.55, 0, 1.45], rightLowerArm: [0, 0.15, 0], leftUpperArm: [-1.2, 0, -1.3], leftLowerArm: [0, -0.3, 0], leftUpperLeg: [-0.5, 0, -0.04], leftLowerLeg: [0.4, 0, 0], rightUpperLeg: [0.4, 0, 0.04] }, 0.08, [0, 0.1]],
+    [0.75, 'out', { chest: [0.25, 0.2, 0] }, 0.07, [0, 0]],
+    [1, 'io', {}, 0.03],
+  ]),
 ];
+
+/** Which track each step uses: the charged strike shares the finisher's overhead swing, and the burst cast does too. */
+const TRACK_FOR_STEP = [0, 1, 2, 3, 3, 4, 3];
 
 export interface AttackPose {
   bones: Partial3;
@@ -115,7 +126,7 @@ const sample = (frames: Frame[], i: number, u: number, read: (f: Frame) => numbe
 };
 
 export const attackPose = (step: number, t: number): AttackPose => {
-  const frames = TRACKS[Math.min(Math.max(step, 1), TRACKS.length) - 1];
+  const frames = TRACKS[TRACK_FOR_STEP[Math.min(Math.max(step, 1), TRACK_FOR_STEP.length) - 1]];
   const strikeAt = ATTACKS[Math.min(Math.max(step, 1), ATTACKS.length) - 1].strikeAt;
   // The keyframes are authored with the strike at frame 3; stretch time so it lands at strikeAt.
   const hit = frames[2].t;
