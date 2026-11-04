@@ -16,7 +16,7 @@ import { addOutline, toonMaterial } from '../render/toon';
 import type { Physics } from '../world/physics';
 import { terrainHeight } from '../world/terrain';
 import type { Avatar } from './avatar';
-import { ATTACKS } from './attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_STEP } from './attackTable';
 import { Glider } from './glider';
 import { Stamina } from './stamina';
 
@@ -35,6 +35,12 @@ export interface PlayerEvents {
   glide?(): void;
 }
 
+/** How far the body has turned, in radians, a fraction `t` of the way through the charged strike. */
+export const whirlAngle = (t: number): number => {
+  const u = Math.min(1, Math.max(0, (t - 0.28) / 0.5));
+  return Math.PI * 2 * u * u * (3 - 2 * u);
+};
+
 export class Player {
   events: PlayerEvents = {};
   readonly view = new Group();
@@ -46,6 +52,10 @@ export class Player {
   hp: number = cfg.maxHp;
   gliding = false;
   verticalSpeed = 0;
+  /** Gathered charge from 0 to 1, or -1 when not charging; the combat system sets it. */
+  chargeLevel = -1;
+  /** Whether this weapon spins the body round through the charged strike. */
+  whirl = false;
   private readonly collider: RAPIER.Collider;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly lastSafe = new Vector3();
@@ -130,8 +140,13 @@ export class Player {
   }
 
   /** Starts hit `step` (1-based) of the sword combo. `lungeScale` shortens the step forward near a target. */
-  startAttack(step: number, lungeScale = 1): void {
-    this.attack = { step, elapsed: 0, id: ++this.attackCount, lungeScale };
+  startAttack(step: number, lungeScale = 1, from = 0): void {
+    this.attack = { step, elapsed: from * ATTACKS[step - 1].duration, id: ++this.attackCount, lungeScale };
+  }
+
+  /** Whether a charge can be gathered or held: on the ground, not flying, dashing or reeling. */
+  get canCharge(): boolean {
+    return this.alive && this.grounded && !this.gliding && this.dashTime <= 0 && this.hitAge > 0.35;
   }
 
   cancelAttack(): void {
@@ -192,7 +207,7 @@ export class Player {
     const dashing = this.dashTime > 0;
     if (!sprinting && !this.gliding && !dashing) this.stamina.update(dt);
 
-    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength * (this.attack ? 0.3 : 1);
+    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength * (this.attack ? 0.3 : this.chargeLevel >= 0 ? 0.35 : 1);
     if (this.gliding) {
       speed = cfg.glideSpeed * wishLength;
       this.stamina.drain(balance.stamina.glidePerSecond * dt);
@@ -306,7 +321,9 @@ export class Player {
     this.view.position.copy(this.position);
     this.view.position.y += this.grounded ? Math.abs(Math.sin(this.walkPhase)) * 0.06 * Math.min(1, speed) : 0;
     const yaw = Math.atan2(-this.facing.x, -this.facing.z);
-    this.view.rotation.y = yaw;
+    // The charged sword strike whirls the body once round through the swing.
+    const spin = this.whirl && this.attack?.step === CHARGED_STEP ? whirlAngle(this.attack.elapsed / ATTACKS[CHARGED_STEP - 1].duration) : 0;
+    this.view.rotation.y = yaw + spin;
     const turn = dt > 0 ? Math.atan2(Math.sin(yaw - this.lastYaw), Math.cos(yaw - this.lastYaw)) / dt : 0;
     this.lastYaw = yaw;
     this.view.rotation.x = this.gliding ? -0.5 : 0;
@@ -321,7 +338,13 @@ export class Player {
       airborne: !this.grounded,
       gliding: this.gliding,
       dashing: this.dashTime > 0,
-      attack: swinging && this.attack ? { ...swinging, id: this.attack.id } : null,
+      attack:
+        swinging && this.attack
+          ? { ...swinging, id: this.attack.id }
+          : this.chargeLevel >= 0
+            ? { step: 4, t: CHARGE_HOLD, id: -1, hold: true }
+            : null,
+      charge: Math.max(0, this.chargeLevel),
     });
     this.weapon.rotation.y = swinging ? 1.2 - 2.4 * swinging.t : 0;
     this.glider.group.visible = this.gliding;

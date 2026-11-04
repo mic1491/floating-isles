@@ -67,6 +67,21 @@ export const ATTACKS: readonly AttackStyle[] = [
     shake: 0.05,
     trail: { roll: 1.5, from: deg(0), to: deg(180), radius: 1.8, width: 0.8, height: 0.95 },
   },
+  // The charged strike, released from a held button. It shares the finisher's overhead motion but swings harder.
+  {
+    duration: 0.8,
+    strikeAt: 0.44,
+    chainAt: 1,
+    lunge: 2.2,
+    damageScale: 2.2,
+    hitstop: 0.14,
+    shake: 0.14,
+    trail: { roll: 1.5, from: deg(0), to: deg(180), radius: 2.2, width: 1, height: 0.95 },
+  },
 ];
 
-export const COMBO_LENGTH = ATTACKS.length;
+/** Hits in the tap combo; the entry after them in `ATTACKS` is the charged strike. */
+export const COMBO_LENGTH = 4;
+export const CHARGED_STEP = 5;
+/** The point of the overhead swing, as a fraction of it, where the weapon is raised and held while charging. */
+export const CHARGE_HOLD = 0.32;

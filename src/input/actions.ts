@@ -7,6 +7,8 @@ export class Actions {
   zoom = 0;
   sprint = false;
   attack = false;
+  /** Set when the attack button goes down and cleared by combat, so a tap during a freeze is not lost. */
+  attackPressed = false;
   jumpPressed = false;
   dashPressed = false;
   skillPressed = false;

@@ -23,9 +23,9 @@ export interface ClipLibrary {
 
 /** Which recorded clip plays for each hit of the combo, per weapon: a staff casts where a sword cuts. */
 export const COMBO_CLIPS: Record<string, string[]> = {
-  sword: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo'],
-  spear: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo'],
-  staff: ['Spell_Simple_Shoot', 'Sword_Regular_B', 'Spell_Simple_Shoot', 'Sword_Heavy_Combo'],
+  sword: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
+  spear: ['Sword_Regular_A', 'Sword_Regular_B', 'Sword_Regular_C', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
+  staff: ['Spell_Simple_Shoot', 'Sword_Regular_B', 'Spell_Simple_Shoot', 'Sword_Heavy_Combo', 'Sword_Heavy_Combo'],
 };
 
 /** Merges several libraries recorded on the same rig into one lookup by clip name. */

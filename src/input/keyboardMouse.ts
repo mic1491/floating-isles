@@ -42,7 +42,10 @@ export const bindKeyboardMouse = (canvas: HTMLCanvasElement, actions: Actions): 
       void canvas.requestPointerLock();
       return;
     }
-    if (event.button === 0) actions.attack = true;
+    if (event.button === 0) {
+      actions.attack = true;
+      actions.attackPressed = true;
+    }
   });
   addEventListener('mouseup', () => {
     actions.attack = false;

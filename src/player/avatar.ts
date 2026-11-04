@@ -396,7 +396,7 @@ export class Avatar {
       this.trailInScene = true;
     }
     let emit = false;
-    if (motion.attack) {
+    if (motion.attack && !motion.attack.hold) {
       const strike = ATTACKS[motion.attack.step - 1].strikeAt;
       emit = motion.attack.t > strike - 0.3 && motion.attack.t < strike + 0.2;
     }
@@ -411,14 +411,14 @@ export class Avatar {
     const node = this.weaponNode;
     if (!node) return;
     let punch = 0;
-    if (motion.attack) {
+    if (motion.attack && !motion.attack.hold) {
       const strike = ATTACKS[motion.attack.step - 1].strikeAt;
       const near = Math.max(0, 1 - Math.abs(motion.attack.t - strike) / 0.2);
       punch = near * near * (3 - 2 * near);
     }
     if (this.weaponKind === 'spear') node.position.z = GRIP_OFFSET.z + punch * 0.6;
     const halo = node.userData.glow as Object3D | undefined;
-    if (halo) halo.scale.setScalar(1 + punch * 1.6);
+    if (halo) halo.scale.setScalar(1 + punch * 1.6 + (motion.charge ?? 0) * (0.5 + Math.sin(motion.time * 18) * 0.12));
   }
 
   /** Settles hair and cloth at once, so a teleport does not whip them across the map. */

@@ -410,6 +410,7 @@ const boot = async (): Promise<void> => {
     swing: (step) => sfx.swing(step),
     skill: () => sfx.skill(),
     burst: () => sfx.burst(),
+    charge: (stage) => sfx.charge(stage),
   }, save.bossDefeated);
 
   const persist = () =>
@@ -469,6 +470,7 @@ const boot = async (): Promise<void> => {
     if (actions.gearPressed && menu.playing && !map.open && !growth.open) gearView.toggle();
 
     if (!menu.playing || screenOpen) {
+      actions.attackPressed = false;
       player.refreshView(dt);
       if (!map.open) map.update(dt, player.position, player.facing);
       orbit.update(dt, actions, player.position);

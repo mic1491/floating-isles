@@ -65,6 +65,21 @@ export class Sfx {
     this.arpeggio([392, 523.25, 659.25, 784, 1046.5], 0.07, 0.07, 0.1);
   }
 
+  /** Power gathering, filling and letting go. */
+  charge(stage: 'start' | 'full' | 'release'): void {
+    if (stage === 'start') {
+      this.tone(180, 0.9, 'sine', 0.1, 520);
+      this.noise(0.9, 0.05, 600, 3000, 'bandpass');
+    } else if (stage === 'full') {
+      this.arpeggio([659.25, 880, 1174.66], 0.05, 0.16, 0.09);
+      this.tone(90, 0.3, 'sine', 0.2, 140);
+    } else {
+      this.noise(0.4, 0.22, 800, 5000, 'bandpass');
+      this.tone(140, 0.5, 'sawtooth', 0.12, 45);
+      this.tone(70, 0.6, 'sine', 0.3, 35, 0.08);
+    }
+  }
+
   reaction(): void {
     this.tone(660, 0.18, 'square', 0.07, 1320);
     this.noise(0.18, 0.1, 5000, 1500, 'highpass');

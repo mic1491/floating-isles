@@ -32,7 +32,9 @@ export interface Motion {
   gliding: boolean;
   dashing: boolean;
   /** The sword hit in progress: which of the combo and how far through it (0 to 1). */
-  attack: { step: number; t: number; id: number } | null;
+  attack: { step: number; t: number; id: number; hold?: boolean } | null;
+  /** 0 to 1 while a charge is being gathered, for the weapon to swell with. */
+  charge?: number;
 }
 
 export interface Pose {

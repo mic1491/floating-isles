@@ -15,7 +15,8 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_STEP, COMBO_LENGTH } from '../player/attackTable';
+import { whirlAngle } from '../player/player';
 import { Quaternion } from 'three';
 import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
@@ -879,5 +880,22 @@ describe('foot placement', () => {
     const reached = new Vector3();
     solveKnee(hip, knee, ankle, new Vector3(0, -2, 0), newKnee, reached);
     expect(hip.distanceTo(reached)).toBeCloseTo(hip.distanceTo(knee) + knee.distanceTo(ankle), 2);
+  });
+});
+
+describe('charged strike', () => {
+  it('sits after the tap combo and shares its swing, striking after the held pose', () => {
+    expect(CHARGED_STEP).toBe(COMBO_LENGTH + 1);
+    expect(ATTACKS).toHaveLength(CHARGED_STEP);
+    expect(CHARGE_HOLD).toBeLessThan(ATTACKS[CHARGED_STEP - 1].strikeAt);
+    expect(ATTACKS[CHARGED_STEP - 1].damageScale).toBeGreaterThan(ATTACKS[COMBO_LENGTH - 1].damageScale);
+  });
+
+  it('whirls the body exactly once round, starting and ending at rest', () => {
+    expect(whirlAngle(0)).toBe(0);
+    expect(whirlAngle(0.28)).toBe(0);
+    expect(whirlAngle(0.78)).toBeCloseTo(Math.PI * 2, 5);
+    expect(whirlAngle(1)).toBeCloseTo(Math.PI * 2, 5);
+    expect(whirlAngle(0.53)).toBeCloseTo(Math.PI, 5);
   });
 });

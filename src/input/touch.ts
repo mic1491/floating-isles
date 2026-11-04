@@ -95,7 +95,10 @@ export const bindTouch = (root: HTMLElement, actions: Actions): void => {
       node.addEventListener('pointercancel', up);
     }
   };
-  button(t('touch.attack'), 'attack', () => (actions.attack = true), () => (actions.attack = false));
+  button(t('touch.attack'), 'attack', () => {
+    actions.attack = true;
+    actions.attackPressed = true;
+  }, () => (actions.attack = false));
   button(t('touch.skill'), 'skill', () => (actions.skillPressed = true));
   button(t('touch.burst'), 'burst', () => (actions.burstPressed = true));
   button(t('touch.jump'), 'jump', () => (actions.jumpPressed = true));
