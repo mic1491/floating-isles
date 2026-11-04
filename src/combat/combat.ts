@@ -359,8 +359,98 @@ export class Combat {
     this.faceNearest();
     const center = this.player.position.clone().addScaledVector(this.player.facing, 3);
     center.y = terrainHeight(center.x, center.z) + 0.4;
-    this.fx.dome(center, skill.radius, color);
+    this.fx.dome(center, skill.radius * 0.55, color, 0.3);
+    this.skillFx(this.party.active.weapon, center, skill.radius, color);
     this.area(center, skill.radius, skill.damage * this.party.power, element);
+  }
+
+  /** A point scattered about a centre, within `radius`, standing on the ground. */
+  private scatterPoint(centre: Vector3, radius: number): Vector3 {
+    const angle = Math.random() * Math.PI * 2;
+    const r = radius * Math.sqrt(Math.random());
+    const x = centre.x + Math.cos(angle) * r;
+    const z = centre.z + Math.sin(angle) * r;
+    return new Vector3(x, terrainHeight(x, z), z);
+  }
+
+  /** Each character's skill looks like its element: fire erupts, water wells up, thunder strikes from the sky. */
+  private skillFx(kind: string, centre: Vector3, radius: number, color: string): void {
+    const ground = centre.clone().setY(terrainHeight(centre.x, centre.z));
+    this.fx.ring(ground, radius, color, 0.5);
+    this.fx.ring(ground, radius * 0.6, '#ffffff', 0.35);
+    if (kind === 'sword') {
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const spot = new Vector3(ground.x + Math.cos(angle) * radius * 0.6, 0, ground.z + Math.sin(angle) * radius * 0.6);
+        spot.y = terrainHeight(spot.x, spot.z);
+        this.fx.after(0.04 * i, () => {
+          this.fx.pillar(spot, 0.55, 4.5, color, 0.5);
+          this.fx.scatter(spot.clone().setY(spot.y + 0.3), color, 6, 1.5, 4, 0.06, 0.7);
+        });
+      }
+      this.fx.scatter(ground.clone().setY(ground.y + 0.4), color, 20, radius * 1.4, 5, 0.07, 0.9);
+    } else if (kind === 'staff') {
+      this.fx.ring(ground, radius * 1.2, color, 0.7);
+      for (let i = 0; i < 4; i++) {
+        const spot = this.scatterPoint(ground, radius * 0.7);
+        this.fx.after(0.07 * i, () => {
+          this.fx.pillar(spot, 0.7, 5, color, 0.55);
+          this.fx.ring(spot, 1.3, color, 0.4);
+        });
+      }
+      this.fx.scatter(ground.clone().setY(ground.y + 0.4), color, 24, radius * 1.2, 7, 0.07, 1);
+    } else {
+      for (let i = 0; i < 5; i++) {
+        const spot = this.scatterPoint(ground, radius * 0.8);
+        this.fx.after(0.06 * i, () => {
+          this.fx.bolt(new Vector3(spot.x + (Math.random() - 0.5) * 2, spot.y + 11, spot.z + (Math.random() - 0.5) * 2), spot, color, 0.3, 0.6);
+          this.fx.ring(spot, 1.2, color, 0.3);
+          this.fx.scatter(spot.clone().setY(spot.y + 0.3), color, 6, 2.5, 3, 0.06, 0.5);
+        });
+      }
+    }
+  }
+
+  /** The burst is the same idea at full size, and louder. */
+  private burstFx(kind: string, centre: Vector3, radius: number, color: string): void {
+    const ground = centre.clone().setY(terrainHeight(centre.x, centre.z));
+    for (const [scale, wait, tint] of [[1, 0, color], [0.7, 0.08, '#ffffff'], [1.25, 0.16, color]] as const) {
+      this.fx.after(wait, () => this.fx.ring(ground, radius * scale, tint, 0.6));
+    }
+    this.events.shake(0.3);
+    if (kind === 'sword') {
+      this.fx.pillar(ground, 2.2, 14, color, 0.9);
+      for (let i = 0; i < 10; i++) {
+        const spot = this.scatterPoint(ground, radius * 0.8);
+        this.fx.after(0.05 * i, () => {
+          this.fx.pillar(spot, 0.8, 7, color, 0.6);
+          this.fx.scatter(spot.clone().setY(spot.y + 0.3), color, 5, 2, 5, 0.07, 0.8);
+        });
+      }
+      this.fx.scatter(ground.clone().setY(ground.y + 0.5), color, 40, radius * 1.6, 8, 0.08, 1.1);
+    } else if (kind === 'staff') {
+      for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const spot = new Vector3(ground.x + Math.cos(angle) * radius * 0.65, 0, ground.z + Math.sin(angle) * radius * 0.65);
+        spot.y = terrainHeight(spot.x, spot.z);
+        this.fx.after(0.06 * i, () => {
+          this.fx.pillar(spot, 1, 9, color, 0.7);
+          this.fx.ring(spot, 2, color, 0.5);
+        });
+      }
+      this.fx.pillar(ground, 1.8, 12, color, 0.9);
+      this.fx.scatter(ground.clone().setY(ground.y + 0.5), color, 40, radius * 1.4, 9, 0.08, 1.2);
+    } else {
+      for (let i = 0; i < 12; i++) {
+        const spot = this.scatterPoint(ground, radius * 0.85);
+        this.fx.after(0.05 * i, () => {
+          this.fx.bolt(new Vector3(spot.x + (Math.random() - 0.5) * 3, spot.y + 13, spot.z + (Math.random() - 0.5) * 3), spot, color, 0.35, 0.8);
+          this.fx.ring(spot, 1.6, color, 0.4);
+          this.fx.scatter(spot.clone().setY(spot.y + 0.3), color, 6, 3, 4, 0.07, 0.6);
+        });
+      }
+      this.fx.pillar(ground, 1.4, 14, color, 0.8);
+    }
   }
 
   private useBurst(): void {
@@ -369,8 +459,8 @@ export class Combat {
     const { burst, element, color } = this.party.active;
     this.party.energy[i] = 0;
     this.events.burst();
-    this.fx.dome(this.player.position, burst.radius, color, 0.6);
-    this.fx.ring(this.player.position, burst.radius, '#ffffff', 0.6);
+    this.fx.dome(this.player.position, burst.radius * 0.5, color, 0.5);
+    this.burstFx(this.party.active.weapon, this.player.position, burst.radius, color);
     this.area(this.player.position, burst.radius, burst.damage * this.party.power, element);
   }
 

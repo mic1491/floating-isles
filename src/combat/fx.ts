@@ -70,6 +70,7 @@ export class Fx {
   private readonly specks = new Map<string, MeshBasicMaterial>();
   private sigil: { group: Group; outer: Group; inner: Group; materials: MeshBasicMaterial[] } | null = null;
   private gatherDebt = 0;
+  private readonly later: Array<{ wait: number; run: () => void }> = [];
 
   constructor(private readonly scene: Scene) {}
 
@@ -296,7 +297,20 @@ export class Fx {
     this.trails.push({ mesh, age: 0, indices: indices.length });
   }
 
+  /** Runs `run` after `wait` seconds of effect time, to stagger a burst of strikes. */
+  after(wait: number, run: () => void): void {
+    this.later.push({ wait, run });
+  }
+
   update(dt: number): void {
+    for (let i = this.later.length - 1; i >= 0; i--) {
+      const item = this.later[i];
+      item.wait -= dt;
+      if (item.wait <= 0) {
+        this.later.splice(i, 1);
+        item.run();
+      }
+    }
     for (let i = this.trails.length - 1; i >= 0; i--) {
       const trail = this.trails[i];
       trail.age += dt;
