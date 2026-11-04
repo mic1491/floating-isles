@@ -31,6 +31,8 @@ export interface Motion {
   airborne: boolean;
   gliding: boolean;
   dashing: boolean;
+  /** Diving onto the ground for the plunge attack. */
+  plunging?: boolean;
   /** The sword hit in progress: which of the combo and how far through it (0 to 1). */
   attack: { step: number; t: number; id: number; hold?: boolean } | null;
   /** 0 to 1 while a charge is being gathered, for the weapon to swell with. */
@@ -103,6 +105,20 @@ export const computePose = (m: Motion): Pose => {
     bones.rightUpperLeg = [0.25, 0, 0.05];
     bones.rightLowerLeg = [0.3, 0, 0];
     blade = [-0.5, -0.2];
+  }
+  if (m.plunging) {
+    bones.spine = [0.25, 0, 0];
+    bones.chest = [0.2, 0, 0];
+    bones.head = [-0.3, 0, 0];
+    bones.leftUpperArm = [-2.6, 0, -0.35];
+    bones.rightUpperArm = [-2.6, 0, 0.35];
+    bones.leftLowerArm = [0, 0, 0];
+    bones.rightLowerArm = [0, 0, 0];
+    bones.leftUpperLeg = [0.1, 0, -0.04];
+    bones.leftLowerLeg = [0.2, 0, 0];
+    bones.rightUpperLeg = [0.1, 0, 0.04];
+    bones.rightLowerLeg = [0.2, 0, 0];
+    blade = [-0.1, 1.3];
   }
   if (m.dashing) {
     bones.spine = [0.3, 0, 0];

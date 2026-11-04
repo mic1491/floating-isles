@@ -53,3 +53,5 @@ export const CHARGED_LUNGE: Record<string, number> = raw.charge.lunge;
 export const KNOCKBACK: readonly number[] = raw.knockback;
 /** Which recorded clip plays for each hit (and the charged strike last), per weapon. */
 export const MOVE_CLIPS: Record<string, string[]> = raw.clips;
+/** The dive-and-smash attack: pressing attack high in the air drops the player onto the ground. */
+export const PLUNGE = raw.plunge;

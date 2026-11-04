@@ -9,7 +9,7 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
-import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK } from '../player/attackTable';
+import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PLUNGE } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
@@ -100,6 +100,18 @@ export class Combat {
     if (this.comboTimer === 0) this.comboStep = 0;
 
     if (this.player.alive) {
+      // Attacking high in the air dives onto the ground instead of swinging.
+      if (actions.attackPressed && this.player.canPlunge) {
+        actions.attackPressed = false;
+        this.inputBuffer = 0;
+        this.cancelCharge();
+        this.player.startPlunge();
+        this.events.swing(CHARGED_STEP);
+      }
+      if (this.player.plungeLanded) {
+        this.player.plungeLanded = false;
+        this.landPlunge();
+      }
       // A tap starts the next hit of the combo; holding gathers a charge instead of repeating it.
       if (actions.attackPressed) {
         this.inputBuffer = INPUT_BUFFER;
@@ -205,6 +217,30 @@ export class Combat {
     this.events.swing(CHARGED_STEP);
     this.events.charge('release');
     this.strike = { step: CHARGED_STEP, trailed: true, landed: false, level };
+  }
+
+  /** The plunge reaches the ground: a shockwave that hits everything near and throws it clear. */
+  private landPlunge(): void {
+    const { active } = this.party;
+    const color = ELEMENT_COLORS[active.element];
+    const origin = this.player.position.clone();
+    const damage = active.attack * PLUNGE.damageScale * this.party.power;
+    let hit = false;
+    for (const enemy of this.enemies) {
+      if (!enemy.alive || this.reach(enemy, origin) > PLUNGE.radius) continue;
+      this.hit(enemy, damage, active.element);
+      enemy.push(origin, 7);
+      this.fx.spark(enemy.position.clone().setY(enemy.position.y + 0.9), color, 0.7);
+      hit = true;
+    }
+    this.fx.ring(origin, PLUNGE.radius, color, 0.45);
+    this.fx.ring(origin, PLUNGE.radius * 0.6, '#ffffff', 0.35);
+    this.fx.scatter(origin.clone().setY(origin.y + 0.3), color, 16, PLUNGE.radius * 2, 4, 0.07, 0.7);
+    this.events.impact(PLUNGE.shake);
+    if (hit) {
+      this.hitstop = PLUNGE.hitstop;
+      this.party.gainEnergy(cfg.energyPerHit);
+    }
   }
 
   private beginAttack(): void {

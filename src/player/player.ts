@@ -16,7 +16,7 @@ import { addOutline, toonMaterial } from '../render/toon';
 import type { Physics } from '../world/physics';
 import { terrainHeight } from '../world/terrain';
 import type { Avatar } from './avatar';
-import { ATTACKS, CHARGE_HOLD, CHARGED_STEP } from './attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_STEP, PLUNGE } from './attackTable';
 import { Glider } from './glider';
 import { Stamina } from './stamina';
 
@@ -56,6 +56,10 @@ export class Player {
   chargeLevel = -1;
   /** Whether this weapon spins the body round through the charged strike. */
   whirl = false;
+  /** True while diving down for the plunge attack. */
+  plunging = false;
+  /** Set on the frame a plunge reaches the ground; the combat system reads and clears it. */
+  plungeLanded = false;
   private readonly collider: RAPIER.Collider;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly lastSafe = new Vector3();
@@ -149,6 +153,23 @@ export class Player {
     return this.alive && this.grounded && !this.gliding && this.dashTime <= 0 && this.hitAge > 0.35;
   }
 
+  /** Height of the feet above the ground below. */
+  get heightAboveGround(): number {
+    return this.position.y - terrainHeight(this.position.x, this.position.z);
+  }
+
+  /** Whether a plunge can start: in the air, high enough, and not already diving or reeling. */
+  get canPlunge(): boolean {
+    return this.alive && !this.grounded && !this.plunging && this.hitAge > 0.35 && this.heightAboveGround >= PLUNGE.minHeight;
+  }
+
+  startPlunge(): void {
+    this.plunging = true;
+    this.gliding = false;
+    this.attack = null;
+    this.verticalSpeed = -PLUNGE.speed;
+  }
+
   cancelAttack(): void {
     this.attack = null;
   }
@@ -200,6 +221,7 @@ export class Player {
     if (wish.lengthSq() > 0) wish.normalize();
 
     this.handleDash(dt, actions, wish);
+    if (this.plunging && this.dashTime > 0) this.plunging = false;
     this.handleJumpAndGlide(actions);
 
     const sprinting = actions.sprint && wishLength > 0.1 && this.grounded && !this.stamina.empty;
@@ -207,7 +229,7 @@ export class Player {
     const dashing = this.dashTime > 0;
     if (!sprinting && !this.gliding && !dashing) this.stamina.update(dt);
 
-    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength * (this.attack ? 0.3 : this.chargeLevel >= 0 ? 0.35 : 1);
+    let speed = (sprinting ? cfg.sprintSpeed : cfg.walkSpeed) * wishLength * (this.plunging ? 0 : this.attack ? 0.3 : this.chargeLevel >= 0 ? 0.35 : 1);
     if (this.gliding) {
       speed = cfg.glideSpeed * wishLength;
       this.stamina.drain(balance.stamina.glidePerSecond * dt);
@@ -216,6 +238,7 @@ export class Player {
 
     this.verticalSpeed -= cfg.gravity * dt;
     if (this.gliding) this.verticalSpeed = Math.max(this.verticalSpeed, -cfg.glideFallSpeed);
+    if (this.plunging) this.verticalSpeed = -PLUNGE.speed;
 
     const delta = dashing
       ? this.dashDirection.clone().multiplyScalar(balance.dash.speed * dt)
@@ -233,6 +256,10 @@ export class Player {
     const fallSpeed = -this.verticalSpeed;
     this.grounded = this.controller.computedGrounded();
     if (this.grounded && !wasGrounded && fallSpeed > 3) this.events.land?.(fallSpeed);
+    if (this.grounded && this.plunging) {
+      this.plunging = false;
+      this.plungeLanded = true;
+    }
     if (this.grounded) {
       this.verticalSpeed = Math.max(this.verticalSpeed, -1);
       this.gliding = false;
@@ -338,6 +365,7 @@ export class Player {
       airborne: !this.grounded,
       gliding: this.gliding,
       dashing: this.dashTime > 0,
+      plunging: this.plunging,
       attack:
         swinging && this.attack
           ? { ...swinging, id: this.attack.id }

@@ -15,7 +15,7 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PLUNGE } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
 import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
@@ -99,6 +99,14 @@ describe('move data', () => {
     }
     expect(KNOCKBACK).toHaveLength(COMBO_LENGTH);
     for (const kind of ['sword', 'staff', 'spear']) expect(CHARGED_LUNGE[kind]).toBeGreaterThan(0);
+  });
+});
+
+describe('plunge data', () => {
+  it('is tuned to hit harder than a finisher and reach a fair radius', () => {
+    expect(PLUNGE.damageScale).toBeGreaterThan(ATTACKS[COMBO_LENGTH - 1].damageScale);
+    expect(PLUNGE.radius).toBeGreaterThan(2);
+    expect(PLUNGE.minHeight).toBeGreaterThan(1);
   });
 });
 

@@ -125,5 +125,14 @@
       "Sword_Heavy_Combo",
       "Sword_Heavy_Combo"
     ]
+  },
+  "plunge": {
+    "minHeight": 2.5,
+    "speed": 26,
+    "radius": 3.4,
+    "damageScale": 2,
+    "hitstop": 0.12,
+    "shake": 0.12,
+    "stamina": 0
   }
 }
