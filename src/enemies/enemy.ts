@@ -6,6 +6,9 @@ import {
   MeshBasicMaterial,
   PlaneGeometry,
   SphereGeometry,
+  Sprite,
+  SpriteMaterial,
+  CanvasTexture,
   Vector3,
   type Camera,
   type MeshToonMaterial,
@@ -14,6 +17,7 @@ import {
 import { balance, type Element } from '../core/balance';
 import { toonMaterial } from '../render/toon';
 import { terrainHeight } from '../world/terrain';
+import { badgeColor, scaledStats } from './levels';
 import { nextEnemyState, type EnemyState } from './fsm';
 import { buildBlob, buildBomber, buildCharger, buildGuard, buildWisp, type Rig } from './models';
 
@@ -56,6 +60,31 @@ export const ELEMENT_COLORS: Record<Element, string> = {
   thunder: '#b97aff',
 };
 
+/** A small "Lv N" tag drawn once on a canvas; its colour is set per frame from the player's level. */
+const levelBadge = (level: number): Sprite => {
+  // Tests run without a page, so there is no canvas to draw on there.
+  const canvas = typeof document === 'undefined' ? null : document.createElement('canvas');
+  if (canvas) {
+    canvas.width = 128;
+    canvas.height = 48;
+  }
+  const context = canvas?.getContext('2d');
+  if (canvas && context) {
+    context.font = 'bold 34px sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.lineWidth = 6;
+    context.strokeStyle = '#2b2230';
+    context.strokeText(`Lv.${level}`, 64, 26);
+    context.fillStyle = '#ffffff';
+    context.fillText(`Lv.${level}`, 64, 26);
+  }
+  const sprite = new Sprite(new SpriteMaterial({ map: canvas ? new CanvasTexture(canvas) : null, depthTest: false, transparent: true }));
+  sprite.scale.set(0.62, 0.23, 1);
+  sprite.renderOrder = 12;
+  return sprite;
+};
+
 export class Enemy {
   readonly view = new Group();
   readonly position: Vector3;
@@ -93,8 +122,11 @@ export class Enemy {
   );
   private readonly auraOrb = new Mesh(new SphereGeometry(0.13, 10, 8), new MeshBasicMaterial());
 
-  constructor(readonly kind: EnemyKind, private readonly home: Vector3) {
-    this.cfg = balance.enemies[kind] as EnemyCfg;
+  private readonly badge: Sprite;
+
+  constructor(readonly kind: EnemyKind, private readonly home: Vector3, readonly level = 1) {
+    this.cfg = scaledStats(balance.enemies[kind] as EnemyCfg, level);
+    this.badge = levelBadge(level);
     this.hp = this.cfg.hp;
     this.position = home.clone();
     this.material = toonMaterial(BODY_COLORS[kind]);
@@ -113,12 +145,18 @@ export class Enemy {
     this.hpBar.renderOrder = 11;
     this.auraOrb.position.y = 2;
     this.auraOrb.visible = false;
-    this.view.add(this.rig.root, this.warning, this.hpBack, this.hpBar, this.auraOrb);
+    this.badge.position.set(0, 1.98, 0);
+    this.view.add(this.rig.root, this.warning, this.hpBack, this.hpBar, this.auraOrb, this.badge);
     this.syncView();
   }
 
   get alive(): boolean {
     return this.hp > 0;
+  }
+
+  /** Tints the level badge by how it compares with the player's level. */
+  setViewerLevel(playerLevel: number): void {
+    this.badge.material.color.set(badgeColor(this.level, playerLevel));
   }
 
   setAura(element: Element | null): void {

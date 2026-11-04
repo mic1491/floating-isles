@@ -514,7 +514,7 @@ const boot = async (): Promise<void> => {
     sky.update(dt, player.position);
     updateQuests();
     updateGoal();
-    hud.setBoss(combat.boss.awake && combat.boss.alive ? t('boss.name') : null, combat.boss.ratio, combat.boss.phase);
+    hud.setBoss(combat.boss.awake && combat.boss.alive ? `${t('boss.name')} Lv${combat.boss.level}` : null, combat.boss.ratio, combat.boss.phase);
     hud.update(player, party);
     actions.endFrame();
     graphics.render();

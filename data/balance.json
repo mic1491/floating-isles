@@ -97,6 +97,17 @@
     "electroInterval": 0.6,
     "electroJumpRange": 6
   },
+  "enemyLevels": {
+    "hpBase": 1.4,
+    "hpPerLevel": 0.075,
+    "damagePerLevel": 0.08,
+    "rewardPerLevel": 0.1,
+    "gapPerLevel": 0.05,
+    "gapMin": 0.6,
+    "gapMax": 1.5,
+    "regionPerMetre": 0.11,
+    "bossLevel": 10
+  },
   "enemies": {
     "melee": {
       "hp": 120,

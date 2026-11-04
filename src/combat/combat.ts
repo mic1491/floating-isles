@@ -4,6 +4,7 @@ import { Boss, type BossHost } from '../enemies/boss';
 import type { Reward } from '../exploration/progress';
 import { ELEMENT_COLORS, Enemy } from '../enemies/enemy';
 import { SPAWNS } from './spawns';
+import { gapFactor, regionLevel, xpFactor } from '../enemies/levels';
 import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
@@ -83,15 +84,15 @@ export class Combat {
   ) {
     this.fx = new Fx(scene);
     this.enemies = SPAWNS.map(([kind, x, z]) => {
-      const enemy = new Enemy(kind, new Vector3(x, terrainHeight(x, z), z));
+      const enemy = new Enemy(kind, new Vector3(x, terrainHeight(x, z), z), regionLevel(x, z, kind));
       scene.add(enemy.view);
       return enemy;
     });
     const host: BossHost = {
       hurtPlayer: (amount) => {
-        if (this.player.takeDamage(amount)) this.events.playerHurt();
+        if (this.player.takeDamage(this.incoming(this.boss, amount))) this.events.playerHurt();
       },
-      shoot: (from, velocity, damage) => this.launch(from, velocity, damage),
+      shoot: (from, velocity, damage) => this.launch(from, velocity, this.incoming(this.boss, damage)),
       burst: (at, radius, color, life) => this.fx.ring(at, radius, color, life),
       shake: (strength) => this.events.shake(strength),
       announce: (key) => this.events.announce(key),
@@ -122,7 +123,9 @@ export class Combat {
       if (actions.burstPressed) this.useBurst();
     }
 
+    const playerLevel = this.playerLevel;
     for (const enemy of this.enemies) {
+      if (enemy instanceof Enemy) enemy.setViewerLevel(playerLevel);
       const landed = enemy.update(dt, this.player.position, this.player.alive, camera);
       if (landed && enemy instanceof Enemy) this.enemyAttack(enemy);
       this.tickElectro(enemy, dt);
@@ -495,7 +498,7 @@ export class Combat {
 
   private applyDamage(enemy: Fighter, amount: number, color: string): void {
     const wasAlive = enemy.alive;
-    const dealt = enemy.hurt(amount);
+    const dealt = enemy.hurt(amount * gapFactor(this.playerLevel, enemy.level));
     if (wasAlive && !enemy.alive) {
       const shards = 'shards' in enemy.cfg ? Number(enemy.cfg.shards) : 0;
       // The killing blow lands harder: a longer freeze, a bigger shake and a burst of light.
@@ -503,7 +506,7 @@ export class Combat {
       this.events.shake(enemy instanceof Boss ? 0.2 : 0.06);
       this.fx.ring(enemy.position, enemy instanceof Boss ? 3.5 : 1.6, color, 0.3);
       this.fx.spark(enemy.position.clone().setY(enemy.position.y + 0.9), color, enemy instanceof Boss ? 1.6 : 0.9);
-      this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: enemy.cfg.xp }, enemy instanceof Boss ? 'boss' : enemy.kind);
+      this.events.defeated(enemy.position, { coins: enemy.cfg.coins, shards, xp: Math.round(enemy.cfg.xp * xpFactor(this.playerLevel, enemy.level)) }, enemy instanceof Boss ? 'boss' : enemy.kind);
     }
     this.events.damage(enemy.position, Math.round(dealt), color);
   }
@@ -547,6 +550,16 @@ export class Combat {
     return Math.max(0, enemy.position.distanceTo(point) - enemy.radius);
   }
 
+  /** The level of whoever is in the field. */
+  private get playerLevel(): number {
+    return this.party.levels[this.party.activeIndex];
+  }
+
+  /** What a hit from `enemy` really costs the player, stronger from a higher-level enemy and weaker from a lower one. */
+  private incoming(enemy: Fighter, amount: number): number {
+    return amount * gapFactor(enemy.level, this.playerLevel);
+  }
+
   /** The reach, sweep and side effects of the weapon in the active character's hand. */
   private get weapon() {
     return balance.weapons[this.party.active.weapon];
@@ -572,7 +585,7 @@ export class Combat {
       const from = enemy.position.clone().setY(enemy.position.y + 1);
       const target = this.player.position.clone().setY(this.player.position.y + 0.9);
       const velocity = target.sub(from).normalize().multiplyScalar(enemy.cfg.projectileSpeed ?? 10);
-      this.launch(from, velocity, enemy.cfg.damage);
+      this.launch(from, velocity, this.incoming(enemy, enemy.cfg.damage));
       return;
     }
     const blast = enemy.cfg.attackRange * 1.3;
@@ -582,7 +595,7 @@ export class Combat {
       this.events.shake(0.25);
       enemy.explode();
     }
-    if (inReach && this.player.takeDamage(enemy.cfg.damage)) this.events.playerHurt();
+    if (inReach && this.player.takeDamage(this.incoming(enemy, enemy.cfg.damage))) this.events.playerHurt();
   }
 
   private launch(from: Vector3, velocity: Vector3, damage: number): void {

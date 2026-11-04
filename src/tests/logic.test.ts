@@ -17,6 +17,7 @@ import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
 import { ATTACKS, CHARGE_HOLD, CHARGED_STEP, COMBO_LENGTH } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
+import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
 import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
@@ -897,5 +898,60 @@ describe('charged strike', () => {
     expect(whirlAngle(0.78)).toBeCloseTo(Math.PI * 2, 5);
     expect(whirlAngle(1)).toBeCloseTo(Math.PI * 2, 5);
     expect(whirlAngle(0.53)).toBeCloseTo(Math.PI, 5);
+  });
+});
+
+describe('enemy levels', () => {
+  it('rises with distance from the start and never leaves the level range', () => {
+    expect(regionLevel(0, 0, 'melee')).toBe(1);
+    expect(regionLevel(60, 0, 'melee')).toBeGreaterThan(regionLevel(20, 0, 'melee'));
+    expect(regionLevel(0, 500, 'melee')).toBe(MAX_ENEMY_LEVEL);
+    expect(regionLevel(40, 0, 'guard')).toBe(regionLevel(40, 0, 'melee') + 1);
+    for (const [kind, x, z] of SPAWNS) {
+      const level = regionLevel(x, z, kind);
+      expect(level, `${kind} at ${x},${z}`).toBeGreaterThanOrEqual(1);
+      expect(level, `${kind} at ${x},${z}`).toBeLessThanOrEqual(MAX_ENEMY_LEVEL);
+    }
+  });
+
+  it('grows health, damage and rewards with level and leaves the rest of a kind alone', () => {
+    const base = balance.enemies.melee;
+    const low = scaledStats(base, 1);
+    const high = scaledStats(base, 10);
+    expect(low.hp).toBeGreaterThan(base.hp);
+    expect(high.hp).toBeGreaterThan(low.hp);
+    expect(high.damage).toBeGreaterThan(low.damage);
+    expect(high.xp).toBeGreaterThan(low.xp);
+    expect(high.speed).toBe(base.speed);
+    expect(high.attackRange).toBe(base.attackRange);
+  });
+
+  it('gives the higher level the edge, within limits', () => {
+    expect(gapFactor(5, 5)).toBe(1);
+    expect(gapFactor(8, 5)).toBeGreaterThan(1);
+    expect(gapFactor(5, 8)).toBeLessThan(1);
+    expect(gapFactor(20, 1)).toBe(balance.enemyLevels.gapMax);
+    expect(gapFactor(1, 20)).toBe(balance.enemyLevels.gapMin);
+  });
+
+  it('pays full experience near the player’s level and less as it falls behind', () => {
+    expect(xpFactor(5, 5)).toBe(1);
+    expect(xpFactor(5, 3)).toBe(1);
+    expect(xpFactor(8, 3)).toBeLessThan(1);
+    expect(xpFactor(20, 1)).toBe(0.1);
+    expect(xpFactor(3, 12)).toBe(1);
+  });
+
+  it('warns in red of far higher enemies and greys out far lower ones', () => {
+    expect(badgeColor(10, 4)).toBe('#ff4a4a');
+    expect(badgeColor(6, 4)).toBe('#ffb347');
+    expect(badgeColor(4, 4)).toBe('#ffffff');
+    expect(badgeColor(1, 6)).toBe('#9aa3ad');
+  });
+
+  it('puts the guardian in a level its fight can be won at', () => {
+    const boss = new Boss(false, { hurtPlayer() {}, shoot() {}, burst() {}, shake() {}, announce() {} }, new Group());
+    expect(boss.level).toBe(balance.enemyLevels.bossLevel);
+    expect(boss.cfg.hp).toBeGreaterThan(balance.enemies.boss.hp);
   });
 });

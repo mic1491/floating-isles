@@ -1,3 +1,4 @@
+import { scaledStats } from './levels';
 import {
   BoxGeometry,
   CircleGeometry,
@@ -90,7 +91,8 @@ export class Boss {
   readonly view = new Group();
   readonly position: Vector3;
   readonly home: Vector3;
-  readonly cfg = balance.enemies.boss;
+  readonly cfg: typeof balance.enemies.boss;
+  readonly level: number;
   readonly kind = 'melee' as const;
   readonly radius = RADIUS;
   hp: number;
@@ -121,7 +123,9 @@ export class Boss {
   /** How far the arms are raised, 0 to 1, easing toward what the current attack wants. */
   private lift = 0;
 
-  constructor(defeated: boolean, private readonly host: BossHost, private readonly parent: Object3D) {
+  constructor(defeated: boolean, private readonly host: BossHost, private readonly parent: Object3D, level: number = balance.enemyLevels.bossLevel) {
+    this.level = level;
+    this.cfg = scaledStats(balance.enemies.boss, level);
     const [x, z] = this.cfg.home;
     this.home = new Vector3(x, terrainHeight(x, z), z);
     this.position = this.home.clone();
