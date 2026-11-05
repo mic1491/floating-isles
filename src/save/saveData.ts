@@ -4,7 +4,7 @@ import { totalXpFor } from '../party/growth';
 
 const ELEMENTS = balance.characters.map((c) => c.element);
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 
 export interface SaveData {
   version: number;
@@ -21,6 +21,8 @@ export interface SaveData {
   markers: Array<[number, number]>;
   xp: number[];
   quest: number;
+  /** Ids of the story beats already played. */
+  story: string[];
   bossDefeated: boolean;
   gear: GearSave;
   stats: Stats;
@@ -51,6 +53,7 @@ export const defaultSave = (): SaveData => ({
   markers: [],
   xp: [0, 0, 0],
   quest: 0,
+  story: [],
   bossDefeated: false,
   gear: defaultGear(ELEMENTS),
   stats: emptyStats(),
@@ -104,7 +107,12 @@ export const migrateSave = (raw: unknown): SaveData => {
     if (at >= 4 && at <= 8) save.quest = at - 1;
     save.version = 11;
   }
+  if (save.version === 11) {
+    save.story = [];
+    save.version = 12;
+  }
   const merged = { ...defaultSave(), ...save };
+  merged.story = Array.isArray(save.story) ? save.story.filter((id) => typeof id === 'string') : [];
   merged.gear = sanitizeGear(save.gear, ELEMENTS);
   merged.stats = {
     kills: Object.fromEntries(Object.entries(save.stats?.kills ?? {}).map(([k, v]) => [k, Math.max(0, Math.floor(Number(v)) || 0)])),

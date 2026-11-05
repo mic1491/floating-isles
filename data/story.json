@@ -1,0 +1,102 @@
+{
+  "_note": "Story beats. `when` is a trigger name: `opening`, `quest:<id>:start`, or `quest:<id>:done`. Each beat plays once. Speakers are character ids from balance.json, or a plain name.",
+  "beats": [
+    {
+      "id": "opening",
+      "when": "opening",
+      "lines": [
+        { "speaker": "汐音", "text": "醒了嗎?你看,腳下的島又往西漂了一點。" },
+        { "speaker": "燼羽", "text": "浮光慢慢暗下去了。再這樣下去,群島會一座一座散開的。" },
+        { "speaker": "鳴川", "text": "不過傳說裡說,浮光碎片能把島重新點亮。我們出發吧,先去找找島上的寶箱。" }
+      ]
+    },
+    {
+      "id": "first-light-done",
+      "when": "quest:first-light:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "哈,真的有東西!這就是旅人留下的補給嗎?" },
+        { "speaker": "汐音", "text": "箱子裡還帶著一點暖光。碎片應該就散落在附近。" }
+      ]
+    },
+    {
+      "id": "shard-trail-done",
+      "when": "quest:shard-trail:done",
+      "lines": [
+        { "speaker": "鳴川", "text": "碎片在我手心裡發亮,像是在回應我們。" },
+        { "speaker": "汐音", "text": "它們想去的地方,應該是舊時代的航標。傳送點就是線索。" }
+      ]
+    },
+    {
+      "id": "gate-done",
+      "when": "quest:gate-of-elements:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "封印開了!原來火、水、雷湊在一起才找得到路。" },
+        { "speaker": "鳴川", "text": "往後的路上,應該會有不好對付的傢伙。大家先練練身手吧。" }
+      ]
+    },
+    {
+      "id": "trial-of-arms-done",
+      "when": "quest:trial-of-arms:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "漂亮!八隻全倒了。我的劍都熱起來了。" },
+        { "speaker": "汐音", "text": "別大意,越往遠處,魔物就越強。要記得看牠們頭上的等級。" }
+      ]
+    },
+    {
+      "id": "resonance-done",
+      "when": "quest:resonance:done",
+      "lines": [
+        { "speaker": "鳴川", "text": "水碰到火會蒸發,雷碰到水會感電……原來這就是共鳴。" },
+        { "speaker": "汐音", "text": "我們三個人的力量,是互相接在一起的。" }
+      ]
+    },
+    {
+      "id": "arm-yourself-done",
+      "when": "quest:arm-yourself:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "新裝備上手了!感覺可以揍倒一整座島。" },
+        { "speaker": "鳴川", "text": "先別急,我想去高處看看群島全貌。" }
+      ]
+    },
+    {
+      "id": "vantage-done",
+      "when": "quest:vantage:done",
+      "lines": [
+        { "speaker": "汐音", "text": "好遠……每一座島都在慢慢分開。" },
+        { "speaker": "鳴川", "text": "但你看,遺跡那邊還有光,最深處的守衛一直醒著。碎片的源頭大概就在牠身後。" }
+      ]
+    },
+    {
+      "id": "seasoned-done",
+      "when": "quest:seasoned:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "我們變強了不少。是時候去見那位守衛了。" },
+        { "speaker": "汐音", "text": "牠很強,記得閃避、用元素反應。我們一起上。" }
+      ]
+    },
+    {
+      "id": "guardian-start",
+      "when": "quest:guardian:start",
+      "lines": [
+        { "speaker": "鳴川", "text": "遺跡深處有動靜。守衛醒了,牠在等我們。" }
+      ]
+    },
+    {
+      "id": "guardian-done",
+      "when": "quest:guardian:done",
+      "lines": [
+        { "speaker": "燼羽", "text": "呼……倒下了。牠守著的,是一團很溫暖的光。" },
+        { "speaker": "汐音", "text": "這就是浮光的核心。它想回到島的中心去。" }
+      ]
+    },
+    {
+      "id": "island-trial-done",
+      "when": "quest:island-trial:done",
+      "lines": [
+        { "speaker": "鳴川", "text": "島……停下來了。大家看,光重新亮起來了!" },
+        { "speaker": "汐音", "text": "謝謝你,旅人。群島會記得這一路。" },
+        { "speaker": "燼羽", "text": "下一座島在等我們呢。走吧!" }
+      ]
+    }
+  ]
+}

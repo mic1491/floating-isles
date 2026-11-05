@@ -22,6 +22,8 @@ import { Avatar } from './player/avatar';
 import { Player } from './player/player';
 import { GameRenderer } from './render/renderer';
 import { SAVE_VERSION } from './save/saveData';
+import { StoryDirector } from './story/story';
+import { DialogueView } from './ui/dialogueView';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
 import { t, type TextKey } from './ui/i18n';
@@ -268,8 +270,20 @@ const boot = async (): Promise<void> => {
       topLevel: Math.max(...party.levels),
     });
   const questLog = new QuestLog(save.quest);
+  // Story beats wait on triggers (the opening, a quest starting or finishing) and play once, pausing the world.
+  const story = new StoryDirector(save.story);
+  const dialogue = new DialogueView(ui, () => {
+    if (story.advance()) void persist();
+    dialogue.show(story.current);
+  });
+  const playStory = (name: string) => {
+    story.trigger(name);
+    if (story.active && !dialogue.visible) dialogue.show(story.current);
+  };
   const announceQuest = () => {
-    if (questLog.current) hud.toast(`${t('quest.title')}:${questLog.current.title} — ${questLog.current.intro}`);
+    if (!questLog.current) return;
+    hud.toast(`${t('quest.title')}:${questLog.current.title} — ${questLog.current.intro}`);
+    playStory(`quest:${questLog.current.id}:start`);
   };
   // Quests read straight from what has been done, so a quest already met pays out at once.
   const updateQuests = () => {
@@ -281,6 +295,7 @@ const boot = async (): Promise<void> => {
     showProgress();
     award(done.reward.xp);
     sfx.questDone();
+    playStory(`quest:${done.id}:done`);
     hud.toast(`${t('quest.done')}:${done.title} · +${questCoins} ${t('explore.coins')} +${done.reward.shards} ${t('explore.shards')}`);
     if (questLog.current) announceQuest();
     else hud.toast(t('quest.chapter'));
@@ -429,6 +444,7 @@ const boot = async (): Promise<void> => {
       markers: mapProgress.markers,
       xp: party.xp,
       quest: questLog.completed,
+      story: story.seenIds,
       bossDefeated: !combat.boss.alive,
       gear: gear.toSave(),
       stats,
@@ -462,9 +478,13 @@ const boot = async (): Promise<void> => {
     }
     if (menu.playing && !announced) {
       announced = true;
+      // A fresh game opens with the story; a saved one that is already under way skips it.
+      if (questLog.completed === 0 && progress.discovered.length === 0) playStory('opening');
+      else story.skip('opening');
       announceQuest();
     }
-    const screenOpen = map.open || growth.open || gearView.open;
+    const screenOpen = map.open || growth.open || gearView.open || story.active;
+    dialogue.update(dt);
     if (actions.mapPressed && menu.playing && !growth.open && !gearView.open) map.toggle();
     if (actions.growthPressed && menu.playing && !map.open && !gearView.open) growth.toggle();
     if (actions.gearPressed && menu.playing && !map.open && !growth.open) gearView.toggle();

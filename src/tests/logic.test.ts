@@ -22,6 +22,8 @@ import { Quaternion } from 'three';
 import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
 import { balance } from '../core/balance';
+import { quests as allQuests } from '../quests/quests';
+import { BEATS, StoryDirector } from '../story/story';
 import { Boss, type BossHost } from '../enemies/boss';
 import { Enemy } from '../enemies/enemy';
 import { SPAWNS } from '../combat/spawns';
@@ -125,6 +127,53 @@ describe('weapon traits', () => {
     expect(TRAITS.spear.pierceRange).toBeGreaterThan(balance.weapons.spear.range);
     expect(TRAITS.staff.boltFrom).toBeLessThanOrEqual(COMBO_LENGTH);
     expect(TRAITS.staff.boltScale).toBeLessThan(1);
+  });
+});
+
+describe('story', () => {
+  const beats = [
+    { id: 'a', when: 'go', lines: [{ speaker: 'x', text: '1' }, { speaker: 'x', text: '2' }] },
+    { id: 'b', when: 'go', lines: [{ speaker: 'y', text: '3' }] },
+  ];
+
+  it('plays queued beats line by line, once each', () => {
+    const story = new StoryDirector([], beats);
+    expect(story.active).toBe(false);
+    story.trigger('go');
+    expect(story.current?.text).toBe('1');
+    expect(story.advance()).toBe(false);
+    expect(story.current?.text).toBe('2');
+    expect(story.advance()).toBe(true);
+    expect(story.current?.text).toBe('3');
+    story.advance();
+    expect(story.active).toBe(false);
+    story.trigger('go');
+    expect(story.active).toBe(false);
+    expect(story.seenIds.sort()).toEqual(['a', 'b']);
+  });
+
+  it('does not replay beats a save has seen, and can skip a trigger', () => {
+    const story = new StoryDirector(['a'], beats);
+    story.trigger('go');
+    expect(story.current?.text).toBe('3');
+    const other = new StoryDirector([], beats);
+    other.skip('go');
+    other.trigger('go');
+    expect(other.active).toBe(false);
+  });
+
+  it('has a beat for the opening and for every quest finishing', () => {
+    const whens = new Set(BEATS.map((b) => b.when));
+    expect(whens.has('opening')).toBe(true);
+    for (const quest of allQuests) {
+      if (quest.id === 'guardian') expect(whens.has('quest:guardian:start')).toBe(true);
+      expect(whens.has(`quest:${quest.id}:done`)).toBe(true);
+    }
+    for (const beat of BEATS) expect(beat.lines.length).toBeGreaterThan(0);
+  });
+
+  it('migrates old saves to an empty story record', () => {
+    expect(migrateSave({ version: 11, position: [0, 0, 0] } as never).story).toEqual([]);
   });
 });
 
