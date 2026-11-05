@@ -26,6 +26,7 @@ const zhTW = {
   'character.water': '汐音',
   'character.thunder': '鳴川',
   'explore.prompt': '按 F 開啟寶箱',
+  'npc.prompt': '按 F 交談',
   'explore.progress': '探索',
   'explore.coins': '光幣',
   'explore.shards': '浮光碎片',

@@ -23,6 +23,8 @@ import { Player } from './player/player';
 import { GameRenderer } from './render/renderer';
 import { SAVE_VERSION } from './save/saveData';
 import { StoryDirector } from './story/story';
+import { NpcField } from './exploration/npcField';
+import { pickTalk } from './story/npcs';
 import { DialogueView } from './ui/dialogueView';
 import { loadSave, writeSave } from './save/saveStore';
 import { Hud } from './ui/hud';
@@ -334,6 +336,7 @@ const boot = async (): Promise<void> => {
       queueMicrotask(() => (menu.keepPlaying = false));
     },
   });
+  const npcs = new NpcField(scene);
   const gearView = new GearView(ui, party, progress, {
     opened: () => {
       menu.keepPlaying = true;
@@ -490,6 +493,7 @@ const boot = async (): Promise<void> => {
     if (actions.gearPressed && menu.playing && !map.open && !growth.open) gearView.toggle();
 
     if (!menu.playing || screenOpen) {
+      if (story.active) hud.setPrompt(false);
       actions.attackPressed = false;
       player.refreshView(dt);
       if (!map.open) map.update(dt, player.position, player.facing);
@@ -515,8 +519,14 @@ const boot = async (): Promise<void> => {
     party.update(dt);
     player.update(dt, actions, orbit.yaw);
     combat.update(dt, actions, camera);
+    npcs.update(dt, player.position);
+    const talkTo = field.canInteract ? null : npcs.nearby;
+    if (talkTo && actions.interactPressed) {
+      story.say(pickTalk(talkTo, questLog.completed));
+      dialogue.show(story.current);
+    }
     field.update(dt, player.position, actions.interactPressed);
-    hud.setPrompt(field.canInteract);
+    hud.setPrompt(field.canInteract || talkTo !== null, field.canInteract ? undefined : t('npc.prompt'));
     waypoints.update(dt, player.position);
     map.update(dt, player.position, player.facing);
     physics.step(dt);
@@ -548,7 +558,7 @@ const boot = async (): Promise<void> => {
   requestAnimationFrame(frame);
 
   if (import.meta.env.DEV) {
-    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, gearView, gear, sfx, questLog, stats } });
+    Object.assign(window, { __game: { player, party, combat, sky, orbit, actions, persist, graphics, menu, terrain, grass, field, progress, map, mapProgress, growth, gearView, gear, sfx, questLog, stats, story, dialogue, npcs } });
   }
 };
 

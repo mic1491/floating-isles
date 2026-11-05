@@ -1,0 +1,45 @@
+{
+  "_note": "Villagers who stand in the world and talk when approached. `talks` are picked by how many quests are done: the one with the highest `after` not above it plays. Repeatable.",
+  "npcs": [
+    {
+      "id": "tide-captain",
+      "name": "潮伯",
+      "x": 9,
+      "z": 2,
+      "color": "#4a7fa8",
+      "hair": "#d8d4c8",
+      "talks": [
+        { "after": 0, "lines": [{ "speaker": "潮伯", "text": "唷,新面孔。我在這座島看了一輩子的雲。想找寶箱,往草地深處走走看。" }] },
+        { "after": 3, "lines": [{ "speaker": "潮伯", "text": "三位一起旅行啊,真好。記得多用元素反應,火遇水、雷遇水,效果可不一樣。" }] },
+        { "after": 8, "lines": [{ "speaker": "潮伯", "text": "要去見遺跡的守衛了?牠怕閃避不怕硬碰硬。看準了再衝刺。" }] },
+        { "after": 10, "lines": [{ "speaker": "潮伯", "text": "島不漂了。這一整天,我頭一次覺得風是暖的。" }] }
+      ]
+    },
+    {
+      "id": "lamp-girl",
+      "name": "小燈",
+      "x": 14,
+      "z": 82,
+      "color": "#d98a4e",
+      "hair": "#5a3a2a",
+      "talks": [
+        { "after": 0, "lines": [{ "speaker": "小燈", "text": "我在收集浮光碎片的故事!聽說它們會跟著腳步亮起來,是真的嗎?" }] },
+        { "after": 2, "lines": [{ "speaker": "小燈", "text": "傳送點亮起來的時候好漂亮!你們有沒有看到上面的光在跳舞?" }] },
+        { "after": 9, "lines": [{ "speaker": "小燈", "text": "守衛倒下了?太厲害了!我要把這件事寫進我的小本子。" }] }
+      ]
+    },
+    {
+      "id": "tower-keeper",
+      "name": "守塔人",
+      "x": -24,
+      "z": -56,
+      "color": "#7a6aa8",
+      "hair": "#2a2a3a",
+      "talks": [
+        { "after": 0, "lines": [{ "speaker": "守塔人", "text": "這裡的遺跡很危險。牠們的等級比外面高,沒準備好別硬闖。" }] },
+        { "after": 8, "lines": [{ "speaker": "守塔人", "text": "你已經夠強了。守衛的重擊要看牠舉手的動作,在落下前閃開。" }] },
+        { "after": 9, "lines": [{ "speaker": "守塔人", "text": "牠安靜下來了……這片遺跡守了幾百年,終於可以休息。謝謝你們。" }] }
+      ]
+    }
+  ]
+}

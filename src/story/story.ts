@@ -38,6 +38,13 @@ export class StoryDirector {
     }
   }
 
+  /** Plays lines that are not part of the story proper (a villager's chat); they are never remembered. */
+  say(lines: StoryLine[]): void {
+    if (lines.length === 0 || this.active) return;
+    this.queue.push({ id: '', when: '', lines });
+    this.line = 0;
+  }
+
   /** Marks beats as seen without playing them, for triggers that a returning player is already past. */
   skip(name: string): void {
     for (const beat of this.beats) if (beat.when === name) this.seen.add(beat.id);
@@ -58,7 +65,7 @@ export class StoryDirector {
     if (!beat) return false;
     this.line++;
     if (this.line < beat.lines.length) return false;
-    this.seen.add(beat.id);
+    if (beat.id) this.seen.add(beat.id);
     this.queue.shift();
     this.line = 0;
     return true;

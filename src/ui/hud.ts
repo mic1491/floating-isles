@@ -170,7 +170,8 @@ export class Hud {
     this.bossFill.style.width = `${Math.max(0, ratio) * 100}%`;
   }
 
-  setPrompt(visible: boolean): void {
+  setPrompt(visible: boolean, text = t('explore.prompt')): void {
+    if (this.prompt.textContent !== text) this.prompt.textContent = text;
     this.prompt.classList.toggle('on', visible);
     this.prompt.parentElement!.classList.toggle('can-interact', visible);
   }

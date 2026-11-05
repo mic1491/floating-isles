@@ -23,6 +23,7 @@ import { SPAWNS as SPAWN_LIST } from '../combat/spawns';
 import { ACCESSORY_SLOTS, defaultGear, Gear, GEAR_ITEMS, MAX_GEAR_LEVEL, sanitizeGear, upgradeCost as gearUpgradeCost } from '../party/gear';
 import { balance } from '../core/balance';
 import { quests as allQuests } from '../quests/quests';
+import { NPCS, pickTalk } from '../story/npcs';
 import { BEATS, StoryDirector } from '../story/story';
 import { Boss, type BossHost } from '../enemies/boss';
 import { Enemy } from '../enemies/enemy';
@@ -174,6 +175,33 @@ describe('story', () => {
 
   it('migrates old saves to an empty story record', () => {
     expect(migrateSave({ version: 11, position: [0, 0, 0] } as never).story).toEqual([]);
+  });
+});
+
+describe('villagers', () => {
+  it('pick the latest talk the player has earned', () => {
+    const npc = NPCS[0];
+    expect(pickTalk(npc, 0)).toBe(npc.talks[0].lines);
+    expect(pickTalk(npc, 3)).toBe(npc.talks[1].lines);
+    expect(pickTalk(npc, 99)).toBe(npc.talks[npc.talks.length - 1].lines);
+  });
+
+  it('stand somewhere real, with talks in order', () => {
+    for (const npc of NPCS) {
+      expect(Number.isFinite(terrainHeight(npc.x, npc.z))).toBe(true);
+      expect(terrainHeight(npc.x, npc.z)).toBeGreaterThan(0);
+      expect(npc.talks[0].after).toBe(0);
+      for (let i = 1; i < npc.talks.length; i++) expect(npc.talks[i].after).toBeGreaterThan(npc.talks[i - 1].after);
+    }
+  });
+
+  it('say() plays unremembered lines', () => {
+    const story = new StoryDirector([]);
+    story.say([{ speaker: 'a', text: 'hi' }]);
+    expect(story.current?.text).toBe('hi');
+    story.advance();
+    expect(story.active).toBe(false);
+    expect(story.seenIds).toEqual([]);
   });
 });
 
