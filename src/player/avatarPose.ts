@@ -39,6 +39,8 @@ export interface Motion {
   attack: { step: number; t: number; id: number; hold?: boolean; cast?: boolean } | null;
   /** 0 to 1 while a charge is being gathered, for the weapon to swell with. */
   charge?: number;
+  /** The weapon in hand, so a spear can thrust where a sword cuts. */
+  weapon?: string;
 }
 
 export interface Pose {
@@ -143,7 +145,7 @@ export const computePose = (m: Motion): Pose => {
     hipsDrop = 0;
   }
   if (m.attack) {
-    const { bones: swing, weight, drop, blade: aim } = attackPose(m.attack.step, m.attack.t);
+    const { bones: swing, weight, drop, blade: aim } = attackPose(m.attack.step, m.attack.t, m.weapon);
     for (const key of Object.keys(swing) as BoneName[]) {
       const from = bones[key];
       const to = swing[key]!;

@@ -84,10 +84,44 @@ const TRACKS: Frame[][] = [
     [0.75, 'out', { chest: [0.25, 0.2, 0] }, 0.07, [0, 0]],
     [1, 'io', {}, 0.03],
   ]),
+  // 6: spear thrust, drawn back and driven straight ahead
+  track([
+    [0, 'io', { hips: [0, -0.1, 0], spine: [0, -0.1, 0], chest: [0, -0.25, 0], ...READY_RIGHT, ...GUARD_LEFT, leftUpperLeg: [-0.15, 0, -0.04], rightUpperLeg: [0.25, 0, 0.04] }, 0.02, [0.2, 0.4]],
+    [0.3, 'io', { hips: [0, -0.3, 0], chest: [0, -0.5, 0], rightUpperArm: [0.3, 0, 0.7], rightLowerArm: [0, 1.6, 0], leftUpperArm: [-0.1, 0, -1.2], leftLowerArm: [0, -0.9, 0] }, 0.05, [0, 0.3]],
+    [0.54, 'in', { hips: [0, 0.3, 0], chest: [0.1, 0.45, 0], rightUpperArm: [0, 0, 1.57], rightLowerArm: [0, 0.12, 0], leftUpperArm: [-0.2, 0, -1.3], leftLowerArm: [0, -0.4, 0], leftUpperLeg: [-0.6, 0, -0.04], leftLowerLeg: [0.45, 0, 0], rightUpperLeg: [0.5, 0, 0.04] }, 0.09, [0, -0.05]],
+    [0.74, 'out', { chest: [0.12, 0.4, 0] }, 0.08, [0, 0]],
+    [1, 'io', {}, 0.03],
+  ]),
+  // 7: a second thrust from the other side, the point rising
+  track([
+    [0, 'io', { hips: [0, 0.3, 0], chest: [0.1, 0.4, 0], rightUpperArm: [0, 0, 1.57], rightLowerArm: [0, 0.12, 0], ...GUARD_LEFT, leftUpperLeg: [0.3, 0, -0.04], rightUpperLeg: [-0.4, 0, 0.04] }, 0.05, [0, 0]],
+    [0.3, 'io', { hips: [0, 0.4, 0], chest: [0.05, 0.6, 0], rightUpperArm: [0.2, 0, 0.9], rightLowerArm: [0, 1.5, 0] }, 0.06, [0.3, 0.2]],
+    [0.54, 'in', { hips: [0, -0.3, 0], chest: [-0.05, -0.4, 0], rightUpperArm: [-0.45, 0, 1.55], rightLowerArm: [0, 0.12, 0], leftUpperArm: [-0.4, 0, -1.3], leftLowerArm: [0, -0.4, 0], leftUpperLeg: [0.5, 0, -0.04], rightUpperLeg: [-0.6, 0, 0.04], rightLowerLeg: [0.45, 0, 0] }, 0.09, [0, 0.35]],
+    [0.74, 'out', { chest: [0, -0.4, 0] }, 0.08, [0, 0.3]],
+    [1, 'io', {}, 0.03],
+  ]),
+  // 8: a low drag and a rising thrust
+  track([
+    [0, 'io', { hips: [0, -0.2, 0], chest: [0.1, -0.35, 0], rightUpperArm: [0.4, 0, 0.8], rightLowerArm: [0, 1.4, 0], ...GUARD_LEFT, leftUpperLeg: [-0.2, 0, -0.04], rightUpperLeg: [0.3, 0, 0.04] }, 0.04, [0.2, -0.2]],
+    [0.3, 'io', { hips: [0, -0.4, 0], chest: [0.35, -0.55, 0], rightUpperArm: [0.9, 0, 0.9], rightLowerArm: [0, 1.2, 0] }, 0.14, [0, -0.7]],
+    [0.56, 'in', { hips: [0, 0.35, 0], chest: [-0.1, 0.4, 0], rightUpperArm: [-0.8, 0, 1.55], rightLowerArm: [0, 0.15, 0], leftUpperArm: [-0.6, 0, -1.3], leftLowerArm: [0, -0.4, 0], leftUpperLeg: [-0.65, 0, -0.04], leftLowerLeg: [0.5, 0, 0], rightUpperLeg: [0.55, 0, 0.04] }, 0.1, [0, 0.55]],
+    [0.76, 'out', { chest: [-0.05, 0.4, 0] }, 0.08, [0, 0.5]],
+    [1, 'io', {}, 0.04],
+  ]),
+  // 9: the finisher, a deep two-handed lunge
+  track([
+    [0, 'io', { hips: [0, -0.1, 0], chest: [0, -0.2, 0], ...READY_RIGHT, ...GUARD_LEFT, leftUpperLeg: [-0.1, 0, -0.04], rightUpperLeg: [0.2, 0, 0.04] }, 0.02, [0.2, 0.4]],
+    [0.34, 'io', { hips: [0, -0.45, 0], spine: [-0.1, -0.3, 0], chest: [-0.1, -0.7, 0], rightUpperArm: [0.4, 0, 0.6], rightLowerArm: [0, 1.7, 0], leftUpperArm: [-0.3, 0, -1.0], leftLowerArm: [0, -1.0, 0], leftUpperLeg: [0.3, 0, -0.04], rightUpperLeg: [-0.4, 0, 0.04] }, 0.1, [0, 0.4]],
+    [0.5, 'in', { hips: [0, 0.4, 0], spine: [0.2, 0.3, 0], chest: [0.3, 0.7, 0], rightUpperArm: [0, 0, 1.57], rightLowerArm: [0, 0.1, 0], leftUpperArm: [-0.1, 0, -1.45], leftLowerArm: [0, -0.2, 0], leftUpperLeg: [-0.85, 0, -0.04], leftLowerLeg: [0.75, 0, 0], rightUpperLeg: [0.6, 0, 0.04] }, 0.2, [0, -0.05]],
+    [0.78, 'out', { chest: [0.35, 0.7, 0] }, 0.18, [0, 0]],
+    [1, 'io', {}, 0.06],
+  ]),
 ];
 
 /** Which track each step uses: the charged strike shares the finisher's overhead swing, and the burst cast does too. */
 const TRACK_FOR_STEP = [0, 1, 2, 3, 3, 4, 3];
+/** A spear thrusts where a sword cuts: its own track for each hit of the combo and for the charged strike. */
+const SPEAR_TRACK_FOR_STEP = [5, 6, 7, 8, 8];
 
 export interface AttackPose {
   bones: Partial3;
@@ -125,8 +159,9 @@ const sample = (frames: Frame[], i: number, u: number, read: (f: Frame) => numbe
   return hermite(read(a), read(b), slope(i) * length, slope(i + 1) * length, u);
 };
 
-export const attackPose = (step: number, t: number): AttackPose => {
-  const frames = TRACKS[TRACK_FOR_STEP[Math.min(Math.max(step, 1), TRACK_FOR_STEP.length) - 1]];
+export const attackPose = (step: number, t: number, weapon = 'sword'): AttackPose => {
+  const spear = weapon === 'spear' && step <= SPEAR_TRACK_FOR_STEP.length;
+  const frames = TRACKS[spear ? SPEAR_TRACK_FOR_STEP[step - 1] : TRACK_FOR_STEP[Math.min(Math.max(step, 1), TRACK_FOR_STEP.length) - 1]];
   const strikeAt = ATTACKS[Math.min(Math.max(step, 1), ATTACKS.length) - 1].strikeAt;
   // The keyframes are authored with the strike at frame 3; stretch time so it lands at strikeAt.
   const hit = frames[2].t;

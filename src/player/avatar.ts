@@ -449,7 +449,7 @@ export class Avatar {
 
   update(dt: number, motion: Motion): void {
     const clip = this.clipFor(motion);
-    const { bones, hipsDrop, swordAim, blade } = computePose(clip ? { ...motion, attack: null } : motion);
+    const { bones, hipsDrop, swordAim, blade } = computePose(clip ? { ...motion, attack: null } : { ...motion, weapon: this.weaponKind });
     // Every bone eases toward its target, so a new hit, a landing or a stop never pops.
     const follow = 1 - Math.exp(-dt * (motion.attack ? FOLLOW_SWING : FOLLOW_FREE));
     for (const name of Object.keys(bones) as BoneName[]) {
