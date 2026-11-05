@@ -15,7 +15,7 @@ import { groundWeights, Locomotion } from '../player/locomotion';
 import { clipTime, clipWeight, COMBO_CLIPS, mergeClips, sampleBone, sampleHipsY, type ClipLibrary } from '../player/clips';
 import clipData from '../../public/assets/animations/sword_clips.json';
 import moveData from '../../public/assets/animations/move_clips.json';
-import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, BURST_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE } from '../player/attackTable';
+import { ATTACKS, CHARGE_HOLD, CHARGED_LUNGE, CHARGED_STEP, BURST_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE, TRAITS } from '../player/attackTable';
 import { whirlAngle } from '../player/player';
 import { badgeColor, gapFactor, MAX_ENEMY_LEVEL, regionLevel, scaledStats, xpFactor } from '../enemies/levels';
 import { Quaternion } from 'three';
@@ -116,6 +116,15 @@ describe('perfect dodge data', () => {
     expect(PERFECT_DODGE.slowScale).toBeLessThan(1);
     expect(PERFECT_DODGE.slowDuration).toBeGreaterThan(0);
     expect(PERFECT_DODGE.cooldown).toBeGreaterThan(0);
+  });
+});
+
+describe('weapon traits', () => {
+  it('give each weapon a distinct, sane combo specialty', () => {
+    expect(TRAITS.sword.sweepStep).toBe(COMBO_LENGTH);
+    expect(TRAITS.spear.pierceRange).toBeGreaterThan(balance.weapons.spear.range);
+    expect(TRAITS.staff.boltFrom).toBeLessThanOrEqual(COMBO_LENGTH);
+    expect(TRAITS.staff.boltScale).toBeLessThan(1);
   });
 });
 

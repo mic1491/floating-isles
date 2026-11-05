@@ -183,5 +183,21 @@
         "height": 0
       }
     }
+  },
+  "traits": {
+    "sword": {
+      "sweepStep": 4,
+      "sweepRadius": 3.2,
+      "sweepScale": 1
+    },
+    "spear": {
+      "pierceWidth": 1.1,
+      "pierceRange": 4.6
+    },
+    "staff": {
+      "boltFrom": 3,
+      "boltRange": 9,
+      "boltScale": 0.55
+    }
   }
 }

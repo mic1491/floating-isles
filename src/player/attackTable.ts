@@ -60,3 +60,8 @@ export const MOVE_CLIPS: Record<string, string[]> = raw.clips;
 export const PLUNGE = raw.plunge;
 /** Slipping through an attack mid-dash: enemies slow down for a moment and the dodge pays back energy and stamina. */
 export const PERFECT_DODGE = raw.perfectDodge;
+/**
+ * What makes each weapon's tap combo its own: a sword's finisher sweeps all round, a spear's thrusts pierce
+ * everything along a line, and a staff's later hits also send a bolt at a foe out of reach.
+ */
+export const TRAITS = raw.traits;

@@ -9,7 +9,7 @@ import type { Actions } from '../input/actions';
 import type { Party } from '../party/party';
 import type { Player } from '../player/player';
 import { terrainHeight } from '../world/terrain';
-import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, BURST_STEP, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE, SKILL_STEP } from '../player/attackTable';
+import { ATTACKS, CHARGE_AFTER, CHARGE_HOLD, BURST_STEP, CHARGE_TIME, CHARGED_LUNGE, CHARGED_STEP, COMBO_LENGTH, KNOCKBACK, PERFECT_DODGE, PLUNGE, SKILL_STEP, TRAITS } from '../player/attackTable';
 import { Fx } from './fx';
 import { reactionOf, type Reaction } from './reactions';
 
@@ -289,8 +289,9 @@ export class Combat {
     const damage = active.attack * style.damageScale * this.party.power;
     let hit = false;
     const struck: Fighter[] = [];
+    const kind = active.weapon;
     for (const enemy of this.enemies) {
-      if (!enemy.alive || !this.inArc(enemy)) continue;
+      if (!enemy.alive || !this.inReach(enemy, kind, step)) continue;
       struck.push(enemy);
       this.hit(enemy, damage, finisher ? active.element : null);
       enemy.push(this.player.position, KNOCKBACK[step - 1]);
@@ -306,6 +307,17 @@ export class Combat {
         if (!other.alive || struck.includes(other) || this.reach(other, centre) > splashRadius) continue;
         this.hit(other, damage * splash, null);
       }
+    }
+    if (kind === 'staff' && step >= TRAITS.staff.boltFrom) hit = this.staffBolt(damage * TRAITS.staff.boltScale, struck) || hit;
+    if (kind === 'sword' && step === TRAITS.sword.sweepStep) {
+      const origin = this.player.position;
+      this.fx.ring(origin, TRAITS.sword.sweepRadius, active.color, 0.4);
+      this.fx.scatter(origin.clone().setY(origin.y + 0.5), active.color, 10, TRAITS.sword.sweepRadius * 2, 3, 0.06, 0.6);
+    }
+    if (kind === 'spear' && struck.length > 0) {
+      const forward = this.player.facing.clone().setY(0).normalize();
+      const from = this.player.position.clone().setY(this.player.position.y + 1);
+      this.fx.bolt(from, from.clone().addScaledVector(forward, TRAITS.spear.pierceRange), active.color, 0.12, 0.25);
     }
     if (hit) {
       this.hitstop = style.hitstop;
@@ -608,6 +620,40 @@ export class Combat {
       this.applyDamage(jump, rx.electroDamage, ELEMENT_COLORS.thunder);
       this.fx.dome(jump.position.clone().setY(jump.position.y + 0.8), 0.9, ELEMENT_COLORS.thunder, 0.2);
     }
+  }
+
+  /** Whether a weapon's tap hit reaches an enemy: the usual arc, widened or reshaped by what the weapon is known for. */
+  private inReach(enemy: Fighter, kind: string, step: number): boolean {
+    if (kind === 'sword' && step === TRAITS.sword.sweepStep) return this.reach(enemy, this.player.position) <= TRAITS.sword.sweepRadius;
+    if (kind === 'spear') {
+      const rel = new Vector3().subVectors(enemy.position, this.player.position).setY(0);
+      const forward = this.player.facing.clone().setY(0).normalize();
+      const along = rel.dot(forward);
+      const side = rel.addScaledVector(forward, -along).length();
+      return along > -0.5 && along - enemy.radius <= TRAITS.spear.pierceRange && side - enemy.radius * 0.8 <= TRAITS.spear.pierceWidth;
+    }
+    return this.inArc(enemy);
+  }
+
+  /** A staff's later hits send a bolt of its element at the nearest foe beyond the blow, within range. */
+  private staffBolt(damage: number, struck: Fighter[]): boolean {
+    let target: Fighter | null = null;
+    let best: number = TRAITS.staff.boltRange;
+    for (const enemy of this.enemies) {
+      if (!enemy.alive || struck.includes(enemy)) continue;
+      const gap = this.reach(enemy, this.player.position);
+      if (gap < best) {
+        best = gap;
+        target = enemy;
+      }
+    }
+    if (!target) return false;
+    const { active } = this.party;
+    const color = ELEMENT_COLORS[active.element];
+    this.fx.bolt(this.player.position.clone().setY(this.player.position.y + 1.3), target.position.clone().setY(target.position.y + 0.9), color, 0.14, 0.3);
+    this.hit(target, damage, active.element);
+    this.fx.spark(target.position.clone().setY(target.position.y + 0.9), color, 0.4);
+    return true;
   }
 
   private inArc(enemy: Fighter): boolean {
