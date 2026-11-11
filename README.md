@@ -31,6 +31,28 @@ npm run build
 
 數值集中在 `data/balance.json`。推送到 `main` 會自動部署到 GitHub Pages。
 
+## 流光鬥技(對戰遊戲)
+
+`fighter/` 是另一個獨立的小遊戲:3D 動漫風一對一格鬥,沿用本專案的三個角色模型與動作檔。
+
+```bash
+npm run fighter
+```
+
+開啟 http://localhost:5174 。三戰兩勝,每回合 60 秒。
+
+| 動作 | 按鍵 |
+| --- | --- |
+| 移動 | WASD |
+| 連打(四段,最後一擊打飛) | J 或滑鼠左鍵 |
+| 重擊(可破防) | K 或滑鼠右鍵 |
+| 氣彈(耗氣 20) | L 或 E |
+| 閃身(短暫無敵) | Shift |
+| 跳躍 | 空白鍵 |
+| 防禦 | 按住 F |
+| 集氣 | 按住 R |
+| 奧義(氣滿 100) | Q |
+
 ## Credits
 
 - Sword combo motions: [Universal Animation Library 2](https://quaternius.itch.io/universal-animation-library-2) by Quaternius, CC0. Converted for the game's VRM characters with `tools/retargetClips.mjs <glb> <out> sword`.

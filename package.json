@@ -7,7 +7,9 @@
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview --host",
-    "test": "vitest run"
+    "test": "vitest run",
+    "fighter": "vite fighter --port 5174",
+    "fighter:build": "tsc --noEmit -p fighter && vite build fighter"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.21.0",
