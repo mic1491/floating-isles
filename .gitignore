@@ -5,3 +5,10 @@ dist/
 .env
 .env.*
 .claude/
+
+# Unreal
+unreal/*/Binaries/
+unreal/*/Intermediate/
+unreal/*/Saved/
+unreal/*/DerivedDataCache/
+unreal/*/*.xcworkspace
