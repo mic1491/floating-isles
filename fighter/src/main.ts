@@ -327,14 +327,17 @@ const frame = (now: number): void => {
   composer.render();
 };
 
+// Built, the game sits in a folder beside the main game's assets; while developing they are served alongside it.
+const ASSETS = import.meta.env.DEV ? '' : '../';
+
 const boot = async (): Promise<void> => {
   resize();
   const note = document.querySelector('#loading small')!;
-  const library = await loadClips('assets/animations/move_clips.json', 'assets/animations/sword_clips.json');
+  const library = await loadClips(`${ASSETS}assets/animations/move_clips.json`, `${ASSETS}assets/animations/sword_clips.json`);
   let done = 0;
   const rigs = await Promise.all(
     CHARS.map(async (c) => {
-      const rig = await Rig.load(c.url, library, c.hue);
+      const rig = await Rig.load(ASSETS + c.url, library, c.hue);
       done += 1;
       note.textContent = `載入角色 ${done}/${CHARS.length}`;
       return rig;

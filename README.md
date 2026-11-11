@@ -41,6 +41,8 @@ npm run fighter
 
 開啟 http://localhost:5174 。三戰兩勝,每回合 60 秒。
 
+線上試玩:https://mic1491.github.io/floating-isles/fighter/ (`npm run build` 會把它建到 `dist/fighter/`,與主遊戲一起部署)
+
 | 動作 | 按鍵 |
 | --- | --- |
 | 移動 | WASD |
