@@ -30,6 +30,21 @@ void ADragonHUD::DrawHUD()
 		return;
 	}
 
+	if (Dragon->IsIntro())
+	{
+		// Opening scene: cinema bars, the title fading in and out, and nothing else.
+		const float Bar = Canvas->SizeY * 0.11f, T = Dragon->GetIntroTime();
+		DrawRect(FLinearColor::Black, 0.f, 0.f, Canvas->SizeX, Bar);
+		DrawRect(FLinearColor::Black, 0.f, Canvas->SizeY - Bar, Canvas->SizeX, Bar);
+		const float Fade = FMath::Clamp(FMath::Min(T - 0.4f, 3.3f - T), 0.f, 1.f);
+		if (Fade > 0.f)
+		{
+			DrawText(TEXT("DRAGON  RIDER"), FLinearColor(1.f, 0.78f, 0.25f, Fade), Canvas->SizeX * 0.5f - 330.f, Canvas->SizeY * 0.22f, GEngine->GetLargeFont(), 5.f);
+		}
+		DrawText(TEXT("Space: skip"), FLinearColor(1.f, 1.f, 1.f, 0.7f), Canvas->SizeX - 190.f, Canvas->SizeY - Bar * 0.65f, GEngine->GetMediumFont(), 1.2f);
+		return;
+	}
+
 	UFont* Font = GEngine->GetMediumFont();
 	const FLinearColor White(1.f, 1.f, 1.f), Gold(1.f, 0.75f, 0.1f);
 	const float W = Canvas->SizeX, H = Canvas->SizeY;
@@ -54,7 +69,14 @@ void ADragonHUD::DrawHUD()
 	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.45f), 110.f, 200.f, 204.f, 18.f);
 	DrawRect(Fuel > 0.2f ? FLinearColor(1.f, 0.45f, 0.05f) : FLinearColor(0.5f, 0.5f, 0.5f), 112.f, 202.f, 200.f * Fuel, 14.f);
 
-	DrawText(TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    F / right mouse: fire    Shift: brake    C: view    R: restart    Esc: quit"), White, 40.f, H - 50.f, Font, 1.2f);
+	const TCHAR* Help = Dragon->IsGrounded()
+		? TEXT("W: walk    Shift: run    A/D or mouse: turn    F / right mouse: fire    Space: take off    C: view    R: restart    Esc: quit")
+		: TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    F / right mouse: fire    Shift: brake    G: land    C: view    R: restart    Esc: quit");
+	DrawText(Help, White, 40.f, H - 50.f, Font, 1.2f);
+	if (!Dragon->GetNotice().IsEmpty())
+	{
+		DrawText(Dragon->GetNotice(), Gold, W * 0.5f - 220.f, H * 0.22f, Font, 1.8f);
+	}
 
 	if (World->bFinished)
 	{

@@ -21,6 +21,16 @@ class UStaticMeshComponent;
  * The dragon itself is the "Sakura Dragon" asset from Fab (Content/SakuraDragon, not kept in
  * the repository). Without it a plain cone stands in, and everything else still works.
  */
+/** What the dragon is doing. Flight is the normal state; the rest handle being on the ground. */
+enum class EDragonMode : uint8
+{
+	Flying,
+	Descending, // gliding down to the chosen landing spot
+	Landing,    // touching down
+	Grounded,
+	TakingOff,
+};
+
 UCLASS()
 class ADragonPawn : public APawn
 {
@@ -51,6 +61,16 @@ public:
 	void SetView(int32 NewView);
 	const TCHAR* GetViewName() const { return ViewName; }
 	bool IsTurningBack() const { return bTurningBack; }
+
+	/** Landing: G (gamepad X) over an island sets the dragon down; on the ground it walks, runs and breathes fire, and Space takes off again. */
+	bool IsGrounded() const { return Mode == EDragonMode::Grounded; }
+	bool IsFlying() const { return Mode == EDragonMode::Flying; }
+	/** A short message for the player, such as why a landing was refused; empty when there is none. */
+	const FString& GetNotice() const { return Notice; }
+
+	/** The opening scene: the dragon on a mountain shoulder roars, breathes fire and takes off. Space skips it. */
+	bool IsIntro() const { return bIntro; }
+	float GetIntroTime() const { return IntroTime; }
 
 	UPROPERTY(EditAnywhere, Category = "Flight")
 	float CruiseSpeed = 3200.f;
@@ -100,6 +120,14 @@ private:
 	void EmitFlame(const FVector& Pos, const FVector& Vel, float Life);
 	void UpdateFire(float DeltaSeconds, bool bWantsFire);
 	void SeatRider();
+	void StartIntro();
+	void TickIntro(float Dt, bool bSkip);
+	void AimCamera(const FVector& Pivot, float ArmYaw, float Length, float Lift, float Tilt);
+	void TryLand();
+	void PutOnGround(const FVector2D& Where);
+	void TickGround(float Dt, float TurnIn, float Forward, float MouseX, bool bRun, bool bTakeOff);
+	void PlayAnim(UAnimSequence* Anim, bool bLoop, float Rate = 1.f);
+	float StandHeight() const;
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USphereComponent> Body;
@@ -120,6 +148,39 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UAnimSequence> FlyAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> HoverAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> LandAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> TakeoffAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> IdleAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> WalkAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> RunAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> BreathAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> RoarAnim;
+	UPROPERTY()
+	TObjectPtr<UAnimSequence> CurrentAnim;
+
+	bool bIntro = false;
+	bool bIntroFire = false;
+	float IntroTime = 0.f;
+
+	EDragonMode Mode = EDragonMode::Flying;
+	float ModeTime = 0.f;
+	FVector LandFrom = FVector::ZeroVector;
+	FVector LandTo = FVector::ZeroVector;
+	float LandDuration = 1.f;
+	/** How far the body sits below its flying height: the ground animations stand ~3 m lower than the flight ones. */
+	float BodyDrop = 0.f;
+	FVector ViewPivot = FVector::ZeroVector;
+	FString Notice;
+	float NoticeTime = 0.f;
 
 	TArray<FFlame> FlamePool;
 	int32 NextFlame = 0;

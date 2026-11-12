@@ -31,6 +31,8 @@ namespace
 	// Where the rider sits, in the asset's own space: on the back between the wings.
 	const FVector SaddlePoint(0.f, 335.f, 318.f);
 	const FName SaddleBone(TEXT("spine_02"));
+	// The standing, walking and landing animations hold the chest this high above the asset's origin.
+	const float GroundCentreZ = 250.f;
 }
 
 ADragonPawn::ADragonPawn()
@@ -52,6 +54,15 @@ ADragonPawn::ADragonPawn()
 		Mesh->SetSkeletalMeshAsset(DragonMesh.Object);
 	}
 	FlyAnim = Fly.Object;
+	auto Clip = [](const TCHAR* Path) { return ConstructorHelpers::FObjectFinder<UAnimSequence>(Path).Object; };
+	HoverAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Fly_Hover.A_Sakura_Fly_Hover"));
+	LandAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Land.A_Sakura_Land"));
+	TakeoffAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Takeoff.A_Sakura_Takeoff"));
+	IdleAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Idle.A_Sakura_Idle"));
+	WalkAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Walk.A_Sakura_Walk"));
+	RunAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Run.A_Sakura_Run"));
+	RoarAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Roar.A_Sakura_Roar"));
+	BreathAnim = Clip(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Fire_Breath.A_Sakura_Fire_Breath"));
 
 	Rider = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Rider"));
 	Rider->SetupAttachment(Mesh);
@@ -79,7 +90,8 @@ ADragonPawn::ADragonPawn()
 	Arm->SetupAttachment(Body);
 	Arm->TargetArmLength = 2200.f;
 	Arm->SocketOffset = FVector(0.f, 0.f, 550.f);
-	Arm->bDoCollisionTest = false;
+	Arm->bDoCollisionTest = true; // pulls the camera in rather than letting it sink into a hillside
+	Arm->ProbeSize = 60.f;
 	Arm->bInheritRoll = false;
 	Arm->bEnableCameraLag = true;
 	Arm->CameraLagSpeed = 5.f;
@@ -131,11 +143,7 @@ void ADragonPawn::BeginPlay()
 	{
 		// Our own single-animation player, which can also open the jaw (see DragonAnimInstance.h).
 		Mesh->SetAnimInstanceClass(UDragonAnimInstance::StaticClass());
-		if (UDragonAnimInstance* Anim = Cast<UDragonAnimInstance>(Mesh->GetAnimInstance()))
-		{
-			Anim->SetAnimationAsset(FlyAnim, true);
-			Anim->SetPlaying(true);
-		}
+		PlayAnim(FlyAnim, true);
 	}
 
 	// Recolour: the asset's materials multiply their colour by BaseTint and their glow by EmissiveTint.
@@ -151,6 +159,34 @@ void ADragonPawn::BeginPlay()
 	SeatRider();
 
 	// Starting the game with -View=N opens in that camera view (see SetView), for checking the model.
+	// Starting the game with -LandTest begins standing on the nearest flat ground, for checking the ground moves.
+	if (FParse::Param(FCommandLine::Get(), TEXT("LandTest")))
+	{
+		for (float D = 0.f; D < 600000.f && Mode == EDragonMode::Flying; D += 2500.f)
+		{
+			for (float A = 0.f; A < 360.f; A += 15.f)
+			{
+				const FVector2D P = FVector2D(FMath::Cos(FMath::DegreesToRadians(A)), FMath::Sin(FMath::DegreesToRadians(A))) * D;
+				const float H = ADragonWorld::HeightAt(P.X, P.Y);
+				if (H > 2000.f && H < 12000.f && FMath::Abs(ADragonWorld::HeightAt(P.X + 1500.f, P.Y) - H) < 300.f && FMath::Abs(ADragonWorld::HeightAt(P.X, P.Y + 1500.f) - H) < 300.f)
+				{
+					PutOnGround(P);
+					break;
+				}
+			}
+		}
+	}
+
+	// The opening scene plays once per launch (not again on restart), and not in the test modes.
+	static bool bIntroSeen = false;
+	const TCHAR* Cmd = FCommandLine::Get();
+	if (!bIntroSeen && Mode == EDragonMode::Flying && Mesh->GetSkeletalMeshAsset() && !FParse::Param(Cmd, TEXT("NoIntro"))
+		&& !FParse::Param(Cmd, TEXT("AutoFire")) && !FParse::Param(Cmd, TEXT("BurnTest")) && !FCString::Strifind(Cmd, TEXT("View=")))
+	{
+		bIntroSeen = true;
+		StartIntro();
+	}
+
 	int32 StartView = 0;
 	FParse::Value(FCommandLine::Get(), TEXT("View="), StartView);
 	SetView(StartView);
@@ -221,7 +257,8 @@ void ADragonPawn::SetView(int32 NewView)
 	View = ((NewView % UE_ARRAY_COUNT(Views)) + UE_ARRAY_COUNT(Views)) % UE_ARRAY_COUNT(Views);
 	const FViewSetup& V = Views[View];
 	ViewName = V.Name;
-	Arm->SetRelativeLocation(V.Pivot);
+	ViewPivot = V.Pivot;
+	Arm->SetRelativeLocation(ViewPivot - FVector(0.f, 0.f, BodyDrop));
 	Arm->SetRelativeRotation(FRotator(0.f, V.Yaw, 0.f));
 	Arm->TargetArmLength = V.Length;
 	Arm->SocketOffset = FVector(0.f, 0.f, V.Lift);
@@ -271,6 +308,10 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		{
 			SetView(View + 1);
 		}
+		if (Mode == EDragonMode::Flying && (PC->WasInputKeyJustPressed(EKeys::G) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Left)))
+		{
+			TryLand();
+		}
 		if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right))
 		{
 			UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
@@ -280,6 +321,27 @@ void ADragonPawn::Tick(float DeltaSeconds)
 	TurnIn = FMath::Clamp(TurnIn, -1.f, 1.f);
 	PitchIn = FMath::Clamp(PitchIn, -1.f, 1.f);
 
+	if (bIntro)
+	{
+		const APlayerController* PC = Cast<APlayerController>(GetController());
+		TickIntro(Dt, bFlap || (PC && PC->WasInputKeyJustPressed(EKeys::Enter)));
+		TurnIn = PitchIn = MouseX = MouseY = 0.f;
+		bFlap = bBrake = bFire = false;
+	}
+
+	NoticeTime -= Dt;
+	if (NoticeTime <= 0.f)
+	{
+		Notice.Reset();
+	}
+
+	if (Mode != EDragonMode::Flying)
+	{
+		// On the ground W walks forward, Shift runs and Space takes off.
+		TickGround(Dt, TurnIn, FMath::Max(-PitchIn, 0.f), MouseX, bBrake, bFlap);
+	}
+	else
+	{
 	// ---- leaving the map: steer back towards the middle ----
 	const FVector Loc = GetActorLocation();
 	bTurningBack = FVector2D(Loc.X, Loc.Y).Size() > ADragonWorld::PlayRadius;
@@ -332,7 +394,15 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		}
 	}
 	SetActorRotation(FRotator(Pitch, Yaw, Roll));
+	}
 
+	Arm->SetRelativeLocation(ViewPivot - FVector(0.f, 0.f, BodyDrop));
+	if (bIntro && Mode == EDragonMode::Flying)
+	{
+		// The scene is over: hand the dragon and the usual camera to the player.
+		bIntro = bIntroFire = false;
+		SetView(View);
+	}
 	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, 85.f + 22.f * FMath::Clamp((Speed - CruiseSpeed) / (MaxSpeed - CruiseSpeed), 0.f, 1.f), Dt, 3.f));
 
 	// Starting the game with -AutoFire keeps the dragon breathing fire, for checking the effect unattended.
@@ -341,14 +411,23 @@ void ADragonPawn::Tick(float DeltaSeconds)
 	{
 		Fuel = 1.f;
 	}
-	UpdateFire(Dt, bFire || bAutoFire);
+	if (bIntro)
+	{
+		Fuel = 1.f;
+	}
+	UpdateFire(Dt, (bFire || bAutoFire || bIntroFire) && (Mode == EDragonMode::Flying || Mode == EDragonMode::Grounded));
 	// Wingbeat: quick and strong while flapping, slow and easy while gliding.
 	FlapAmount = FMath::FInterpTo(FlapAmount, bFlap ? 1.f : 0.3f, Dt, 4.f);
 	if (UDragonAnimInstance* Anim = Cast<UDragonAnimInstance>(Mesh->GetAnimInstance()))
 	{
-		Anim->SetPlayRate(FMath::Lerp(0.5f, 1.5f, FlapAmount));
-		// The mouth opens quickly as the fire starts and eases shut afterwards.
-		Anim->JawOpen = FMath::FInterpTo(Anim->JawOpen, bBreathing ? 1.f : 0.f, Dt, bBreathing ? 14.f : 5.f);
+		if (Mode == EDragonMode::Flying)
+		{
+			Anim->SetPlayRate(FMath::Lerp(0.5f, 1.5f, FlapAmount));
+		}
+		// The mouth opens quickly as the fire starts and eases shut afterwards. Standing, the
+		// breath animation already opens it, so only a little is added.
+		const float Open = !bBreathing ? 0.f : Mode == EDragonMode::Flying ? 1.f : 0.35f;
+		Anim->JawOpen = FMath::FInterpTo(Anim->JawOpen, Open, Dt, bBreathing ? 14.f : 5.f);
 	}
 }
 
@@ -363,7 +442,253 @@ FVector ADragonPawn::GetMouthLocation() const
 
 FVector ADragonPawn::GetFireDirection() const
 {
-	return GetActorForwardVector();
+	// Standing, the flame goes out level and a little downward so it sweeps what is in front.
+	return Mode == EDragonMode::Flying ? GetActorForwardVector() : FRotator(-5.f, Yaw, 0.f).Vector();
+}
+
+void ADragonPawn::PlayAnim(UAnimSequence* Clip, bool bLoop, float Rate)
+{
+	UDragonAnimInstance* Anim = Cast<UDragonAnimInstance>(Mesh->GetAnimInstance());
+	if (!Anim || !Clip)
+	{
+		return;
+	}
+	if (Clip != CurrentAnim)
+	{
+		CurrentAnim = Clip;
+		Anim->SetAnimationAsset(Clip, bLoop);
+		Anim->SetPlaying(true);
+	}
+	Anim->SetPlayRate(Rate);
+}
+
+float ADragonPawn::StandHeight() const
+{
+	// The pawn's centre is the chest's flying height above the asset's origin, and the origin is where the feet stand.
+	return DragonCentre.Z * DragonScale;
+}
+
+void ADragonPawn::AimCamera(const FVector& Pivot, float ArmYaw, float Length, float Lift, float Tilt)
+{
+	ViewPivot = Pivot;
+	Arm->SetRelativeRotation(FRotator(0.f, ArmYaw, 0.f));
+	Arm->TargetArmLength = Length;
+	Arm->SocketOffset = FVector(0.f, 0.f, Lift);
+	Arm->bEnableCameraLag = false;
+	Arm->bEnableCameraRotationLag = false;
+	Camera->SetRelativeRotation(FRotator(Tilt, 0.f, 0.f));
+}
+
+void ADragonPawn::StartIntro()
+{
+	// A flat shoulder high on a mountain, the nearest one to the middle of the map.
+	for (float D = 20000.f; D < 700000.f; D += 3000.f)
+	{
+		for (float A = 0.f; A < 360.f; A += 12.f)
+		{
+			const FVector2D P = FVector2D(FMath::Cos(FMath::DegreesToRadians(A)), FMath::Sin(FMath::DegreesToRadians(A))) * D;
+			const float H = ADragonWorld::HeightAt(P.X, P.Y);
+			if (H > 30000.f && H < 80000.f && FMath::Abs(ADragonWorld::HeightAt(P.X + 1200.f, P.Y) - H) < 450.f && FMath::Abs(ADragonWorld::HeightAt(P.X, P.Y + 1200.f) - H) < 450.f)
+			{
+				Yaw = FVector(-P.X, -P.Y, 0.f).Rotation().Yaw; // looking out over the course
+				PutOnGround(P);
+				bIntro = true;
+				IntroTime = 0.f;
+				Rider->SetVisibility(Rider->GetStaticMesh() != nullptr);
+				return;
+			}
+		}
+	}
+}
+
+void ADragonPawn::TickIntro(float Dt, bool bSkip)
+{
+	// Shot list, in seconds from the start.
+	const float RoarAt = 3.5f, FireAt = 6.6f, TakeoffAt = 9.4f;
+	if (bSkip && IntroTime > 0.5f && IntroTime < TakeoffAt)
+	{
+		IntroTime = TakeoffAt;
+	}
+	IntroTime += Dt;
+	const FVector Head(400.f, 0.f, 280.f); // the head when standing, relative to the pawn (before BodyDrop)
+	bIntroFire = false;
+
+	if (Mode == EDragonMode::Grounded)
+	{
+		if (IntroTime < RoarAt)
+		{
+			// Wide shot circling slowly in from far off.
+			const float T = IntroTime / RoarAt;
+			AimCamera(FVector(0.f, 0.f, 150.f), FMath::Lerp(235.f, 205.f, T), FMath::Lerp(7500.f, 5200.f, T), FMath::Lerp(1800.f, 900.f, T), -8.f);
+			PlayAnim(IdleAnim, true);
+		}
+		else if (IntroTime < FireAt)
+		{
+			// Low and close under the jaw as it roars, the camera shaking with it.
+			const float T = (IntroTime - RoarAt) / (FireAt - RoarAt);
+			const float Shake = FMath::Sin(T * PI) * 14.f;
+			AimCamera(Head + FVector(FMath::FRandRange(-Shake, Shake), FMath::FRandRange(-Shake, Shake), -160.f + FMath::FRandRange(-Shake, Shake)),
+				FMath::Lerp(168.f, 150.f, T), FMath::Lerp(1050.f, 800.f, T), 0.f, 12.f);
+			PlayAnim(RoarAnim ? RoarAnim.Get() : IdleAnim.Get(), false);
+		}
+		else if (IntroTime < TakeoffAt)
+		{
+			// From the side as it pours out fire.
+			const float T = (IntroTime - FireAt) / (TakeoffAt - FireAt);
+			AimCamera(FVector(350.f, 0.f, 200.f), FMath::Lerp(108.f, 84.f, T), 2700.f, 150.f, 0.f);
+			bIntroFire = true;
+		}
+		else
+		{
+			Mode = EDragonMode::TakingOff;
+			ModeTime = 0.f;
+			PlayAnim(TakeoffAnim, false);
+		}
+	}
+	if (Mode == EDragonMode::TakingOff)
+	{
+		// From behind and below as it leaps into the air.
+		const float T = FMath::Clamp(ModeTime / 3.f, 0.f, 1.f);
+		AimCamera(FVector(0.f, 0.f, 100.f), FMath::Lerp(28.f, 0.f, T), FMath::Lerp(1900.f, 2400.f, T), FMath::Lerp(-150.f, 450.f, T), FMath::Lerp(8.f, -6.f, T));
+	}
+}
+
+void ADragonPawn::TryLand()
+{
+	const FVector Loc = GetActorLocation();
+	const FVector Ahead = Loc + FRotator(0.f, Yaw, 0.f).Vector() * FMath::Clamp(Speed * 0.6f, 600.f, 2600.f);
+	const float Ground = ADragonWorld::HeightAt(Ahead.X, Ahead.Y);
+	NoticeTime = 3.f;
+	if (Ground < 300.f)
+	{
+		Notice = TEXT("No land below - fly over an island to land");
+		return;
+	}
+	if (FMath::Abs(ADragonWorld::HeightAt(Ahead.X + 700.f, Ahead.Y) - Ground) > 450.f || FMath::Abs(ADragonWorld::HeightAt(Ahead.X, Ahead.Y + 700.f) - Ground) > 450.f)
+	{
+		Notice = TEXT("Too steep to land here");
+		return;
+	}
+	Notice.Reset();
+	Mode = EDragonMode::Descending;
+	ModeTime = 0.f;
+	LandFrom = Loc;
+	LandTo = FVector(Ahead.X, Ahead.Y, Ground + StandHeight());
+	LandDuration = FMath::Clamp(FVector::Dist(LandFrom, LandTo) / 2200.f, 1.2f, 8.f);
+	PlayAnim(HoverAnim ? HoverAnim.Get() : FlyAnim.Get(), true);
+}
+
+void ADragonPawn::PutOnGround(const FVector2D& Where)
+{
+	Mode = EDragonMode::Grounded;
+	ModeTime = 0.f;
+	Speed = 0.f;
+	Pitch = Roll = TurnRate = 0.f;
+	BodyDrop = (DragonCentre.Z - GroundCentreZ) * DragonScale;
+	SetActorLocationAndRotation(FVector(Where.X, Where.Y, ADragonWorld::HeightAt(Where.X, Where.Y) + StandHeight()), FRotator(0.f, Yaw, 0.f));
+	PlayAnim(IdleAnim, true);
+}
+
+void ADragonPawn::TickGround(float Dt, float TurnIn, float Forward, float MouseX, bool bRun, bool bTakeOff)
+{
+	const float FullDrop = (DragonCentre.Z - GroundCentreZ) * DragonScale;
+	ModeTime += Dt;
+	FVector Loc = GetActorLocation();
+
+	switch (Mode)
+	{
+	case EDragonMode::Descending:
+	{
+		// Glide down to the spot, levelling out and slowing as it comes in.
+		const float A = FMath::SmoothStep(0.f, 1.f, ModeTime / LandDuration);
+		Loc = FMath::Lerp(LandFrom, LandTo, A);
+		Pitch = FMath::FInterpTo(Pitch, 0.f, Dt, 3.f);
+		Roll = FMath::FInterpTo(Roll, 0.f, Dt, 3.f);
+		Speed = FMath::FInterpTo(Speed, 0.f, Dt, 2.f);
+		if (ModeTime >= LandDuration)
+		{
+			Mode = EDragonMode::Landing;
+			ModeTime = 0.f;
+			PlayAnim(LandAnim, false);
+		}
+		break;
+	}
+	case EDragonMode::Landing:
+	{
+		// The landing animation lowers the body to the ground by itself; the camera follows it down.
+		const float Length = LandAnim ? LandAnim->GetPlayLength() : 1.f;
+		BodyDrop = FullDrop * FMath::Clamp(ModeTime / Length, 0.f, 1.f);
+		Pitch = Roll = Speed = 0.f;
+		if (ModeTime >= Length)
+		{
+			Mode = EDragonMode::Grounded;
+			ModeTime = 0.f;
+			PlayAnim(IdleAnim, true);
+		}
+		break;
+	}
+	case EDragonMode::Grounded:
+	{
+		BodyDrop = FullDrop;
+		Yaw = FRotator::NormalizeAxis(Yaw + TurnIn * 75.f * Dt + MouseX * MouseSensitivity);
+		// It stands still to breathe fire; otherwise W walks and Shift makes it run.
+		const float Pace = bBreathing ? 0.f : Forward * (bRun ? 2400.f : 750.f);
+		if (Pace > 0.f)
+		{
+			const FVector Next = Loc + FRotator(0.f, Yaw, 0.f).Vector() * Pace * Dt;
+			if (ADragonWorld::HeightAt(Next.X, Next.Y) > 150.f) // stops at the water's edge
+			{
+				Loc.X = Next.X;
+				Loc.Y = Next.Y;
+			}
+		}
+		Loc.Z = FMath::FInterpTo(Loc.Z, ADragonWorld::HeightAt(Loc.X, Loc.Y) + StandHeight(), Dt, 8.f);
+		Speed = Pace;
+		if (bBreathing && BreathAnim)
+		{
+			PlayAnim(BreathAnim, true);
+		}
+		else if (bIntro)
+		{
+			// The opening scene chooses the animation itself.
+		}
+		else if (Pace > 0.f)
+		{
+			PlayAnim(bRun ? RunAnim.Get() : WalkAnim.Get(), true, bRun ? 1.2f : 1.f);
+		}
+		else
+		{
+			PlayAnim(IdleAnim, true);
+		}
+		if (bTakeOff)
+		{
+			Mode = EDragonMode::TakingOff;
+			ModeTime = 0.f;
+			PlayAnim(TakeoffAnim, false);
+		}
+		break;
+	}
+	case EDragonMode::TakingOff:
+	{
+		const float Length = TakeoffAnim ? TakeoffAnim->GetPlayLength() : 1.f;
+		const float T = FMath::Clamp(ModeTime / Length, 0.f, 1.f);
+		BodyDrop = FullDrop * (1.f - T);
+		Loc.Z += 500.f * T * Dt; // starts to climb as the wings take hold
+		if (ModeTime >= Length)
+		{
+			Mode = EDragonMode::Flying;
+			BodyDrop = 0.f;
+			Speed = MinSpeed * 2.f;
+			Pitch = 18.f;
+			PlayAnim(FlyAnim, true);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+
+	SetActorLocationAndRotation(Loc, FRotator(Pitch, Yaw, Roll));
 }
 
 void ADragonPawn::EmitFlame(const FVector& Pos, const FVector& Vel, float Life)
