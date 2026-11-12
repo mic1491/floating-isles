@@ -95,6 +95,7 @@ void ADragonWorld::BeginPlay()
 	BuildOcean();
 	BuildTerrain();
 	BuildRings();
+	BuildTargets();
 }
 
 void ADragonWorld::BuildSky()
@@ -258,6 +259,35 @@ void ADragonWorld::BuildRings()
 	RefreshRingColours();
 }
 
+void ADragonWorld::BuildTargets()
+{
+	UStaticMesh* Ball = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	// One or two beside each stretch of the course, off to alternating sides.
+	for (int32 i = 0; i + 1 < Rings.Num(); ++i)
+	{
+		for (int32 k = 0; k < (i % 3 == 0 ? 2 : 1); ++k)
+		{
+			const FVector A = Rings[i].GetLocation(), B = Rings[i + 1].GetLocation();
+			const FVector Side = ((B - A) ^ FVector::UpVector).GetSafeNormal() * ((i + k) % 2 ? 1.f : -1.f);
+			FVector P = FMath::Lerp(A, B, 0.35f + 0.3f * k) + Side * (5000.f + 2500.f * k);
+			P.Z = FMath::Max(P.Z + 2500.f * FMath::Sin(i * 2.3f + k), FMath::Max(HeightAt(P.X, P.Y), 0.f) + 5000.f);
+
+			UStaticMeshComponent* C = NewObject<UStaticMeshComponent>(this);
+			C->SetupAttachment(RootComponent);
+			C->RegisterComponent();
+			C->SetStaticMesh(Ball);
+			C->SetWorldLocation(P);
+			C->SetWorldScale3D(FVector(9.f)); // 9 m across
+			C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			C->SetCastShadow(false);
+			UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(GlowMat, this);
+			M->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.f, 0.07f, 0.02f));
+			C->SetMaterial(0, M);
+			Targets.Add(C);
+		}
+	}
+}
+
 void ADragonWorld::RefreshRingColours()
 {
 	for (int32 i = 0; i < RingMeshes.Num(); ++i)
@@ -316,4 +346,29 @@ void ADragonWorld::Tick(float DeltaSeconds)
 	}
 	PrevPawnPos = Cur;
 	bHavePrev = true;
+
+	// Lanterns bob gently, and burn up when caught in the cone of the dragon's breath.
+	Clock += DeltaSeconds;
+	const bool bFire = Dragon->IsBreathingFire();
+	const FVector Mouth = Dragon->GetMouthLocation(), FireDir = Dragon->GetFireDirection();
+	for (int32 i = 0; i < Targets.Num(); ++i)
+	{
+		UStaticMeshComponent* T = Targets[i];
+		if (!T->IsVisible())
+		{
+			continue;
+		}
+		T->SetWorldScale3D(FVector(9.f + 0.8f * FMath::Sin(Clock * 2.f + i)));
+		if (bFire)
+		{
+			const FVector To = T->GetComponentLocation() - Mouth;
+			const float Dist = To.Size();
+			if (Dist < 11000.f && (To | FireDir) > Dist * 0.955f) // within about 17 degrees
+			{
+				T->SetVisibility(false);
+				++Burned;
+				Dragon->FireBurst(T->GetComponentLocation());
+			}
+		}
+	}
 }

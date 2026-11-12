@@ -34,8 +34,15 @@ void ADragonHUD::DrawHUD()
 	DrawText(FString::Printf(TEXT("HEIGHT %d m"), FMath::RoundToInt(Loc.Z / 100.f)), White, 40.f, 70.f, Font, 1.6f);
 	DrawText(FString::Printf(TEXT("RINGS  %d / %d"), World->NextRing, World->NumRings()), Gold, 40.f, 100.f, Font, 1.6f);
 	DrawText(FString::Printf(TEXT("TIME   %.1f s"), World->CourseTime), White, 40.f, 130.f, Font, 1.6f);
+	DrawText(FString::Printf(TEXT("BURNED %d / %d"), World->Burned, World->NumTargets()), FLinearColor(1.f, 0.35f, 0.1f), 40.f, 160.f, Font, 1.6f);
 
-	DrawText(TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    Shift: brake    R: restart"), White, 40.f, H - 50.f, Font, 1.2f);
+	// Fire fuel bar: orange while ready, grey while it recovers.
+	const float Fuel = Dragon->GetFuel();
+	DrawText(TEXT("FIRE"), White, 40.f, 196.f, Font, 1.4f);
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.45f), 110.f, 200.f, 204.f, 18.f);
+	DrawRect(Fuel > 0.2f ? FLinearColor(1.f, 0.45f, 0.05f) : FLinearColor(0.5f, 0.5f, 0.5f), 112.f, 202.f, 200.f * Fuel, 14.f);
+
+	DrawText(TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    F / right mouse: fire    Shift: brake    R: restart"), White, 40.f, H - 50.f, Font, 1.2f);
 
 	if (World->bFinished)
 	{

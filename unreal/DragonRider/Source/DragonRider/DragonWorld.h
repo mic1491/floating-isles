@@ -7,6 +7,7 @@
 class UProceduralMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
+class UStaticMeshComponent;
 
 /**
  * Builds the whole playable world in code when the game starts: sky, sun, fog, clouds,
@@ -39,11 +40,16 @@ public:
 	/** Centre of the next ring, or false when the course is finished. */
 	bool GetNextRingLocation(FVector& Out) const;
 
+	/** Floating fire-lanterns beside the course that the dragon's breath burns up. */
+	int32 Burned = 0;
+	int32 NumTargets() const { return Targets.Num(); }
+
 private:
 	void BuildSky();
 	void BuildOcean();
 	void BuildTerrain();
 	void BuildRings();
+	void BuildTargets();
 	void RefreshRingColours();
 
 	UPROPERTY()
@@ -58,6 +64,10 @@ private:
 	TObjectPtr<UMaterialInterface> GlowMat;
 	UPROPERTY()
 	TObjectPtr<UMaterialInterface> WaterMat;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> Targets;
+	float Clock = 0.f;
 
 	TArray<FTransform> Rings;
 	FVector PrevPawnPos = FVector::ZeroVector;

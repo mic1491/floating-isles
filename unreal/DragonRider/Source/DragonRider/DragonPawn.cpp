@@ -2,6 +2,9 @@
 #include "DragonWorld.h"
 #include "Camera/CameraComponent.h"
 #include "Components/PoseableMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -9,6 +12,8 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
+#include "Misc/CommandLine.h"
+#include "Misc/Parse.h"
 #include "Kismet/GameplayStatics.h"
 #include "ReferenceSkeleton.h"
 #include "UObject/ConstructorHelpers.h"
@@ -54,6 +59,28 @@ ADragonPawn::ADragonPawn()
 	Arm->bEnableCameraRotationLag = true;
 	Arm->CameraRotationLagSpeed = 5.f;
 
+	// Flames are spheres drawn in one batch; each carries its heat (1 fresh, 0 burnt out) to the material.
+	Flames = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Flames"));
+	Flames->SetupAttachment(Body);
+	Flames->SetUsingAbsoluteLocation(true);
+	Flames->SetUsingAbsoluteRotation(true);
+	Flames->SetUsingAbsoluteScale(true);
+	Flames->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Flames->SetCastShadow(false);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Ball(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	if (Ball.Succeeded())
+	{
+		Flames->SetStaticMesh(Ball.Object);
+	}
+
+	FireLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("FireLight"));
+	FireLight->SetupAttachment(Body);
+	FireLight->SetIntensityUnits(ELightUnits::Candelas);
+	FireLight->SetIntensity(0.f);
+	FireLight->SetLightColor(FLinearColor(1.f, 0.45f, 0.1f));
+	FireLight->SetAttenuationRadius(9000.f);
+	FireLight->SetCastShadows(false);
+
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(Arm);
 	Camera->SetRelativeRotation(FRotator(-8.f, 0.f, 0.f));
@@ -73,6 +100,19 @@ void ADragonPawn::BeginPlay()
 	}
 	Speed = CruiseSpeed;
 	CacheBones();
+
+	if (UMaterialInterface* Fire = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Fire.M_Fire"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		Flames->SetMaterial(0, Fire);
+	}
+	Flames->SetNumCustomDataFloats(1);
+	FlamePool.SetNum(420);
+	const FTransform Hidden(FRotator::ZeroRotator, GetActorLocation(), FVector(0.001f));
+	for (int32 i = 0; i < FlamePool.Num(); ++i)
+	{
+		Flames->AddInstance(Hidden, true);
+	}
+	FireLight->SetRelativeLocation(MouthOffset + FVector(1500.f, 0.f, 0.f));
 }
 
 void ADragonPawn::Boost()
@@ -88,7 +128,7 @@ void ADragonPawn::Tick(float DeltaSeconds)
 
 	// ---- input, read directly so the project needs no input assets ----
 	float TurnIn = 0.f, PitchIn = 0.f, MouseX = 0.f, MouseY = 0.f;
-	bool bFlap = false, bBrake = false;
+	bool bFlap = false, bBrake = false, bFire = false;
 	if (APlayerController* PC = Cast<APlayerController>(GetController()))
 	{
 		TurnIn = (PC->IsInputKeyDown(EKeys::D) ? 1.f : 0.f) - (PC->IsInputKeyDown(EKeys::A) ? 1.f : 0.f)
@@ -100,6 +140,8 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		bFlap = PC->IsInputKeyDown(EKeys::SpaceBar) || PC->IsInputKeyDown(EKeys::LeftMouseButton)
 			|| PC->IsInputKeyDown(EKeys::Gamepad_FaceButton_Bottom);
 		bBrake = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_LeftTrigger);
+		bFire = PC->IsInputKeyDown(EKeys::F) || PC->IsInputKeyDown(EKeys::RightMouseButton)
+			|| PC->IsInputKeyDown(EKeys::Gamepad_RightTrigger);
 		if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right))
 		{
 			UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
@@ -164,7 +206,105 @@ void ADragonPawn::Tick(float DeltaSeconds)
 
 	Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, 85.f + 22.f * FMath::Clamp((Speed - CruiseSpeed) / (MaxSpeed - CruiseSpeed), 0.f, 1.f), Dt, 3.f));
 
+	// Starting the game with -AutoFire keeps the dragon breathing fire, for checking the effect unattended.
+	static const bool bAutoFire = FParse::Param(FCommandLine::Get(), TEXT("AutoFire"));
+	UpdateFire(Dt, bFire || bAutoFire);
 	AnimateBody(Dt, bFlap);
+}
+
+FVector ADragonPawn::GetMouthLocation() const
+{
+	return GetActorLocation() + GetActorRotation().RotateVector(MouthOffset);
+}
+
+FVector ADragonPawn::GetFireDirection() const
+{
+	return GetActorForwardVector();
+}
+
+void ADragonPawn::EmitFlame(const FVector& Pos, const FVector& Vel, float Life)
+{
+	if (FlamePool.Num() == 0)
+	{
+		return;
+	}
+	FFlame& F = FlamePool[NextFlame];
+	NextFlame = (NextFlame + 1) % FlamePool.Num();
+	F.Pos = Pos;
+	F.Vel = Vel;
+	F.Age = 0.f;
+	F.Life = Life;
+}
+
+void ADragonPawn::FireBurst(const FVector& Location)
+{
+	for (int32 i = 0; i < 60; ++i)
+	{
+		EmitFlame(Location + FMath::VRand() * 200.f, FMath::VRand() * FMath::FRandRange(600.f, 2600.f), FMath::FRandRange(0.5f, 1.1f));
+	}
+}
+
+void ADragonPawn::UpdateFire(float Dt, bool bWantsFire)
+{
+	// Once the fuel runs dry the dragon has to recover a fifth of it before breathing again.
+	if (Fuel <= 0.f)
+	{
+		bFuelSpent = true;
+	}
+	else if (Fuel > 0.2f)
+	{
+		bFuelSpent = false;
+	}
+	bBreathing = bWantsFire && !bFuelSpent;
+	Fuel = FMath::Clamp(Fuel + (bBreathing ? -Dt / FuelSeconds : Dt / RefuelSeconds), 0.f, 1.f);
+
+	if (bBreathing)
+	{
+		const FVector Mouth = GetMouthLocation();
+		const FVector Dir = GetFireDirection();
+		const FVector Carry = Dir * Speed; // the flame starts with the dragon's own speed
+		EmitDebt += 300.f * Dt;
+		while (EmitDebt >= 1.f)
+		{
+			EmitDebt -= 1.f;
+			const FVector Spread = FMath::VRand() * FMath::FRandRange(0.f, 750.f);
+			EmitFlame(Mouth + Dir * FMath::FRandRange(0.f, 250.f), Carry + Dir * FMath::FRandRange(4500.f, 6500.f) + Spread, FMath::FRandRange(0.55f, 1.0f));
+		}
+	}
+	else
+	{
+		EmitDebt = 0.f;
+	}
+
+	for (int32 i = 0; i < FlamePool.Num(); ++i)
+	{
+		FFlame& F = FlamePool[i];
+		if (F.Life <= 0.f)
+		{
+			continue;
+		}
+		F.Age += Dt;
+		float Scale = 0.001f, Heat = 0.f;
+		if (F.Age >= F.Life)
+		{
+			F.Life = 0.f;
+		}
+		else
+		{
+			F.Vel *= FMath::Max(0.f, 1.f - 1.3f * Dt); // air drag
+			F.Vel.Z += 600.f * Dt;                      // hot gas rises
+			F.Pos += F.Vel * Dt;
+			const float T = F.Age / F.Life;
+			Scale = FMath::Lerp(0.6f, 5.5f, FMath::Pow(T, 0.7f)); // billows out from a narrow jet
+			Heat = 1.f - T;
+		}
+		Flames->UpdateInstanceTransform(i, FTransform(FRotator::ZeroRotator, F.Pos, FVector(Scale)), true, false, true);
+		Flames->SetCustomDataValue(i, 0, Heat, false);
+	}
+	Flames->MarkRenderStateDirty();
+
+	const float Glow = bBreathing ? 4000.f * FMath::FRandRange(0.7f, 1.f) : 0.f;
+	FireLight->SetIntensity(FMath::FInterpTo(FireLight->Intensity, Glow, Dt, 12.f));
 }
 
 void ADragonPawn::CacheBones()

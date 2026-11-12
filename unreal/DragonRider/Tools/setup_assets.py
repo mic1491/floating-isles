@@ -8,6 +8,7 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Terrain   vertex colours broken up by world-space detail
        /Game/Materials/M_Glow      glowing, with a "Color" parameter (rings)
        /Game/Materials/M_Water     rippling sea, with a "Color" parameter
+       /Game/Materials/M_Fire      additive flame puff for the fire breath
 """
 import os
 import unreal
@@ -173,6 +174,30 @@ def make_water():
     finish(m)
 
 
+def make_fire():
+    """Glowing, see-through flame puff. Each puff passes in its heat: 1 when fresh, 0 when burnt out."""
+    m = tools.create_asset("M_Fire", "/Game/Materials", unreal.Material, unreal.MaterialFactoryNew())
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    heat = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1100, 0, data_index=0, const_default_value=1.0)
+    ember = node(m, unreal.MaterialExpressionConstant3Vector, -1100, 150, constant=unreal.LinearColor(1.0, 0.06, 0.0, 1.0))
+    flame = node(m, unreal.MaterialExpressionConstant3Vector, -1100, 300, constant=unreal.LinearColor(1.0, 0.62, 0.18, 1.0))
+    colour = node(m, unreal.MaterialExpressionLinearInterpolate, -850, 150)
+    mel.connect_material_expressions(ember, "", colour, "A")
+    mel.connect_material_expressions(flame, "", colour, "B")
+    mel.connect_material_expressions(heat, "", colour, "Alpha")
+    # Bright in the middle of each puff and fading to nothing at its rim, so puffs merge softly.
+    rim = node(m, unreal.MaterialExpressionFresnel, -1100, 450, exponent=1.2, base_reflect_fraction=0.0)
+    core = node(m, unreal.MaterialExpressionOneMinus, -900, 450)
+    mel.connect_material_expressions(rim, "", core, "")
+    soft = times(m, core, core, 450)
+    glow = times(m, times(m, times(m, colour, soft, 200), heat, 250), 2.2, 300)
+    mel.connect_material_property(glow, "", MP.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(times(m, soft, heat, 550), "", MP.MP_OPACITY)
+    finish(m)
+
+
 # ---- dragon -----------------------------------------------------------------
 def import_dragon(materials):
     if eal.does_directory_exist("/Game/Dragon"):
@@ -218,6 +243,7 @@ import_textures()
 make_terrain()
 make_glow()
 make_water()
+make_fire()
 import_dragon({
     "Body": painted("M_DragonBody", "scales_d", "scales_n", tiling=16.0, gain=1.3, rough=0.42, metal=0.3),
     "Wing": painted("M_DragonWing", "noise_d", "noise_n", tiling=5.0, gain=1.5, rough=0.7, two_sided=True),
