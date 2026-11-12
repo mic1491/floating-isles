@@ -44,6 +44,12 @@ public:
 	FVector GetFireDirection() const;
 	/** A puff of flame at a point in the world, used when something burns up. */
 	void FireBurst(const FVector& Location);
+	/** One puff of flame anywhere in the world, for things that are on fire. */
+	void FlamePuff(const FVector& Location, const FVector& Velocity, float Life);
+
+	/** Camera views, cycled with C or the gamepad's top face button. */
+	void SetView(int32 NewView);
+	const TCHAR* GetViewName() const { return ViewName; }
 	bool IsTurningBack() const { return bTurningBack; }
 
 	UPROPERTY(EditAnywhere, Category = "Flight")
@@ -63,7 +69,7 @@ public:
 
 	/** Used for the flame's start only when the model has no MouthBone. */
 	UPROPERTY(EditAnywhere, Category = "Fire")
-	FVector MouthOffset = FVector(420.f, 0.f, 300.f);
+	FVector MouthOffset = FVector(560.f, 0.f, 140.f);
 	/** Bone at the front of the mouth; the flame leaves from here and follows the animation. */
 	UPROPERTY(EditAnywhere, Category = "Fire")
 	FName MouthBone = TEXT("tongue_03");
@@ -128,7 +134,8 @@ private:
 	float Yaw = 0.f;
 	float Roll = 0.f;
 	float TurnRate = 0.f;
-	float FlapPhase = 0.f;
 	float FlapAmount = 0.3f;
 	bool bTurningBack = false;
+	int32 View = 0;
+	const TCHAR* ViewName = TEXT("");
 };

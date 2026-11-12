@@ -1,4 +1,5 @@
 #include "DragonPawn.h"
+#include "DragonAnimInstance.h"
 #include "DragonWorld.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -14,6 +15,7 @@
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
 #include "Kismet/GameplayStatics.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/CommandLine.h"
@@ -23,9 +25,9 @@
 
 namespace
 {
-	// The Sakura Dragon asset stands on the ground at its origin and faces +Y.
-	// This point, roughly the middle of its chest, is what the pawn flies around.
-	const FVector DragonCentre(0.f, 300.f, 250.f);
+	// The Sakura Dragon asset faces +Y, and its flight animation carries the body about 3 m above
+	// the asset's origin. This point, the middle of the chest while flying, is what the pawn flies around.
+	const FVector DragonCentre(0.f, 300.f, 560.f);
 	// Where the rider sits, in the asset's own space: on the back between the wings.
 	const FVector SaddlePoint(0.f, 335.f, 318.f);
 	const FName SaddleBone(TEXT("spine_02"));
@@ -127,8 +129,13 @@ void ADragonPawn::BeginPlay()
 	Mesh->SetRelativeTransform(FTransform(Facing, MeshRestLocation, FVector(DragonScale)));
 	if (FlyAnim && Mesh->GetSkeletalMeshAsset())
 	{
-		Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
-		Mesh->PlayAnimation(FlyAnim, true);
+		// Our own single-animation player, which can also open the jaw (see DragonAnimInstance.h).
+		Mesh->SetAnimInstanceClass(UDragonAnimInstance::StaticClass());
+		if (UDragonAnimInstance* Anim = Cast<UDragonAnimInstance>(Mesh->GetAnimInstance()))
+		{
+			Anim->SetAnimationAsset(FlyAnim, true);
+			Anim->SetPlaying(true);
+		}
 	}
 
 	// Recolour: the asset's materials multiply their colour by BaseTint and their glow by EmissiveTint.
@@ -143,12 +150,17 @@ void ADragonPawn::BeginPlay()
 	}
 	SeatRider();
 
+	// Starting the game with -View=N opens in that camera view (see SetView), for checking the model.
+	int32 StartView = 0;
+	FParse::Value(FCommandLine::Get(), TEXT("View="), StartView);
+	SetView(StartView);
+
 	if (UMaterialInterface* Fire = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Fire.M_Fire"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
 		Flames->SetMaterial(0, Fire);
 	}
 	Flames->SetNumCustomDataFloats(1);
-	FlamePool.SetNum(420);
+	FlamePool.SetNum(1400);
 	const FTransform Hidden(FRotator::ZeroRotator, GetActorLocation(), FVector(0.001f));
 	for (int32 i = 0; i < FlamePool.Num(); ++i)
 	{
@@ -185,6 +197,45 @@ void ADragonPawn::SeatRider()
 	Rider->SetRelativeTransform(Seat.GetRelativeTransform(BoneRest));
 }
 
+void ADragonPawn::SetView(int32 NewView)
+{
+	struct FViewSetup
+	{
+		const TCHAR* Name;
+		FVector Pivot;      // where the camera arm starts, relative to the dragon's centre
+		float Yaw;          // 0 looks forward from behind, 180 looks back at the dragon's face
+		float Length;
+		float Lift;         // how far above the arm's end the camera sits
+		float Tilt;         // camera pitch
+		bool bLag;          // trail behind smoothly (only suits views from behind)
+		bool bHideRider;
+	};
+	static const FViewSetup Views[] = {
+		{ TEXT("CHASE"),       FVector(0.f, 0.f, 0.f),     0.f,   2200.f, 550.f,  -8.f, true,  false },
+		{ TEXT("FAR CHASE"),   FVector(0.f, 0.f, 0.f),     0.f,   4600.f, 1300.f, -10.f, true, false },
+		{ TEXT("RIDER"),       FVector(40.f, 0.f, 310.f),  0.f,   0.f,    0.f,    -6.f, false, true  },
+		{ TEXT("FRONT"),       FVector(560.f, 0.f, 150.f), 160.f, 1500.f, 0.f,    0.f,  false, false },
+		{ TEXT("SIDE"),        FVector(0.f, 0.f, 100.f),   90.f,  3000.f, 0.f,    0.f,  false, false },
+		{ TEXT("FROM ABOVE"),  FVector(0.f, 0.f, 0.f),     0.f,   600.f,  3800.f, -72.f, false, false },
+	};
+	View = ((NewView % UE_ARRAY_COUNT(Views)) + UE_ARRAY_COUNT(Views)) % UE_ARRAY_COUNT(Views);
+	const FViewSetup& V = Views[View];
+	ViewName = V.Name;
+	Arm->SetRelativeLocation(V.Pivot);
+	Arm->SetRelativeRotation(FRotator(0.f, V.Yaw, 0.f));
+	Arm->TargetArmLength = V.Length;
+	Arm->SocketOffset = FVector(0.f, 0.f, V.Lift);
+	Arm->bEnableCameraLag = V.bLag;
+	Arm->bEnableCameraRotationLag = V.bLag;
+	Camera->SetRelativeRotation(FRotator(V.Tilt, 0.f, 0.f));
+	Rider->SetVisibility(!V.bHideRider && Rider->GetStaticMesh() != nullptr && Mesh->GetSkeletalMeshAsset() != nullptr);
+}
+
+void ADragonPawn::FlamePuff(const FVector& Location, const FVector& Velocity, float Life)
+{
+	EmitFlame(Location, Velocity, Life);
+}
+
 void ADragonPawn::Boost()
 {
 	Speed = FMath::Min(Speed + 1800.f, MaxSpeed);
@@ -211,6 +262,15 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		bBrake = PC->IsInputKeyDown(EKeys::LeftShift) || PC->IsInputKeyDown(EKeys::Gamepad_LeftTrigger);
 		bFire = PC->IsInputKeyDown(EKeys::F) || PC->IsInputKeyDown(EKeys::RightMouseButton)
 			|| PC->IsInputKeyDown(EKeys::Gamepad_RightTrigger);
+		if (PC->WasInputKeyJustPressed(EKeys::Escape))
+		{
+			UKismetSystemLibrary::QuitGame(this, PC, EQuitPreference::Quit, false);
+			return;
+		}
+		if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
+		{
+			SetView(View + 1);
+		}
 		if (PC->WasInputKeyJustPressed(EKeys::R) || PC->WasInputKeyJustPressed(EKeys::Gamepad_Special_Right))
 		{
 			UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));
@@ -277,12 +337,19 @@ void ADragonPawn::Tick(float DeltaSeconds)
 
 	// Starting the game with -AutoFire keeps the dragon breathing fire, for checking the effect unattended.
 	static const bool bAutoFire = FParse::Param(FCommandLine::Get(), TEXT("AutoFire"));
+	if (bAutoFire)
+	{
+		Fuel = 1.f;
+	}
 	UpdateFire(Dt, bFire || bAutoFire);
 	// Wingbeat: quick and strong while flapping, slow and easy while gliding.
 	FlapAmount = FMath::FInterpTo(FlapAmount, bFlap ? 1.f : 0.3f, Dt, 4.f);
-	Mesh->SetPlayRate(FMath::Lerp(0.5f, 1.5f, FlapAmount));
-	FlapPhase = FMath::Fmod(FlapPhase + Dt * 2.f * PI * FMath::Lerp(0.5f, 1.5f, FlapAmount) / 1.6f, 2.f * PI);
-	Mesh->SetRelativeLocation(MeshRestLocation + FVector(0.f, 0.f, -FMath::Sin(FlapPhase) * 30.f * FlapAmount));
+	if (UDragonAnimInstance* Anim = Cast<UDragonAnimInstance>(Mesh->GetAnimInstance()))
+	{
+		Anim->SetPlayRate(FMath::Lerp(0.5f, 1.5f, FlapAmount));
+		// The mouth opens quickly as the fire starts and eases shut afterwards.
+		Anim->JawOpen = FMath::FInterpTo(Anim->JawOpen, bBreathing ? 1.f : 0.f, Dt, bBreathing ? 14.f : 5.f);
+	}
 }
 
 FVector ADragonPawn::GetMouthLocation() const

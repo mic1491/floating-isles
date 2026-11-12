@@ -8,6 +8,7 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Glow      glowing, with a "Color" parameter (rings, lanterns)
        /Game/Materials/M_Water     rippling sea, with a "Color" parameter
        /Game/Materials/M_Fire      additive flame puff for the fire breath
+       /Game/Materials/M_Prop      trees and houses, which char and glow as they burn
 
 The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
@@ -179,6 +180,28 @@ def make_fire():
     finish(m)
 
 
+def make_prop():
+    """Trees and houses. Each one passes in how charred it is, how brightly it glows, and a shade."""
+    m = new_material("M_Prop")
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    colour = node(m, unreal.MaterialExpressionVectorParameter, -1100, 0, parameter_name="Color",
+                  default_value=unreal.LinearColor(0.05, 0.2, 0.05, 1.0))
+    char = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1100, 200, data_index=0, const_default_value=0.0)
+    glow = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1100, 350, data_index=1, const_default_value=0.0)
+    shade = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1100, 500, data_index=2, const_default_value=0.5)
+    varied = times(m, colour, remap(m, shade, 0.65, 0.7, 500), 0)        # each one a little lighter or darker
+    soot = node(m, unreal.MaterialExpressionConstant3Vector, -900, 150, constant=unreal.LinearColor(0.012, 0.011, 0.01, 1.0))
+    base = node(m, unreal.MaterialExpressionLinearInterpolate, -200, 0)
+    mel.connect_material_expressions(varied, "", base, "A")
+    mel.connect_material_expressions(soot, "", base, "B")
+    mel.connect_material_expressions(char, "", base, "Alpha")
+    ember = node(m, unreal.MaterialExpressionConstant3Vector, -900, 650, constant=unreal.LinearColor(1.0, 0.22, 0.02, 1.0))
+    mel.connect_material_property(base, "", MP.MP_BASE_COLOR)
+    mel.connect_material_property(times(m, times(m, ember, glow, 650), 5.0, 700), "", MP.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(const(m, 0.85, 900), "", MP.MP_ROUGHNESS)
+    finish(m)
+
+
 # ---- rider -----------------------------------------------------------------
 def plain(name, colour, rough):
     m = new_material(name)
@@ -228,6 +251,7 @@ make_terrain()
 make_glow()
 make_water()
 make_fire()
+make_prop()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")

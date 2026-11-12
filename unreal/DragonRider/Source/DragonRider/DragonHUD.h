@@ -4,6 +4,7 @@
 #include "GameFramework/HUD.h"
 #include "DragonHUD.generated.h"
 
+class ADragonProps;
 class ADragonWorld;
 
 /** Speed, height, ring count, course time and the controls, drawn straight onto the screen. */
@@ -18,4 +19,6 @@ public:
 private:
 	UPROPERTY()
 	TObjectPtr<ADragonWorld> World;
+	UPROPERTY()
+	TObjectPtr<ADragonProps> Props;
 };

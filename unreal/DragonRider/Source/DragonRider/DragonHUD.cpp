@@ -1,5 +1,6 @@
 #include "DragonHUD.h"
 #include "DragonPawn.h"
+#include "DragonProps.h"
 #include "DragonWorld.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -17,6 +18,11 @@ void ADragonHUD::DrawHUD()
 	{
 		TActorIterator<ADragonWorld> It(GetWorld());
 		World = It ? *It : nullptr;
+	}
+	if (!Props)
+	{
+		TActorIterator<ADragonProps> It(GetWorld());
+		Props = It ? *It : nullptr;
 	}
 	const ADragonPawn* Dragon = Cast<ADragonPawn>(GetOwningPawn());
 	if (!World || !Dragon)
@@ -36,13 +42,19 @@ void ADragonHUD::DrawHUD()
 	DrawText(FString::Printf(TEXT("TIME   %.1f s"), World->CourseTime), White, 40.f, 130.f, Font, 1.6f);
 	DrawText(FString::Printf(TEXT("BURNED %d / %d"), World->Burned, World->NumTargets()), FLinearColor(1.f, 0.35f, 0.1f), 40.f, 160.f, Font, 1.6f);
 
+	if (Props)
+	{
+		DrawText(FString::Printf(TEXT("TREES  %d / %d     HOUSES %d / %d"), Props->TreesBurned, Props->NumTrees, Props->HousesBurned, Props->NumHouses), FLinearColor(1.f, 0.35f, 0.1f), 40.f, 230.f, Font, 1.4f);
+	}
+	DrawText(FString::Printf(TEXT("VIEW: %s"), Dragon->GetViewName()), White, W - 260.f, 40.f, Font, 1.4f);
+
 	// Fire fuel bar: orange while ready, grey while it recovers.
 	const float Fuel = Dragon->GetFuel();
 	DrawText(TEXT("FIRE"), White, 40.f, 196.f, Font, 1.4f);
 	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.45f), 110.f, 200.f, 204.f, 18.f);
 	DrawRect(Fuel > 0.2f ? FLinearColor(1.f, 0.45f, 0.05f) : FLinearColor(0.5f, 0.5f, 0.5f), 112.f, 202.f, 200.f * Fuel, 14.f);
 
-	DrawText(TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    F / right mouse: fire    Shift: brake    R: restart"), White, 40.f, H - 50.f, Font, 1.2f);
+	DrawText(TEXT("W/S or mouse: pitch    A/D or mouse: turn    Space: flap    F / right mouse: fire    Shift: brake    C: view    R: restart    Esc: quit"), White, 40.f, H - 50.f, Font, 1.2f);
 
 	if (World->bFinished)
 	{

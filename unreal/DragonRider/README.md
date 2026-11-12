@@ -1,6 +1,6 @@
 # Dragon Rider（Unreal Engine 5）
 
-騎著龍在群島上空飛行，依序穿過 24 個光環並計時，沿途用龍焰燒掉漂浮的紅色火燈。
+騎著龍在群島上空飛行，依序穿過 24 個光環並計時。龍焰可以燒掉漂浮的紅色火燈，也能點燃島上的森林和村莊，火會自己延燒。
 
 整個世界（天空、太陽、雲、海、地形、光環）都由 C++ 在遊戲開始時生成，不需要在編輯器裡做關卡。
 
@@ -30,15 +30,25 @@
 | 拍翅加速 | 空白鍵或滑鼠左鍵 | A |
 | 噴火（會耗燃料，放開後回復） | F 或滑鼠右鍵 | RT |
 | 減速 | 左 Shift | LT |
+| 切換視角（追尾、遠追尾、騎士、正面、側面、俯視） | C | Y |
 | 重新開始 | R | Start |
+| 離開遊戲 | Esc | — |
 
 俯衝會加速，爬升會減速，太慢時龍頭會自己往下掉。
 
 ## 檔案
 
 - `Source/DragonRider/DragonPawn.*`：飛行、鏡頭、噴火、龍的動畫與配色、騎士
+- `Source/DragonRider/DragonAnimInstance.*`：播放飛行動畫，並在噴火時張開下顎
+- `Source/DragonRider/DragonProps.*`：森林、村莊，以及點燃、延燒、燒焦
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
 - `Source/DragonRider/DragonHUD.*`：速度、高度、光環數、時間、燃料
 - `Tools/build_rider.py`：用 Blender 產生 `SourceArt/rider.fbx`
 - `Tools/build_textures.py`：用 Blender 產生 `SourceArt/tex/` 的貼圖
 - `Tools/rebuild_assets.sh`、`Tools/setup_assets.py`：匯入騎士與貼圖、建立材質
+
+## 測試用啟動參數
+
+- `-AutoFire`：持續噴火，不耗燃料
+- `-View=N`：以第 N 種視角開始（0 到 5）
+- `-BurnTest`：開場就點燃起點附近的森林和村莊
