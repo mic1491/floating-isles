@@ -5,6 +5,7 @@ Run:  blender --background --python build_dragon.py -- <out.fbx> [preview.png]
 The dragon faces +X, Z is up, units are metres. The wings, neck, tail and legs
 are driven in the game by code (see DragonPawn.cpp), so no animation is baked.
 """
+import os
 import sys
 import bpy
 from mathutils import Vector
@@ -182,6 +183,76 @@ bpy.ops.object.join()
 dragon = body
 dragon.name = "Dragon"
 
+# ---- UVs and painted colours ----------------------------------------------
+# The materials multiply these colours by a tiling scale or leather texture.
+import math
+bpy.ops.object.select_all(action="DESELECT")
+dragon.select_set(True)
+bpy.context.view_layer.objects.active = dragon
+bpy.ops.object.mode_set(mode="EDIT")
+bpy.ops.mesh.select_all(action="SELECT")
+bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=0.003, scale_to_bounds=False)
+bpy.ops.object.mode_set(mode="OBJECT")
+
+
+def mix(a, b, t):
+    t = max(0.0, min(1.0, t))
+    return tuple(x + (y - x) * t for x, y in zip(a, b))
+
+
+def smooth(lo, hi, v):
+    t = max(0.0, min(1.0, (v - lo) / (hi - lo)))
+    return t * t * (3 - 2 * t)
+
+
+def paint(mat_name, p, n):
+    if mat_name == "Dragon_Body":
+        c = mix((0.11, 0.06, 0.03), (0.40, 0.27, 0.13), (1 - n.z) * 0.5)        # dark back, pale belly
+        c = mix(c, (0.20, 0.24, 0.30), smooth(-3.0, -6.5, p.x) * 0.8)             # blue-grey tail
+        c = mix(c, (0.30, 0.19, 0.08), smooth(1.0, 2.5, abs(p.y)) * 0.7)          # golden wing bones
+        return mix(c, (0.34, 0.22, 0.10), smooth(3.4, 4.6, p.x) * 0.5)            # lighter muzzle
+    if mat_name == "Dragon_Wing":
+        c = mix((0.13, 0.08, 0.05), (0.38, 0.22, 0.10), smooth(-3.0, 1.2, p.x))   # darker trailing edge
+        streak = 0.5 + 0.5 * math.sin(abs(p.y) * 2.3 + p.x * 1.1)
+        c = mix(c, (0.22, 0.20, 0.20), streak * 0.25)                             # grey weathering
+        return mix(c, (0.14, 0.08, 0.05), smooth(2.5, 0.4, abs(p.y)) * 0.6)       # shadowed near the body
+    if mat_name == "Dragon_Horn":
+        return (0.70, 0.62, 0.48)
+    return (0.75, 0.55, 0.40) if p.z > 1.63 else (0.07, 0.16, 0.42)               # rider: face, cloak
+
+
+me = dragon.data
+col = me.color_attributes.new("Col", "BYTE_COLOR", "CORNER")
+names = [m.name for m in me.materials]
+for poly in me.polygons:
+    name = names[poly.material_index]
+    for li in poly.loop_indices:
+        v = me.vertices[me.loops[li].vertex_index]
+        col.data[li].color = (*paint(name, v.co, v.normal), 1.0)
+me.color_attributes.active_color = col
+
+# Bake the painted colours into one texture, since importers do not reliably keep vertex colours.
+bake_img = bpy.data.images.new("dragon_d", 1024, 1024, alpha=False)
+for m in me.materials:
+    nt = m.node_tree
+    nt.nodes.clear()
+    attr = nt.nodes.new("ShaderNodeVertexColor")
+    attr.layer_name = "Col"
+    emit = nt.nodes.new("ShaderNodeEmission")
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    nt.links.new(attr.outputs["Color"], emit.inputs["Color"])
+    nt.links.new(emit.outputs["Emission"], out.inputs["Surface"])
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bake_img
+    nt.nodes.active = tex
+bpy.context.scene.render.engine = "CYCLES"
+bpy.context.scene.cycles.samples = 1
+bpy.context.scene.render.bake.margin = 12
+bpy.ops.object.bake(type="EMIT")
+bake_img.filepath_raw = os.path.join(os.path.dirname(os.path.abspath(OUT)), "tex", "dragon_d.png")
+bake_img.file_format = "PNG"
+bake_img.save()
+
 # ---- armature --------------------------------------------------------------
 bones = [  # name, head, tail, parent
     ("root", (0, 0, 0), (0.3, 0, 0), None),
@@ -269,7 +340,7 @@ arm.select_set(True)
 bpy.context.view_layer.objects.active = arm
 bpy.ops.export_scene.fbx(
     filepath=OUT, use_selection=True, object_types={"ARMATURE", "MESH"},
-    add_leaf_bones=False, bake_anim=False, mesh_smooth_type="FACE",
+    add_leaf_bones=False, bake_anim=False, mesh_smooth_type="FACE", colors_type="LINEAR",
 )
 print("exported", OUT, "verts", len(dragon.data.vertices), "tris", sum(len(p.vertices) - 2 for p in dragon.data.polygons))
 

@@ -4,6 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "DragonPawn.generated.h"
 
+class USkeletalMesh;
 class USphereComponent;
 class UPoseableMeshComponent;
 class UStaticMeshComponent;
@@ -72,6 +73,9 @@ private:
 	TObjectPtr<USpringArmComponent> Arm;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UCameraComponent> Camera;
+
+	UPROPERTY()
+	TObjectPtr<USkeletalMesh> DragonAsset;
 
 	TMap<FName, FBoneRef> Bones;
 

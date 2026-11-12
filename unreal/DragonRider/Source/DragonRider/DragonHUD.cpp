@@ -15,11 +15,8 @@ void ADragonHUD::DrawHUD()
 	}
 	if (!World)
 	{
-		for (TActorIterator<ADragonWorld> It(GetWorld()); It; ++It)
-		{
-			World = *It;
-			break;
-		}
+		TActorIterator<ADragonWorld> It(GetWorld());
+		World = It ? *It : nullptr;
 	}
 	const ADragonPawn* Dragon = Cast<ADragonPawn>(GetOwningPawn());
 	if (!World || !Dragon)

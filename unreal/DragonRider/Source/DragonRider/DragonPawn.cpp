@@ -28,10 +28,7 @@ ADragonPawn::ADragonPawn()
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	// Made by Tools/setup_assets.py from SourceArt/dragon.fbx.
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> DragonMesh(TEXT("/Game/Dragon/SK_Dragon.SK_Dragon"));
-	if (DragonMesh.Succeeded())
-	{
-		Mesh->SetSkinnedAsset(DragonMesh.Object);
-	}
+	DragonAsset = DragonMesh.Object;
 
 	// Shown only while the dragon model has not been imported yet.
 	Placeholder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Placeholder"));
@@ -61,12 +58,19 @@ ADragonPawn::ADragonPawn()
 	Camera->SetupAttachment(Arm);
 	Camera->SetRelativeRotation(FRotator(-8.f, 0.f, 0.f));
 	Camera->SetFieldOfView(85.f);
+	// Hold the exposure a little down so sunlit ground and the dragon keep their colour.
+	Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
+	Camera->PostProcessSettings.AutoExposureBias = -0.5f;
 }
 
 void ADragonPawn::BeginPlay()
 {
 	Super::BeginPlay();
 	SetActorLocationAndRotation(ADragonWorld::StartLocation(), FRotator::ZeroRotator);
+	if (DragonAsset)
+	{
+		Mesh->SetSkinnedAssetAndUpdate(DragonAsset);
+	}
 	Speed = CruiseSpeed;
 	CacheBones();
 }

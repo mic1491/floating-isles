@@ -118,8 +118,8 @@ void ADragonWorld::BuildSky()
 	}
 	if (AExponentialHeightFog* Fog = W->SpawnActor<AExponentialHeightFog>(FVector(0, 0, 0), FRotator::ZeroRotator))
 	{
-		Fog->GetComponent()->SetFogDensity(0.003f);
-		Fog->GetComponent()->SetFogHeightFalloff(0.02f);
+		Fog->GetComponent()->SetFogDensity(0.0006f);
+		Fog->GetComponent()->SetFogHeightFalloff(0.05f);
 	}
 }
 
@@ -141,7 +141,7 @@ void ADragonWorld::BuildOcean()
 
 void ADragonWorld::BuildTerrain()
 {
-	const int32 Cells = 220;
+	const int32 Cells = 440;
 	const float Step = 2.f * PlayRadius * 1.1f / Cells;
 	const float Origin = -Step * Cells * 0.5f;
 	const int32 Row = Cells + 1;
@@ -154,7 +154,7 @@ void ADragonWorld::BuildTerrain()
 	TArray<int32> Tris;
 	Verts.Reserve(Row * Row);
 
-	const FLinearColor Sand(0.60f, 0.52f, 0.33f), Grass(0.13f, 0.30f, 0.08f), Rock(0.27f, 0.25f, 0.23f), Snow(0.88f, 0.90f, 0.95f);
+	const FLinearColor Sand(0.42f, 0.35f, 0.20f), Grass(0.045f, 0.15f, 0.02f), Rock(0.12f, 0.105f, 0.09f), Snow(0.80f, 0.83f, 0.90f);
 	for (int32 iy = 0; iy < Row; ++iy)
 	{
 		for (int32 ix = 0; ix < Row; ++ix)
