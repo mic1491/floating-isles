@@ -19,7 +19,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 HERE = Path(__file__).parent
 FFMPEG = sys.argv[1] if len(sys.argv) > 1 else "ffmpeg"
-OUT = HERE / "fuji-campervan-ad.mp4"
+OUT = HERE.parents[1] / "public" / "ad" / "fuji-campervan-ad.mp4"  # served by the site at /ad/
 W, H, FPS, DUR = 1920, 1080, 30, 20.0
 SHOT_LEN, FADE = 4.4, 0.5
 STEP = (DUR - SHOT_LEN) / 4  # start-to-start spacing of the five shots
