@@ -1,14 +1,15 @@
 """Creates the project's assets inside the Unreal editor. Run it through Tools/rebuild_assets.sh,
-which first removes the old Content/Dragon and Content/Materials: the script builds them from
+which first removes the old Content/Rider and Content/Materials: the script builds them from
 nothing, and emptying an existing material from Python crashes the 5.8 editor.
 
 Makes  /Game/Textures/*            from SourceArt/tex/*.png
-       /Game/Dragon/SK_Dragon      the dragon and rider, from SourceArt/dragon.fbx
-       /Game/Materials/M_Dragon*   scaled hide, leathery wings, horn, rider
+       /Game/Rider/SM_Rider        the rider, from SourceArt/rider.fbx
        /Game/Materials/M_Terrain   vertex colours broken up by world-space detail
-       /Game/Materials/M_Glow      glowing, with a "Color" parameter (rings)
+       /Game/Materials/M_Glow      glowing, with a "Color" parameter (rings, lanterns)
        /Game/Materials/M_Water     rippling sea, with a "Color" parameter
        /Game/Materials/M_Fire      additive flame puff for the fire breath
+
+The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
 import os
 import unreal
@@ -24,7 +25,7 @@ MP = unreal.MaterialProperty
 # ---- textures ---------------------------------------------------------------
 def import_textures():
     tasks = []
-    for name in ("scales_d", "scales_n", "noise_d", "noise_n", "macro_d", "water_n", "dragon_d"):
+    for name in ("noise_d", "noise_n", "macro_d", "water_n"):
         t = unreal.AssetImportTask()
         t.filename = os.path.join(ART, "tex", name + ".png")
         t.destination_path = "/Game/Textures"
@@ -33,12 +34,12 @@ def import_textures():
         t.save = True
         tasks.append(t)
     tools.import_asset_tasks(tasks)
-    for name in ("scales_n", "noise_n", "water_n"):
+    for name in ("noise_n", "water_n"):
         tex = eal.load_asset("/Game/Textures/" + name)
         tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
         tex.set_editor_property("srgb", False)
         eal.save_loaded_asset(tex)
-    for name in ("scales_d", "noise_d", "macro_d"):
+    for name in ("noise_d", "macro_d"):
         tex = eal.load_asset("/Game/Textures/" + name)
         tex.set_editor_property("srgb", False)  # used as plain brightness, not colour
         eal.save_loaded_asset(tex)
@@ -67,7 +68,6 @@ def sample(mat, name, uv, y):
     n = node(mat, unreal.MaterialExpressionTextureSample, -700, y,
              texture=eal.load_asset("/Game/Textures/" + name),
              sampler_type=(unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if is_normal
-                           else unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if name == "dragon_d"
                            else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR))
     mel.connect_material_expressions(uv, "", n, "UVs")
     return n
@@ -112,25 +112,6 @@ def finish(mat):
 
 
 # ---- materials --------------------------------------------------------------
-def painted(name, detail=None, normal=None, tiling=1.0, gain=1.0, rough=0.6, metal=0.0, two_sided=False):
-    """The dragon's baked colour texture, optionally multiplied by a tiling brightness texture,
-    with a normal map."""
-    m = new_material(name, two_sided)
-    # Without this the game cannot use the material on the dragon and shows plain grey instead.
-    m.set_editor_property("used_with_skeletal_mesh", True)
-    colour = sample(m, "dragon_d", tiled_uv(m, 1.0, -300), -200)
-    uv = tiled_uv(m, tiling, 100)
-    base = colour
-    if detail:
-        base = times(m, times(m, colour, sample(m, detail, uv, 0), -100), gain, -100)
-    mel.connect_material_property(base, "", MP.MP_BASE_COLOR)
-    if normal:
-        mel.connect_material_property(sample(m, normal, uv, 250), "", MP.MP_NORMAL)
-    mel.connect_material_property(const(m, rough, 450), "", MP.MP_ROUGHNESS)
-    mel.connect_material_property(const(m, metal, 550), "", MP.MP_METALLIC)
-    return finish(m)
-
-
 def make_terrain():
     m = new_material("M_Terrain", two_sided=True)
     colour = node(m, unreal.MaterialExpressionVertexColor, -700, -300)
@@ -198,44 +179,47 @@ def make_fire():
     finish(m)
 
 
-# ---- dragon -----------------------------------------------------------------
-def import_dragon(materials):
-    if eal.does_directory_exist("/Game/Dragon"):
-        eal.delete_directory("/Game/Dragon")
+# ---- rider -----------------------------------------------------------------
+def plain(name, colour, rough):
+    m = new_material(name)
+    c = node(m, unreal.MaterialExpressionConstant3Vector, -450, 0, constant=unreal.LinearColor(*colour, 1.0))
+    mel.connect_material_property(c, "", MP.MP_BASE_COLOR)
+    mel.connect_material_property(const(m, rough, 200), "", MP.MP_ROUGHNESS)
+    return finish(m)
+
+
+def import_rider():
     opts = unreal.FbxImportUI()
     opts.import_mesh = True
-    opts.import_as_skeletal = True
+    opts.import_as_skeletal = False
     opts.import_animations = False
     opts.import_materials = False
     opts.import_textures = False
-    opts.mesh_type_to_import = unreal.FBXImportType.FBXIT_SKELETAL_MESH
-    opts.skeletal_mesh_import_data.set_editor_property(
-        "vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
+    opts.mesh_type_to_import = unreal.FBXImportType.FBXIT_STATIC_MESH
     task = unreal.AssetImportTask()
-    task.filename = os.path.join(ART, "dragon.fbx")
-    task.destination_path = "/Game/Dragon"
-    task.destination_name = "SK_Dragon"
+    task.filename = os.path.join(ART, "rider.fbx")
+    task.destination_path = "/Game/Rider"
+    task.destination_name = "SM_Rider"
     task.automated = True
     task.replace_existing = True
     task.save = True
     task.options = opts
     tools.import_asset_tasks([task])
-    # Whatever name the importer chose, the game looks for /Game/Dragon/SK_Dragon.
-    if not eal.does_asset_exist("/Game/Dragon/SK_Dragon"):
-        for path in eal.list_assets("/Game/Dragon", recursive=True):
-            if isinstance(eal.load_asset(path), unreal.SkeletalMesh):
-                eal.rename_asset(path, "/Game/Dragon/SK_Dragon")
+    if not eal.does_asset_exist("/Game/Rider/SM_Rider"):
+        for path in eal.list_assets("/Game/Rider", recursive=True):
+            if isinstance(eal.load_asset(path), unreal.StaticMesh):
+                eal.rename_asset(path, "/Game/Rider/SM_Rider")
                 break
-    mesh = eal.load_asset("/Game/Dragon/SK_Dragon")
+    mesh = eal.load_asset("/Game/Rider/SM_Rider")
+    looks = {"Cloak": plain("M_RiderCloak", (0.05, 0.12, 0.35), 0.7), "Skin": plain("M_RiderSkin", (0.62, 0.42, 0.30), 0.6)}
     # Iterating the array gives copies, so the changed slots are gathered and written back whole.
     slots = []
-    for slot in mesh.get_editor_property("materials"):
-        name = str(slot.get_editor_property("material_slot_name"))
-        for key, mat in materials.items():
-            if key in name:
+    for slot in mesh.get_editor_property("static_materials"):
+        for key, mat in looks.items():
+            if key in str(slot.get_editor_property("material_slot_name")):
                 slot.set_editor_property("material_interface", mat)
         slots.append(slot)
-    mesh.set_editor_property("materials", slots)
+    mesh.set_editor_property("static_materials", slots)
     eal.save_loaded_asset(mesh, only_if_is_dirty=False)
 
 
@@ -244,11 +228,7 @@ make_terrain()
 make_glow()
 make_water()
 make_fire()
-import_dragon({
-    "Body": painted("M_DragonBody", "scales_d", "scales_n", tiling=16.0, gain=1.3, rough=0.42, metal=0.3),
-    "Wing": painted("M_DragonWing", "noise_d", "noise_n", tiling=5.0, gain=1.5, rough=0.7, two_sided=True),
-    "Horn": painted("M_DragonHorn", "noise_d", tiling=4.0, gain=2.0, rough=0.35),
-    "Rider": painted("M_Rider", rough=0.65),
-})
-eal.save_directory("/Game")
+import_rider()
+eal.save_directory("/Game/Materials")
+eal.save_directory("/Game/Rider")
 unreal.log("DragonRider assets ready")

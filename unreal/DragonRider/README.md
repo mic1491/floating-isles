@@ -14,8 +14,12 @@
 
 需要 Unreal Engine 5.8、Xcode，以及 Xcode 的 Metal Toolchain（`xcodebuild -downloadComponent MetalToolchain`）。
 
-- 對 `DragonRider.uproject` 按兩下開啟編輯器，按 Play。
-- 模型、貼圖、材質都已放在 `Content/`。改了 `SourceArt/` 之後，關掉編輯器並執行 `Tools/rebuild_assets.sh` 重建。
+1. 龍的模型是 Fab 上的免費素材 [Sakura Dragon](https://www.fab.com/listings/4af98b46-6e54-4d22-93dc-0404cc4dc2d2)，授權不允許放進這個 repo。請在 Fab 加入資料庫，再從 Epic Games Launcher 的「Fab Library」按「加入專案」選這個專案，它會出現在 `Content/SakuraDragon/`。沒有它也能玩，龍會是一個圓錐。
+2. 對 `DragonRider.uproject` 按兩下開啟編輯器，按 Play。
+
+其餘的貼圖、材質、騎士都已放在 `Content/`。改了 `SourceArt/` 之後，關掉編輯器並執行 `Tools/rebuild_assets.sh` 重建。
+
+龍的顏色在 `DragonPawn` 的 `BodyTint`、`WingTint`、`GlowTint` 調整；設成白色就是素材原本的珍珠白配櫻花粉。
 
 ## 操作
 
@@ -32,9 +36,9 @@
 
 ## 檔案
 
-- `Source/DragonRider/DragonPawn.*`：飛行、鏡頭，以及用程式擺動翅膀、脖子、尾巴
-- `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道
-- `Source/DragonRider/DragonHUD.*`：速度、高度、光環數、時間
-- `Tools/build_dragon.py`：用 Blender 產生 `SourceArt/dragon.fbx`
+- `Source/DragonRider/DragonPawn.*`：飛行、鏡頭、噴火、龍的動畫與配色、騎士
+- `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
+- `Source/DragonRider/DragonHUD.*`：速度、高度、光環數、時間、燃料
+- `Tools/build_rider.py`：用 Blender 產生 `SourceArt/rider.fbx`
 - `Tools/build_textures.py`：用 Blender 產生 `SourceArt/tex/` 的貼圖
-- `Tools/rebuild_assets.sh`、`Tools/setup_assets.py`：匯入模型與貼圖、建立材質
+- `Tools/rebuild_assets.sh`、`Tools/setup_assets.py`：匯入騎士與貼圖、建立材質

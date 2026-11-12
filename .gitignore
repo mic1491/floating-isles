@@ -12,3 +12,7 @@ unreal/*/Intermediate/
 unreal/*/Saved/
 unreal/*/DerivedDataCache/
 unreal/*/*.xcworkspace
+# Fab asset (Sakura Dragon): licensed per user, get it from Fab instead of the repo
+unreal/*/Content/SakuraDragon/
+unreal/*/Content/Collections/
+unreal/*/Content/Developers/

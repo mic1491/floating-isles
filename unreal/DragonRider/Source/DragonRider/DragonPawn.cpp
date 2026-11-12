@@ -1,10 +1,11 @@
 #include "DragonPawn.h"
 #include "DragonWorld.h"
+#include "Animation/AnimSequence.h"
+#include "Animation/AnimSingleNodeInstance.h"
 #include "Camera/CameraComponent.h"
-#include "Components/PoseableMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
-#include "Materials/MaterialInterface.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -12,30 +13,54 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "InputCoreTypes.h"
+#include "Kismet/GameplayStatics.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
-#include "Kismet/GameplayStatics.h"
 #include "ReferenceSkeleton.h"
 #include "UObject/ConstructorHelpers.h"
+
+namespace
+{
+	// The Sakura Dragon asset stands on the ground at its origin and faces +Y.
+	// This point, roughly the middle of its chest, is what the pawn flies around.
+	const FVector DragonCentre(0.f, 300.f, 250.f);
+	// Where the rider sits, in the asset's own space: on the back between the wings.
+	const FVector SaddlePoint(0.f, 335.f, 318.f);
+	const FName SaddleBone(TEXT("spine_02"));
+}
 
 ADragonPawn::ADragonPawn()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	AutoPossessPlayer = EAutoReceiveInput::Disabled;
 
 	Body = CreateDefaultSubobject<USphereComponent>(TEXT("Body"));
 	Body->InitSphereRadius(250.f);
 	Body->SetCollisionProfileName(TEXT("Pawn"));
 	RootComponent = Body;
 
-	Mesh = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("Mesh"));
+	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(Body);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	// Made by Tools/setup_assets.py from SourceArt/dragon.fbx.
-	static ConstructorHelpers::FObjectFinder<USkeletalMesh> DragonMesh(TEXT("/Game/Dragon/SK_Dragon.SK_Dragon"));
-	DragonAsset = DragonMesh.Object;
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> DragonMesh(TEXT("/Game/SakuraDragon/Meshes/SK_Dragon_Sakura.SK_Dragon_Sakura"));
+	static ConstructorHelpers::FObjectFinder<UAnimSequence> Fly(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Fly_Forward.A_Sakura_Fly_Forward"));
+	if (DragonMesh.Succeeded())
+	{
+		Mesh->SetSkeletalMeshAsset(DragonMesh.Object);
+	}
+	FlyAnim = Fly.Object;
 
-	// Shown only while the dragon model has not been imported yet.
+	Rider = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Rider"));
+	Rider->SetupAttachment(Mesh);
+	Rider->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> RiderMesh(TEXT("/Game/Rider/SM_Rider.SM_Rider"));
+	if (RiderMesh.Succeeded())
+	{
+		Rider->SetStaticMesh(RiderMesh.Object);
+	}
+
+	// Shown only when the dragon asset is not in the project.
 	Placeholder = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Placeholder"));
 	Placeholder->SetupAttachment(Body);
 	Placeholder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -50,8 +75,8 @@ ADragonPawn::ADragonPawn()
 
 	Arm = CreateDefaultSubobject<USpringArmComponent>(TEXT("Arm"));
 	Arm->SetupAttachment(Body);
-	Arm->TargetArmLength = 2000.f;
-	Arm->SocketOffset = FVector(0.f, 0.f, 450.f);
+	Arm->TargetArmLength = 2200.f;
+	Arm->SocketOffset = FVector(0.f, 0.f, 550.f);
 	Arm->bDoCollisionTest = false;
 	Arm->bInheritRoll = false;
 	Arm->bEnableCameraLag = true;
@@ -94,12 +119,29 @@ void ADragonPawn::BeginPlay()
 {
 	Super::BeginPlay();
 	SetActorLocationAndRotation(ADragonWorld::StartLocation(), FRotator::ZeroRotator);
-	if (DragonAsset)
-	{
-		Mesh->SetSkinnedAssetAndUpdate(DragonAsset);
-	}
 	Speed = CruiseSpeed;
-	CacheBones();
+
+	// Turn the asset to face forward and put the middle of its chest on the pawn's centre.
+	const FRotator Facing(0.f, -90.f, 0.f);
+	MeshRestLocation = -Facing.RotateVector(DragonCentre) * DragonScale;
+	Mesh->SetRelativeTransform(FTransform(Facing, MeshRestLocation, FVector(DragonScale)));
+	if (FlyAnim && Mesh->GetSkeletalMeshAsset())
+	{
+		Mesh->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+		Mesh->PlayAnimation(FlyAnim, true);
+	}
+
+	// Recolour: the asset's materials multiply their colour by BaseTint and their glow by EmissiveTint.
+	for (int32 i = 0; i < Mesh->GetNumMaterials(); ++i)
+	{
+		if (UMaterialInstanceDynamic* M = Mesh->CreateDynamicMaterialInstance(i))
+		{
+			const bool bWing = Mesh->GetMaterialSlotNames().IsValidIndex(i) && Mesh->GetMaterialSlotNames()[i].ToString().Contains(TEXT("Wing"));
+			M->SetVectorParameterValue(TEXT("BaseTint"), bWing ? WingTint : BodyTint);
+			M->SetVectorParameterValue(TEXT("EmissiveTint"), GlowTint);
+		}
+	}
+	SeatRider();
 
 	if (UMaterialInterface* Fire = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Fire.M_Fire"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
@@ -115,6 +157,34 @@ void ADragonPawn::BeginPlay()
 	FireLight->SetRelativeLocation(MouthOffset + FVector(1500.f, 0.f, 0.f));
 }
 
+void ADragonPawn::SeatRider()
+{
+	USkeletalMesh* Asset = Mesh->GetSkeletalMeshAsset();
+	if (!Asset || !Rider->GetStaticMesh())
+	{
+		Rider->SetVisibility(false);
+		return;
+	}
+	// The seat is given in the dragon's rest pose; riding on a spine bone makes the rider
+	// rise and fall with the wingbeat instead of floating at a fixed spot.
+	const FReferenceSkeleton& Skel = Asset->GetRefSkeleton();
+	const int32 Bone = Skel.FindBoneIndex(SaddleBone);
+	if (Bone == INDEX_NONE)
+	{
+		Rider->SetRelativeLocation(SaddlePoint);
+		return;
+	}
+	FTransform BoneRest = FTransform::Identity;
+	for (int32 i = Bone; i != INDEX_NONE; i = Skel.GetParentIndex(i))
+	{
+		BoneRest = BoneRest * Skel.GetRefBonePose()[i];
+	}
+	// The rider model faces +X and has its origin at the hips; the dragon faces +Y.
+	const FTransform Seat(FRotator(0.f, 90.f, 0.f), SaddlePoint, FVector(1.f / DragonScale));
+	Rider->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, SaddleBone);
+	Rider->SetRelativeTransform(Seat.GetRelativeTransform(BoneRest));
+}
+
 void ADragonPawn::Boost()
 {
 	Speed = FMath::Min(Speed + 1800.f, MaxSpeed);
@@ -124,7 +194,6 @@ void ADragonPawn::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	const float Dt = FMath::Min(DeltaSeconds, 0.05f);
-	Clock += Dt;
 
 	// ---- input, read directly so the project needs no input assets ----
 	float TurnIn = 0.f, PitchIn = 0.f, MouseX = 0.f, MouseY = 0.f;
@@ -209,11 +278,19 @@ void ADragonPawn::Tick(float DeltaSeconds)
 	// Starting the game with -AutoFire keeps the dragon breathing fire, for checking the effect unattended.
 	static const bool bAutoFire = FParse::Param(FCommandLine::Get(), TEXT("AutoFire"));
 	UpdateFire(Dt, bFire || bAutoFire);
-	AnimateBody(Dt, bFlap);
+	// Wingbeat: quick and strong while flapping, slow and easy while gliding.
+	FlapAmount = FMath::FInterpTo(FlapAmount, bFlap ? 1.f : 0.3f, Dt, 4.f);
+	Mesh->SetPlayRate(FMath::Lerp(0.5f, 1.5f, FlapAmount));
+	FlapPhase = FMath::Fmod(FlapPhase + Dt * 2.f * PI * FMath::Lerp(0.5f, 1.5f, FlapAmount) / 1.6f, 2.f * PI);
+	Mesh->SetRelativeLocation(MeshRestLocation + FVector(0.f, 0.f, -FMath::Sin(FlapPhase) * 30.f * FlapAmount));
 }
 
 FVector ADragonPawn::GetMouthLocation() const
 {
+	if (Mesh->GetSkeletalMeshAsset() && Mesh->GetBoneIndex(MouthBone) != INDEX_NONE)
+	{
+		return Mesh->GetSocketLocation(MouthBone);
+	}
 	return GetActorLocation() + GetActorRotation().RotateVector(MouthOffset);
 }
 
@@ -305,109 +382,4 @@ void ADragonPawn::UpdateFire(float Dt, bool bWantsFire)
 
 	const float Glow = bBreathing ? 4000.f * FMath::FRandRange(0.7f, 1.f) : 0.f;
 	FireLight->SetIntensity(FMath::FInterpTo(FireLight->Intensity, Glow, Dt, 12.f));
-}
-
-void ADragonPawn::CacheBones()
-{
-	Bones.Reset();
-	USkinnedAsset* Asset = Mesh->GetSkinnedAsset();
-	if (!Asset)
-	{
-		return;
-	}
-	const FReferenceSkeleton& Skel = Asset->GetRefSkeleton();
-	const TArray<FTransform>& Local = Skel.GetRefBonePose();
-	TArray<FTransform> Comp;
-	Comp.SetNum(Local.Num());
-	for (int32 i = 0; i < Local.Num(); ++i)
-	{
-		const int32 Parent = Skel.GetParentIndex(i);
-		Comp[i] = Parent >= 0 ? Local[i] * Comp[Parent] : Local[i];
-		FBoneRef Ref;
-		Ref.Index = i;
-		Ref.LocalRef = Local[i].GetRotation();
-		Ref.ParentRefComp = Parent >= 0 ? Comp[Parent].GetRotation() : FQuat::Identity;
-		Ref.Side = Comp[i].GetLocation().Y >= 0.f ? 1.f : -1.f;
-		Bones.Add(Skel.GetBoneName(i), Ref);
-	}
-}
-
-float ADragonPawn::SideOf(FName Bone) const
-{
-	const FBoneRef* Ref = Bones.Find(Bone);
-	return Ref ? Ref->Side : 1.f;
-}
-
-void ADragonPawn::TurnBone(FName Bone, const FQuat& Delta)
-{
-	const FBoneRef* Ref = Bones.Find(Bone);
-	if (Ref && Mesh->BoneSpaceTransforms.IsValidIndex(Ref->Index))
-	{
-		const FQuat Q = Ref->ParentRefComp.Inverse() * Delta * Ref->ParentRefComp * Ref->LocalRef;
-		Mesh->BoneSpaceTransforms[Ref->Index].SetRotation(Q.GetNormalized());
-	}
-}
-
-void ADragonPawn::AnimateBody(float Dt, bool bFlapping)
-{
-	// Strong, fast beats while flapping; a slow shallow beat while gliding; wings swept back in a dive.
-	const float TargetFold = FMath::Clamp((-Pitch - 20.f) / 40.f, 0.f, 1.f);
-	Fold = FMath::FInterpTo(Fold, bFlapping ? 0.f : TargetFold, Dt, 3.f);
-	FlapAmount = FMath::FInterpTo(FlapAmount, bFlapping ? 1.f : 0.28f * (1.f - Fold), Dt, 4.f);
-	FlapPhase += Dt * 2.f * PI * FMath::Lerp(0.55f, 1.7f, FlapAmount);
-	if (FlapPhase > 2.f * PI)
-	{
-		FlapPhase -= 2.f * PI;
-	}
-
-	Mesh->SetRelativeLocation(FVector(0.f, 0.f, -FMath::Sin(FlapPhase) * 35.f * FlapAmount));
-	if (Bones.Num() == 0)
-	{
-		return;
-	}
-
-	const FVector X = FVector::ForwardVector, Y = FVector::RightVector, Z = FVector::UpVector;
-	auto Rad = [](float Deg) { return FMath::DegreesToRadians(Deg); };
-	const float Turn = FMath::Clamp(TurnRate / TurnSpeed, -1.f, 1.f);
-
-	// Wings. Turning about X lifts the tip, turning about Z sweeps it back; both mirror by side.
-	const TCHAR* Sides[] = { TEXT("l"), TEXT("r") };
-	for (const TCHAR* S : Sides)
-	{
-		const FName Upper(*FString::Printf(TEXT("wing_upper_%s"), S));
-		const FName Fore(*FString::Printf(TEXT("wing_fore_%s"), S));
-		const float Side = SideOf(Upper);
-		const float Up = FMath::Sin(FlapPhase) * 36.f * FlapAmount + 8.f;
-		const float ForeUp = FMath::Sin(FlapPhase - 0.7f) * 22.f * FlapAmount;
-		const float TipUp = FMath::Sin(FlapPhase - 1.3f) * 14.f * FlapAmount;
-		TurnBone(Upper, FQuat(Z, Rad(30.f * Fold) * Side) * FQuat(X, Rad(Up) * Side));
-		TurnBone(Fore, FQuat(Z, Rad(35.f * Fold) * Side) * FQuat(X, Rad(ForeUp) * Side));
-		for (int32 i = 1; i <= 3; ++i)
-		{
-			TurnBone(FName(*FString::Printf(TEXT("finger%d_%s"), i, S)), FQuat(Z, Rad(8.f * i * Fold) * Side) * FQuat(X, Rad(TipUp) * Side));
-		}
-	}
-
-	// Neck and head look into the turn and level out against the body's pitch a little.
-	for (const TCHAR* Name : { TEXT("neck1"), TEXT("neck2"), TEXT("neck3"), TEXT("head") })
-	{
-		TurnBone(FName(Name), FQuat(Z, Rad(9.f * Turn)) * FQuat(Y, Rad(FMath::Sin(FlapPhase + 1.f) * 1.5f * FlapAmount)));
-	}
-
-	// Tail trails behind: swings away from the turn and waves gently.
-	for (int32 i = 1; i <= 6; ++i)
-	{
-		const float Wave = FMath::Sin(Clock * 1.6f - i * 0.55f) * 3.5f;
-		const float Beat = FMath::Sin(FlapPhase - 0.4f * i) * 2.5f * FlapAmount;
-		TurnBone(FName(*FString::Printf(TEXT("tail%d"), i)), FQuat(Z, Rad(Wave + 7.f * Turn)) * FQuat(Y, Rad(Beat)));
-	}
-
-	// Legs tucked back against the body.
-	for (const TCHAR* S : Sides)
-	{
-		TurnBone(FName(*FString::Printf(TEXT("leg_f_upper_%s"), S)), FQuat(Y, Rad(35.f)));
-		TurnBone(FName(*FString::Printf(TEXT("leg_r_upper_%s"), S)), FQuat(Y, Rad(40.f)));
-	}
-
-	Mesh->MarkRefreshTransformDirty();
 }

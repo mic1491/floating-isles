@@ -4,19 +4,22 @@
 #include "GameFramework/Pawn.h"
 #include "DragonPawn.generated.h"
 
-class USkeletalMesh;
-class USphereComponent;
-class UPoseableMeshComponent;
-class UStaticMeshComponent;
-class USpringArmComponent;
+class UAnimSequence;
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
 class UPointLightComponent;
+class USkeletalMesh;
+class USkeletalMeshComponent;
+class USphereComponent;
+class USpringArmComponent;
+class UStaticMeshComponent;
 
 /**
  * The dragon with its rider. Flies with a simple arcade model: it always moves forward,
  * diving gains speed, climbing loses it, and flapping adds thrust.
- * The wings, neck and tail are moved by code every frame, so no animation assets are needed.
+ *
+ * The dragon itself is the "Sakura Dragon" asset from Fab (Content/SakuraDragon, not kept in
+ * the repository). Without it a plain cone stands in, and everything else still works.
  */
 UCLASS()
 class ADragonPawn : public APawn
@@ -58,29 +61,29 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Flight")
 	float MouseSensitivity = 0.12f;
 
-	/** Where the flame leaves the mouth, relative to the dragon. Depends on the model. */
+	/** Used for the flame's start only when the model has no MouthBone. */
 	UPROPERTY(EditAnywhere, Category = "Fire")
-	FVector MouthOffset = FVector(500.f, 0.f, 110.f);
+	FVector MouthOffset = FVector(420.f, 0.f, 300.f);
+	/** Bone at the front of the mouth; the flame leaves from here and follows the animation. */
+	UPROPERTY(EditAnywhere, Category = "Fire")
+	FName MouthBone = TEXT("tongue_03");
 	UPROPERTY(EditAnywhere, Category = "Fire")
 	float FuelSeconds = 4.f;
 	UPROPERTY(EditAnywhere, Category = "Fire")
 	float RefuelSeconds = 6.f;
 
+	/** How much bigger than the asset the dragon is drawn. */
+	UPROPERTY(EditAnywhere, Category = "Look")
+	float DragonScale = 1.5f;
+	/** Multiplied into the dragon's colours; white leaves the asset's own pearl-and-pink look. */
+	UPROPERTY(EditAnywhere, Category = "Look")
+	FLinearColor BodyTint = FLinearColor(0.34f, 0.19f, 0.10f);
+	UPROPERTY(EditAnywhere, Category = "Look")
+	FLinearColor WingTint = FLinearColor(0.42f, 0.13f, 0.08f);
+	UPROPERTY(EditAnywhere, Category = "Look")
+	FLinearColor GlowTint = FLinearColor(1.0f, 0.35f, 0.05f);
+
 private:
-	struct FBoneRef
-	{
-		int32 Index = INDEX_NONE;
-		FQuat ParentRefComp = FQuat::Identity;
-		FQuat LocalRef = FQuat::Identity;
-		float Side = 1.f;
-	};
-
-	void CacheBones();
-	/** Turns a bone by a rotation given in the dragon's own space, on top of its rest pose. */
-	void TurnBone(FName Bone, const FQuat& Delta);
-	float SideOf(FName Bone) const;
-	void AnimateBody(float DeltaSeconds, bool bFlapping);
-
 	struct FFlame
 	{
 		FVector Pos = FVector::ZeroVector;
@@ -90,25 +93,27 @@ private:
 	};
 	void EmitFlame(const FVector& Pos, const FVector& Vel, float Life);
 	void UpdateFire(float DeltaSeconds, bool bWantsFire);
+	void SeatRider();
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USphereComponent> Body;
 	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UPoseableMeshComponent> Mesh;
+	TObjectPtr<USkeletalMeshComponent> Mesh;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UStaticMeshComponent> Rider;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Placeholder;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USpringArmComponent> Arm;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UCameraComponent> Camera;
-
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UInstancedStaticMeshComponent> Flames;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UPointLightComponent> FireLight;
 
 	UPROPERTY()
-	TObjectPtr<USkeletalMesh> DragonAsset;
+	TObjectPtr<UAnimSequence> FlyAnim;
 
 	TArray<FFlame> FlamePool;
 	int32 NextFlame = 0;
@@ -117,8 +122,7 @@ private:
 	bool bBreathing = false;
 	bool bFuelSpent = false;
 
-	TMap<FName, FBoneRef> Bones;
-
+	FVector MeshRestLocation = FVector::ZeroVector;
 	float Speed = 3200.f;
 	float Pitch = 0.f;
 	float Yaw = 0.f;
@@ -126,7 +130,5 @@ private:
 	float TurnRate = 0.f;
 	float FlapPhase = 0.f;
 	float FlapAmount = 0.3f;
-	float Fold = 0.f;
-	float Clock = 0.f;
 	bool bTurningBack = false;
 };
