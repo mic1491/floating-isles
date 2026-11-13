@@ -10,6 +10,22 @@
 
 ![降落後噴火](SourceArt/screenshot_ground.jpg)
 
+![章節過場](SourceArt/screenshot_scene.jpg)
+
+## 劇情
+
+黑旗軍佔領群島的第七年，騎士「嵐」喚醒了最後一頭龍「燼」。共五章，每章完成後有一段帶台詞的過場，按空白鍵或 Enter 可跳到下一句。
+
+| 章節 | 目標 |
+| --- | --- |
+| 第一章　甦醒 | 穿過 5 個光環 |
+| 第二章　烽火 | 燒掉 8 顆警哨火燈 |
+| 第三章　焚林 | 燒掉 400 棵樹 |
+| 第四章　踏地 | 降落後燒毀 25 間營舍 |
+| 終章　歸途 | 飛完全部光環 |
+
+章節、目標和台詞都在 `Source/DragonRider/DragonStory.cpp` 開頭的表格裡，改那裡就能改劇情。
+
 ## 狀態
 
 已在 Unreal Engine 5.8.4（Mac，Apple M4）編譯並實際執行過。
@@ -50,9 +66,10 @@
 
 - `Source/DragonRider/DragonPawn.*`：飛行、鏡頭、噴火、龍的動畫與配色、騎士
 - `Source/DragonRider/DragonAnimInstance.*`：播放飛行動畫，並在噴火時張開下顎
+- `Source/DragonRider/DragonStory.*`：章節、目標、台詞與過場
 - `Source/DragonRider/DragonProps.*`：森林、村莊，以及點燃、延燒、燒焦
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
-- `Source/DragonRider/DragonHUD.*`：速度、高度、光環數、時間、燃料
+- `Source/DragonRider/DragonHUD.*`：中文介面、字幕、章節標題、電影黑邊
 - `Tools/build_rider.py`：用 Blender 產生 `SourceArt/rider.fbx`
 - `Tools/build_textures.py`：用 Blender 產生 `SourceArt/tex/` 的貼圖
 - `Tools/rebuild_assets.sh`、`Tools/setup_assets.py`：匯入騎士與貼圖、建立材質
@@ -64,3 +81,4 @@
 - `-BurnTest`：開場就點燃起點附近的森林和村莊
 - `-LandTest`：一開始就站在最近的平地上
 - `-NoIntro`：不播開場動畫
+- `-StoryTest`：每章目標視為已達成，連續播放所有過場

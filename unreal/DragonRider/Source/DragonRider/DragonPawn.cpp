@@ -247,12 +247,12 @@ void ADragonPawn::SetView(int32 NewView)
 		bool bHideRider;
 	};
 	static const FViewSetup Views[] = {
-		{ TEXT("CHASE"),       FVector(0.f, 0.f, 0.f),     0.f,   2200.f, 550.f,  -8.f, true,  false },
-		{ TEXT("FAR CHASE"),   FVector(0.f, 0.f, 0.f),     0.f,   4600.f, 1300.f, -10.f, true, false },
-		{ TEXT("RIDER"),       FVector(40.f, 0.f, 310.f),  0.f,   0.f,    0.f,    -6.f, false, true  },
-		{ TEXT("FRONT"),       FVector(560.f, 0.f, 150.f), 160.f, 1500.f, 0.f,    0.f,  false, false },
-		{ TEXT("SIDE"),        FVector(0.f, 0.f, 100.f),   90.f,  3000.f, 0.f,    0.f,  false, false },
-		{ TEXT("FROM ABOVE"),  FVector(0.f, 0.f, 0.f),     0.f,   600.f,  3800.f, -72.f, false, false },
+		{ TEXT("追尾"),       FVector(0.f, 0.f, 0.f),     0.f,   2200.f, 550.f,  -8.f, true,  false },
+		{ TEXT("遠景追尾"),   FVector(0.f, 0.f, 0.f),     0.f,   4600.f, 1300.f, -10.f, true, false },
+		{ TEXT("騎士"),       FVector(40.f, 0.f, 310.f),  0.f,   0.f,    0.f,    -6.f, false, true  },
+		{ TEXT("正面"),       FVector(560.f, 0.f, 150.f), 160.f, 1500.f, 0.f,    0.f,  false, false },
+		{ TEXT("側面"),        FVector(0.f, 0.f, 100.f),   90.f,  3000.f, 0.f,    0.f,  false, false },
+		{ TEXT("俯視"),  FVector(0.f, 0.f, 0.f),     0.f,   600.f,  3800.f, -72.f, false, false },
 	};
 	View = ((NewView % UE_ARRAY_COUNT(Views)) + UE_ARRAY_COUNT(Views)) % UE_ARRAY_COUNT(Views);
 	const FViewSetup& V = Views[View];
@@ -327,6 +327,19 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		TickIntro(Dt, bFlap || (PC && PC->WasInputKeyJustPressed(EKeys::Enter)));
 		TurnIn = PitchIn = MouseX = MouseY = 0.f;
 		bFlap = bBrake = bFire = false;
+	}
+
+	if (CutShot >= 0 && !bIntro)
+	{
+		// A story scene: the dragon flies itself, level and steady, while the camera holds the shot.
+		CutTime += Dt;
+		TurnIn = PitchIn = MouseX = MouseY = 0.f;
+		bFlap = bBrake = bFire = false;
+		if (Mode == EDragonMode::Flying)
+		{
+			Pitch = FMath::FInterpTo(Pitch, 0.f, Dt, 1.5f);
+		}
+		TickCutCamera();
 	}
 
 	NoticeTime -= Dt;
@@ -479,6 +492,49 @@ void ADragonPawn::AimCamera(const FVector& Pivot, float ArmYaw, float Length, fl
 	Camera->SetRelativeRotation(FRotator(Tilt, 0.f, 0.f));
 }
 
+void ADragonPawn::SetCutsceneShot(int32 Shot)
+{
+	if (Shot == CutShot)
+	{
+		return;
+	}
+	CutShot = Shot;
+	CutTime = 0.f;
+	if (Shot < 0)
+	{
+		SetView(View);
+	}
+	else if (Shot == 0 && Mode == EDragonMode::Grounded)
+	{
+		PlayAnim(RoarAnim, false);
+	}
+}
+
+void ADragonPawn::TickCutCamera()
+{
+	// Each shot drifts a little over its time so the picture is never frozen.
+	const float T = CutTime;
+	const bool bStanding = Mode != EDragonMode::Flying;
+	switch (CutShot)
+	{
+	case 0: // the dragon's face, from just in front
+		AimCamera(bStanding ? FVector(400.f, 0.f, 200.f) : FVector(480.f, 0.f, 120.f), 166.f - 5.f * T, 1150.f - 40.f * T, 0.f, 5.f);
+		break;
+	case 1: // from the side, swinging forward
+		AimCamera(FVector(0.f, 0.f, 100.f), 72.f + 10.f * T, 2900.f, 200.f, -3.f);
+		break;
+	case 2: // low behind the tail, looking up along the body
+		AimCamera(FVector(0.f, 0.f, 0.f), 22.f - 4.f * T, 2100.f, -260.f, 9.f);
+		break;
+	case 3: // high and far, taking in the islands
+		AimCamera(FVector(0.f, 0.f, 0.f), 205.f + 7.f * T, 6800.f, 2300.f, -15.f);
+		break;
+	default: // over the rider's shoulder
+		AimCamera(FVector(-160.f, 110.f, 330.f), 0.f, 360.f + 20.f * T, 0.f, -8.f);
+		break;
+	}
+}
+
 void ADragonPawn::StartIntro()
 {
 	// A flat shoulder high on a mountain, the nearest one to the middle of the map.
@@ -561,12 +617,12 @@ void ADragonPawn::TryLand()
 	NoticeTime = 3.f;
 	if (Ground < 300.f)
 	{
-		Notice = TEXT("No land below - fly over an island to land");
+		Notice = TEXT("下方沒有陸地，請飛到島嶼上空再降落");
 		return;
 	}
 	if (FMath::Abs(ADragonWorld::HeightAt(Ahead.X + 700.f, Ahead.Y) - Ground) > 450.f || FMath::Abs(ADragonWorld::HeightAt(Ahead.X, Ahead.Y + 700.f) - Ground) > 450.f)
 	{
-		Notice = TEXT("Too steep to land here");
+		Notice = TEXT("這裡太陡，無法降落");
 		return;
 	}
 	Notice.Reset();
@@ -648,9 +704,9 @@ void ADragonPawn::TickGround(float Dt, float TurnIn, float Forward, float MouseX
 		{
 			PlayAnim(BreathAnim, true);
 		}
-		else if (bIntro)
+		else if (bIntro || CutShot >= 0)
 		{
-			// The opening scene chooses the animation itself.
+			// The opening and story scenes choose the animation themselves.
 		}
 		else if (Pace > 0.f)
 		{
@@ -678,8 +734,8 @@ void ADragonPawn::TickGround(float Dt, float TurnIn, float Forward, float MouseX
 		{
 			Mode = EDragonMode::Flying;
 			BodyDrop = 0.f;
-			Speed = MinSpeed * 2.f;
-			Pitch = 18.f;
+			Speed = CruiseSpeed * 0.85f; // enough to keep climbing without stalling
+			Pitch = 10.f;
 			PlayAnim(FlyAnim, true);
 		}
 		break;

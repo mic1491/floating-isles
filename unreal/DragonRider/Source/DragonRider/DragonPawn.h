@@ -69,6 +69,13 @@ public:
 	const FString& GetNotice() const { return Notice; }
 
 	/** The opening scene: the dragon on a mountain shoulder roars, breathes fire and takes off. Space skips it. */
+	/**
+	 * Story scenes: while a shot is set (0 face, 1 side, 2 low from behind, 3 high and wide,
+	 * 4 over the rider's shoulder) the camera holds it and the player's controls are paused;
+	 * -1 gives both back. On the ground, shot 0 also makes the dragon roar.
+	 */
+	void SetCutsceneShot(int32 Shot);
+	bool InCutscene() const { return CutShot >= 0; }
 	bool IsIntro() const { return bIntro; }
 	float GetIntroTime() const { return IntroTime; }
 
@@ -121,6 +128,7 @@ private:
 	void UpdateFire(float DeltaSeconds, bool bWantsFire);
 	void SeatRider();
 	void StartIntro();
+	void TickCutCamera();
 	void TickIntro(float Dt, bool bSkip);
 	void AimCamera(const FVector& Pivot, float ArmYaw, float Length, float Lift, float Tilt);
 	void TryLand();
@@ -168,6 +176,8 @@ private:
 	TObjectPtr<UAnimSequence> CurrentAnim;
 
 	bool bIntro = false;
+	int32 CutShot = -1;
+	float CutTime = 0.f;
 	bool bIntroFire = false;
 	float IntroTime = 0.f;
 
