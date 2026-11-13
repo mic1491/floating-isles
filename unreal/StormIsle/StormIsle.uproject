@@ -1,0 +1,17 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "5.8",
+	"Category": "",
+	"Description": "Survival and building on an island swept by storms",
+	"Modules": [
+		{
+			"Name": "StormIsle",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{ "Name": "ProceduralMeshComponent", "Enabled": true },
+		{ "Name": "PythonScriptPlugin", "Enabled": true }
+	]
+}

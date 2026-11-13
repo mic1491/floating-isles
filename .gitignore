@@ -16,3 +16,5 @@ unreal/*/*.xcworkspace
 unreal/*/Content/SakuraDragon/
 unreal/*/Content/Collections/
 unreal/*/Content/Developers/
+# Epic's mannequin pack: copied from the engine by unreal/StormIsle/Tools/get_mannequin.sh
+unreal/StormIsle/Content/Characters/
