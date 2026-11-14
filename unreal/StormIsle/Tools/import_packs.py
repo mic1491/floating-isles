@@ -19,7 +19,7 @@ MP = unreal.MaterialProperty
 
 KENNEY_DIR = os.path.join(DOWN, "kenney", "survival-kit", "Models", "FBX format")
 KENNEY = [
-    "structure-floor", "structure", "structure-roof", "fence-fortified", "fence", "fence-doorway",
+    "floor", "floor-old", "tree-log", "structure-floor", "structure", "structure-roof", "fence-fortified", "fence", "fence-doorway",
     "campfire-pit", "campfire-stand", "tool-axe", "tool-pickaxe", "tool-hammer", "resource-wood",
     "resource-stone", "resource-planks", "rock-a", "rock-b", "rock-c", "tree", "tree-tall",
     "tree-autumn", "grass", "grass-large", "patch-grass", "tent", "workbench", "chest", "barrel",
@@ -71,7 +71,33 @@ def atlas_material(tex):
     mul = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -150, 50)
     mel.connect_material_expressions(s, "RGB", mul, "A")
     mel.connect_material_expressions(tint, "", mul, "B")
-    mel.connect_material_property(mul, "", MP.MP_BASE_COLOR)
+    # Per instance, like M_Prop: 0 = shade (0..1 -> 0.8..1.1 brightness), 1 = hit flash.
+    shade = mel.create_material_expression(m, unreal.MaterialExpressionPerInstanceCustomData, -600, 400)
+    shade.set_editor_property("data_index", 0)
+    shade.set_editor_property("const_default_value", 0.5)
+    k = mel.create_material_expression(m, unreal.MaterialExpressionConstant, -600, 500)
+    k.set_editor_property("r", 0.3)
+    sk = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -400, 450)
+    mel.connect_material_expressions(shade, "", sk, "A")
+    mel.connect_material_expressions(k, "", sk, "B")
+    base = mel.create_material_expression(m, unreal.MaterialExpressionAdd, -250, 450)
+    mel.connect_material_expressions(sk, "", base, "A")
+    b0 = mel.create_material_expression(m, unreal.MaterialExpressionConstant, -400, 550)
+    b0.set_editor_property("r", 0.8)
+    mel.connect_material_expressions(b0, "", base, "B")
+    shaded = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -50, 200)
+    mel.connect_material_expressions(mul, "", shaded, "A")
+    mel.connect_material_expressions(base, "", shaded, "B")
+    mel.connect_material_property(shaded, "", MP.MP_BASE_COLOR)
+    flash = mel.create_material_expression(m, unreal.MaterialExpressionPerInstanceCustomData, -600, 700)
+    flash.set_editor_property("data_index", 1)
+    flash.set_editor_property("const_default_value", 0.0)
+    warm = mel.create_material_expression(m, unreal.MaterialExpressionConstant3Vector, -600, 800)
+    warm.set_editor_property("constant", unreal.LinearColor(1.0, 0.85, 0.6, 1))
+    em = mel.create_material_expression(m, unreal.MaterialExpressionMultiply, -250, 700)
+    mel.connect_material_expressions(flash, "", em, "A")
+    mel.connect_material_expressions(warm, "", em, "B")
+    mel.connect_material_property(em, "", MP.MP_EMISSIVE_COLOR)
     rough = mel.create_material_expression(m, unreal.MaterialExpressionConstant, -150, 250)
     rough.set_editor_property("r", 0.8)
     mel.connect_material_property(rough, "", MP.MP_ROUGHNESS)
@@ -103,7 +129,7 @@ def import_kenney(mat):
         mesh = unreal.load_asset(p)
         if not mesh:
             continue
-        for i in range(mesh.get_num_sections(0) and len(mesh.static_materials)):
+        for i in range(len(mesh.static_materials)):
             mesh.set_material(i, mat)
         eal.save_loaded_asset(mesh)
         b = mesh.get_bounding_box()

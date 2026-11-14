@@ -27,4 +27,17 @@ namespace Isle
 		M->SetVectorParameterValue(TEXT("Color"), Colour);
 		return M;
 	}
+
+	UStaticMesh* Pack(const TCHAR* Name)
+	{
+		return LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Packs/Kenney/SM_%s.SM_%s"), Name, Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+
+	UMaterialInstanceDynamic* PackTint(const FLinearColor& Colour, UObject* Outer)
+	{
+		UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Packs/Kenney/M_KenneyAtlas.M_KenneyAtlas"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		UMaterialInstanceDynamic* M = UMaterialInstanceDynamic::Create(Base ? Base : Mat(TEXT("M_Prop")), Outer);
+		M->SetVectorParameterValue(TEXT("Color"), Colour);
+		return M;
+	}
 }
