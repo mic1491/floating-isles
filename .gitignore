@@ -21,3 +21,6 @@ unreal/StormIsle/Content/Characters/
 
 # Raw downloads of free asset packs; Tools/import_packs.py imports them into Content/Packs
 unreal/_downloads/
+# Fab assets: Open World Demo Collection (trees, rocks) and Faymere River Village
+unreal/*/Content/KiteDemo/
+unreal/*/Content/FaymereVillage/
