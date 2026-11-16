@@ -143,6 +143,11 @@ ADragonPawn::ADragonPawn()
 	// Hold the exposure a little down so sunlit ground and the dragon keep their colour.
 	Camera->PostProcessSettings.bOverride_AutoExposureBias = true;
 	Camera->PostProcessSettings.AutoExposureBias = -0.5f;
+	// Keep the exposure within a narrow band, so looking down at dark sea does not bleach the dragon.
+	Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness = true;
+	Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness = true;
+	Camera->PostProcessSettings.AutoExposureMinBrightness = -0.6f;
+	Camera->PostProcessSettings.AutoExposureMaxBrightness = 1.6f;
 }
 
 void ADragonPawn::BeginPlay()
@@ -309,6 +314,40 @@ void ADragonPawn::SetView(int32 NewView)
 void ADragonPawn::FlamePuff(const FVector& Location, const FVector& Velocity, float Life)
 {
 	EmitFlame(Location, Velocity, Life);
+}
+
+void ADragonPawn::Hurt(float Amount)
+{
+	if (bIntro || CutShot >= 0 || SinceHit < 0.35f)
+	{
+		return; // safe during scenes, and never hit twice in the same instant
+	}
+	Health -= Amount;
+	SinceHit = 0.f;
+	HitFlash = 0.45f;
+	PlayCue(TEXT("hit"), 1.f, FMath::FRandRange(0.9f, 1.1f));
+	if (Health <= 0.f)
+	{
+		// Badly hurt: the dragon breaks away high above to recover, keeping all progress.
+		Health = 60.f;
+		Notice = TEXT("燼受了重傷，退回高空重整");
+		NoticeTime = 4.f;
+		const FVector Loc = GetActorLocation();
+		FaceFrom(FVector(Loc.X, Loc.Y, FMath::Max(ADragonWorld::HeightAt(Loc.X, Loc.Y), 0.f) + 45000.f), FVector(0.f, 0.f, 45000.f));
+		RoarWait = 0.f;
+		Roar();
+	}
+}
+
+void ADragonPawn::FaceFrom(const FVector& At, const FVector& Towards)
+{
+	Mode = EDragonMode::Flying;
+	BodyDrop = 0.f;
+	Pitch = Roll = TurnRate = 0.f;
+	Yaw = FVector(Towards.X - At.X, Towards.Y - At.Y, 0.f).Rotation().Yaw;
+	Speed = CruiseSpeed;
+	SetActorLocationAndRotation(At, FRotator(0.f, Yaw, 0.f));
+	PlayAnim(FlyAnim, true);
 }
 
 void ADragonPawn::PlayCue(const TCHAR* Name, float Volume, float PitchScale)
@@ -506,6 +545,14 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		// breath animation already opens it, so only a little is added.
 		const float Open = !bBreathing ? 0.f : Mode == EDragonMode::Flying ? 1.f : 0.35f;
 		Anim->JawOpen = FMath::FInterpTo(Anim->JawOpen, Open, Dt, bBreathing ? 14.f : 5.f);
+	}
+
+	// Health comes back once the dragon has gone a while without being hit.
+	SinceHit += Dt;
+	HitFlash = FMath::Max(HitFlash - Dt, 0.f);
+	if (SinceHit > 6.f)
+	{
+		Health = FMath::Min(Health + 5.f * Dt, 100.f);
 	}
 
 	// ---- sound: wind with speed, wingbeats with the animation, the roar of the flame ----

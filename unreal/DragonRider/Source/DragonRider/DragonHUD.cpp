@@ -1,4 +1,5 @@
 #include "DragonHUD.h"
+#include "DragonFoes.h"
 #include "DragonPawn.h"
 #include "DragonProps.h"
 #include "DragonStory.h"
@@ -28,6 +29,7 @@ void ADragonHUD::DrawHUD()
 	}
 	if (!World) { TActorIterator<ADragonWorld> It(GetWorld()); World = It ? *It : nullptr; }
 	if (!Props) { TActorIterator<ADragonProps> It(GetWorld()); Props = It ? *It : nullptr; }
+	if (!Foes) { TActorIterator<ADragonFoes> It(GetWorld()); Foes = It ? *It : nullptr; }
 	if (!Story) { TActorIterator<ADragonStory> It(GetWorld()); Story = It ? *It : nullptr; }
 	const ADragonPawn* Dragon = Cast<ADragonPawn>(GetOwningPawn());
 	if (!World || !Dragon)
@@ -79,6 +81,20 @@ void ADragonHUD::DrawHUD()
 	Say(TEXT("龍焰"), 40.f, 190.f, 18, White);
 	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.45f), 110.f, 196.f, 204.f, 18.f);
 	DrawRect(Fuel > 0.2f ? FLinearColor(1.f, 0.45f, 0.05f) : FLinearColor(0.5f, 0.5f, 0.5f), 112.f, 198.f, 200.f * Fuel, 14.f);
+
+	// Health under the fire gauge, turning red when low; the whole picture flashes red on a hit.
+	const float Health = Dragon->GetHealth() / 100.f;
+	Say(TEXT("生命"), 40.f, 220.f, 18, White);
+	DrawRect(FLinearColor(0.f, 0.f, 0.f, 0.45f), 110.f, 226.f, 204.f, 18.f);
+	DrawRect(Health > 0.35f ? FLinearColor(0.25f, 0.8f, 0.3f) : FLinearColor(0.9f, 0.15f, 0.1f), 112.f, 228.f, 200.f * Health, 14.f);
+	if (Dragon->GetHitFlash() > 0.f)
+	{
+		DrawRect(FLinearColor(0.8f, 0.f, 0.f, 0.5f * Dragon->GetHitFlash()), 0.f, 0.f, W, H);
+	}
+	if (Foes)
+	{
+		Say(FString::Printf(TEXT("弩砲塔　%d / %d"), Foes->TowersBurned, Foes->NumTowers()), 40.f, 252.f, 18, Ember);
+	}
 
 	Say(FString::Printf(TEXT("視角：%s"), Dragon->GetViewName()), W - 230.f, 36.f, 16, White);
 

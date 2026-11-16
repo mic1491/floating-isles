@@ -61,6 +61,8 @@
 
 俯衝會加速，爬升會減速，太慢時龍頭會自己往下掉。
 
+每座營寨旁有兩座弩砲塔，龍進入射程就會被弩箭瞄準射擊，轉向可以閃掉。龍有生命值，幾秒沒被打中會自己回復；歸零時會退回高空重整，進度不會丟。用龍焰持續燒一座塔約兩秒可以把它燒毀。
+
 每次啟動會先播一段開場：龍站在山腰上咆哮、噴火，然後起飛，接著才交給你操控。降落後龍會站著噴火，可以走到森林或村莊旁邊燒。
 
 ## 檔案
@@ -68,6 +70,7 @@
 - `Source/DragonRider/DragonPawn.*`：飛行、鏡頭、噴火、龍的動畫與配色、騎士
 - `Source/DragonRider/DragonAnimInstance.*`：播放飛行動畫，並在噴火時張開下顎
 - `Source/DragonRider/DragonStory.*`：章節、目標、台詞與過場
+- `Source/DragonRider/DragonFoes.*`：弩砲塔與弩箭
 - `Source/DragonRider/DragonProps.*`：森林、村莊，以及點燃、延燒、燒焦
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
 - `Source/DragonRider/DragonHUD.*`：中文介面、字幕、章節標題、電影黑邊
@@ -83,4 +86,5 @@
 - `-BurnTest`：開場就點燃起點附近的森林和村莊
 - `-LandTest`：一開始就站在最近的平地上
 - `-NoIntro`：不播開場動畫
+- `-FoeTest`：一開始就飛在第一座弩砲塔前方
 - `-StoryTest`：每章目標視為已達成，連續播放所有過場

@@ -24,6 +24,9 @@ public:
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** The middle of each village, for whoever else wants to stand guard there. */
+	const TArray<FVector2D>& GetVillages() const { return VillageCentres; }
+
 	int32 NumTrees = 0;
 	int32 NumHouses = 0;
 	int32 TreesBurned = 0;
@@ -65,6 +68,7 @@ private:
 	float IgniteWait = 0.f;
 
 	TArray<FProp> Props;
+	TArray<FVector2D> VillageCentres;
 	TArray<int32> Burning;
 	TMap<FIntPoint, TArray<int32>> Cells; // for finding neighbours to spread to
 };

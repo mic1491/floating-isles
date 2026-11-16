@@ -4,6 +4,7 @@
 #include "GameFramework/HUD.h"
 #include "DragonHUD.generated.h"
 
+class ADragonFoes;
 class ADragonProps;
 class ADragonStory;
 class ADragonWorld;
@@ -31,4 +32,6 @@ private:
 	TObjectPtr<ADragonProps> Props;
 	UPROPERTY()
 	TObjectPtr<ADragonStory> Story;
+	UPROPERTY()
+	TObjectPtr<ADragonFoes> Foes;
 };

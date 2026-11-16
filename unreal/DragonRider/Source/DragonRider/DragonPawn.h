@@ -78,6 +78,14 @@ public:
 	 */
 	void SetCutsceneShot(int32 Shot);
 	bool InCutscene() const { return CutShot >= 0; }
+	/** Health, 0 to 100. It comes back by itself after a few seconds without being hit. */
+	float GetHealth() const { return Health; }
+	/** Above zero for a moment after a hit, for the screen to flash. */
+	float GetHitFlash() const { return HitFlash; }
+	void Hurt(float Amount);
+	/** Puts the dragon in the air at a point, flying towards another; used by test modes. */
+	void FaceFrom(const FVector& At, const FVector& Towards);
+
 	/** Roars: Q or the gamepad's right bumper. On the ground the dragon rears up to do it. */
 	void Roar();
 	/** Plays one of the game's sounds by name (see Tools/build_audio.py); does nothing if it is missing. */
@@ -171,6 +179,9 @@ private:
 	UPROPERTY()
 	TMap<FName, TObjectPtr<USoundBase>> Cues;
 	float RoarWait = 0.f;
+	float Health = 100.f;
+	float HitFlash = 0.f;
+	float SinceHit = 99.f;
 
 	UPROPERTY()
 	TObjectPtr<UAnimSequence> FlyAnim;

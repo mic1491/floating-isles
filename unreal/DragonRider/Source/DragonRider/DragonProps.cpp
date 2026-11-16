@@ -131,6 +131,8 @@ void ADragonProps::BeginPlay()
 		}
 	}
 
+	VillageCentres = Villages;
+
 	// ---- forests: patches of pines on the green slopes, kept clear of the villages ----
 	const float Step = 1500.f;
 	for (float Y = -0.9f * R; Y < 0.9f * R && NumTrees < MaxTrees; Y += Step)
