@@ -97,8 +97,8 @@ void ADragonHUD::DrawHUD()
 	}
 
 	const TCHAR* Help = Dragon->IsGrounded()
-		? TEXT("W 走　Shift 跑　A/D 或滑鼠 轉向　F/右鍵 噴火　空白鍵 起飛　C 視角　R 重來　Esc 離開")
-		: TEXT("W/S 或滑鼠 俯仰　A/D 或滑鼠 轉向　空白鍵 拍翅　F/右鍵 噴火　Shift 減速　G 降落　C 視角　R 重來　Esc 離開");
+		? TEXT("W 走　Shift 跑　A/D 或滑鼠 轉向　F/右鍵 噴火　空白鍵 起飛　Q 咆哮　C 視角　R 重來　Esc 離開")
+		: TEXT("W/S 或滑鼠 俯仰　A/D 或滑鼠 轉向　空白鍵 拍翅　F/右鍵 噴火　Shift 減速　G 降落　Q 咆哮　C 視角　R 重來　Esc 離開");
 	Say(Help, 40.f, H - 46.f, 14, White);
 
 	if (!Dragon->GetNotice().IsEmpty())

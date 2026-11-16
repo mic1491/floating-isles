@@ -368,6 +368,7 @@ void ADragonWorld::Tick(float DeltaSeconds)
 				T->SetVisibility(false);
 				++Burned;
 				Dragon->FireBurst(T->GetComponentLocation());
+				Dragon->PlayCue(TEXT("ignite"));
 			}
 		}
 	}

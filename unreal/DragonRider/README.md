@@ -55,6 +55,7 @@
 | 地面：走路 / 跑步 / 轉向 | W / Shift+W / A、D | 左搖桿 / LT |
 | 地面：起飛 | 空白鍵 | A |
 | 跳過開場動畫 | 空白鍵或 Enter | A |
+| 咆哮 | Q | RB |
 | 重新開始 | R | Start |
 | 離開遊戲 | Esc | — |
 
@@ -71,6 +72,7 @@
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
 - `Source/DragonRider/DragonHUD.*`：中文介面、字幕、章節標題、電影黑邊
 - `Tools/build_rider.py`：用 Blender 產生 `SourceArt/rider.fbx`
+- `Tools/build_audio.py`：用程式合成全部音效與配樂到 `SourceArt/audio/`（風聲、拍翅、噴火、燃燒、咆哮、鈴聲、落地、配樂）
 - `Tools/build_textures.py`：用 Blender 產生 `SourceArt/tex/` 的貼圖
 - `Tools/rebuild_assets.sh`、`Tools/setup_assets.py`：匯入騎士與貼圖、建立材質
 

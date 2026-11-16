@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "DragonProps.generated.h"
 
+class UAudioComponent;
 class UInstancedStaticMeshComponent;
 
 /**
@@ -57,6 +58,11 @@ private:
 	TObjectPtr<UInstancedStaticMeshComponent> Walls;
 	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> Roofs;
+
+	/** The crackle of things burning, louder the more there is alight near the dragon. */
+	UPROPERTY()
+	TObjectPtr<UAudioComponent> BurnAudio;
+	float IgniteWait = 0.f;
 
 	TArray<FProp> Props;
 	TArray<int32> Burning;

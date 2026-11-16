@@ -3,6 +3,7 @@ which first removes the old Content/Rider and Content/Materials: the script buil
 nothing, and emptying an existing material from Python crashes the 5.8 editor.
 
 Makes  /Game/Textures/*            from SourceArt/tex/*.png
+       /Game/Audio/*               from SourceArt/audio/*.wav (the _loop ones set to repeat)
        /Game/Rider/SM_Rider        the rider, from SourceArt/rider.fbx
        /Game/Materials/M_Terrain   vertex colours broken up by world-space detail
        /Game/Materials/M_Glow      glowing, with a "Color" parameter (rings, lanterns)
@@ -246,7 +247,27 @@ def import_rider():
     eal.save_loaded_asset(mesh, only_if_is_dirty=False)
 
 
+def import_audio():
+    names = [f[:-4] for f in sorted(os.listdir(os.path.join(ART, "audio"))) if f.endswith(".wav")]
+    tasks = []
+    for name in names:
+        t = unreal.AssetImportTask()
+        t.filename = os.path.join(ART, "audio", name + ".wav")
+        t.destination_path = "/Game/Audio"
+        t.automated = True
+        t.replace_existing = True
+        t.save = True
+        tasks.append(t)
+    tools.import_asset_tasks(tasks)
+    for name in names:
+        if name.endswith("_loop"):
+            wave = eal.load_asset("/Game/Audio/" + name)
+            wave.set_editor_property("looping", True)
+            eal.save_loaded_asset(wave, only_if_is_dirty=False)
+
+
 import_textures()
+import_audio()
 make_terrain()
 make_glow()
 make_water()

@@ -4,6 +4,7 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/AnimSingleNodeInstance.h"
 #include "Camera/CameraComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -21,6 +22,7 @@
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "ReferenceSkeleton.h"
+#include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace
@@ -120,6 +122,20 @@ ADragonPawn::ADragonPawn()
 	FireLight->SetAttenuationRadius(9000.f);
 	FireLight->SetCastShadows(false);
 
+	// Sounds that run all the time and are faded up and down, rather than started and stopped.
+	auto Loop = [this](const TCHAR* Name)
+	{
+		UAudioComponent* A = CreateDefaultSubobject<UAudioComponent>(Name);
+		A->SetupAttachment(Body);
+		A->bAutoActivate = false;
+		A->bIsUISound = true; // heard the same wherever the camera is
+		return A;
+	};
+	WindAudio = Loop(TEXT("WindAudio"));
+	WingAudio = Loop(TEXT("WingAudio"));
+	FireAudio = Loop(TEXT("FireAudio"));
+	MusicAudio = Loop(TEXT("MusicAudio"));
+
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(Arm);
 	Camera->SetRelativeRotation(FRotator(-8.f, 0.f, 0.f));
@@ -203,6 +219,28 @@ void ADragonPawn::BeginPlay()
 		Flames->AddInstance(Hidden, true);
 	}
 	FireLight->SetRelativeLocation(MouthOffset + FVector(1500.f, 0.f, 0.f));
+
+	// Sounds are made by Tools/build_audio.py; any that are missing are simply not heard.
+	for (const TCHAR* Name : { TEXT("wind_loop"), TEXT("wings_loop"), TEXT("fire_loop"), TEXT("music_loop"), TEXT("roar"), TEXT("ring"), TEXT("ignite"), TEXT("thud"), TEXT("hit") })
+	{
+		if (USoundBase* Sound = LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Audio/%s.%s"), Name, Name), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			Cues.Add(Name, Sound);
+		}
+	}
+	auto Start = [this](UAudioComponent* A, const TCHAR* Name, float Volume)
+	{
+		if (const TObjectPtr<USoundBase>* Sound = Cues.Find(Name))
+		{
+			A->SetSound(*Sound);
+			A->SetVolumeMultiplier(Volume);
+			A->Play();
+		}
+	};
+	Start(WindAudio, TEXT("wind_loop"), 0.01f);
+	Start(WingAudio, TEXT("wings_loop"), 0.01f);
+	Start(FireAudio, TEXT("fire_loop"), 0.01f);
+	Start(MusicAudio, TEXT("music_loop"), 0.4f);
 }
 
 void ADragonPawn::SeatRider()
@@ -273,8 +311,31 @@ void ADragonPawn::FlamePuff(const FVector& Location, const FVector& Velocity, fl
 	EmitFlame(Location, Velocity, Life);
 }
 
+void ADragonPawn::PlayCue(const TCHAR* Name, float Volume, float PitchScale)
+{
+	if (const TObjectPtr<USoundBase>* Sound = Cues.Find(Name))
+	{
+		UGameplayStatics::PlaySound2D(this, *Sound, Volume, PitchScale);
+	}
+}
+
+void ADragonPawn::Roar()
+{
+	if (RoarWait > 0.f)
+	{
+		return;
+	}
+	RoarWait = 3.2f;
+	PlayCue(TEXT("roar"), 1.f, FMath::FRandRange(0.94f, 1.04f));
+	if (Mode == EDragonMode::Grounded)
+	{
+		PlayAnim(RoarAnim, false);
+	}
+}
+
 void ADragonPawn::Boost()
 {
+	PlayCue(TEXT("ring"));
 	Speed = FMath::Min(Speed + 1800.f, MaxSpeed);
 }
 
@@ -303,6 +364,10 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		{
 			UKismetSystemLibrary::QuitGame(this, PC, EQuitPreference::Quit, false);
 			return;
+		}
+		if (!bIntro && CutShot < 0 && (PC->WasInputKeyJustPressed(EKeys::Q) || PC->WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder)))
+		{
+			Roar();
 		}
 		if (PC->WasInputKeyJustPressed(EKeys::C) || PC->WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
 		{
@@ -442,6 +507,17 @@ void ADragonPawn::Tick(float DeltaSeconds)
 		const float Open = !bBreathing ? 0.f : Mode == EDragonMode::Flying ? 1.f : 0.35f;
 		Anim->JawOpen = FMath::FInterpTo(Anim->JawOpen, Open, Dt, bBreathing ? 14.f : 5.f);
 	}
+
+	// ---- sound: wind with speed, wingbeats with the animation, the roar of the flame ----
+	RoarWait = FMath::Max(RoarWait - Dt, 0.f);
+	const bool bAloft = Mode != EDragonMode::Grounded && Mode != EDragonMode::Landing;
+	const float Rush = bAloft ? FMath::Clamp(Speed / MaxSpeed, 0.f, 1.f) : 0.f;
+	WindAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(WindAudio->VolumeMultiplier, 0.15f + 0.85f * Rush, Dt, 3.f) * (bAloft ? 1.f : 0.6f), 0.01f));
+	WindAudio->SetPitchMultiplier(0.8f + 0.7f * Rush);
+	const float Beat = FMath::Lerp(0.5f, 1.5f, FlapAmount);
+	WingAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(WingAudio->VolumeMultiplier, bAloft ? 0.35f + 0.5f * FlapAmount : 0.f, Dt, 5.f), 0.01f));
+	WingAudio->SetPitchMultiplier(Beat);
+	FireAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(FireAudio->VolumeMultiplier, bBreathing ? 1.f : 0.f, Dt, bBreathing ? 16.f : 6.f), 0.01f));
 }
 
 FVector ADragonPawn::GetMouthLocation() const
@@ -506,7 +582,8 @@ void ADragonPawn::SetCutsceneShot(int32 Shot)
 	}
 	else if (Shot == 0 && Mode == EDragonMode::Grounded)
 	{
-		PlayAnim(RoarAnim, false);
+		RoarWait = 0.f;
+		Roar();
 	}
 }
 
@@ -585,7 +662,11 @@ void ADragonPawn::TickIntro(float Dt, bool bSkip)
 			const float Shake = FMath::Sin(T * PI) * 14.f;
 			AimCamera(Head + FVector(FMath::FRandRange(-Shake, Shake), FMath::FRandRange(-Shake, Shake), -160.f + FMath::FRandRange(-Shake, Shake)),
 				FMath::Lerp(168.f, 150.f, T), FMath::Lerp(1050.f, 800.f, T), 0.f, 12.f);
-			PlayAnim(RoarAnim ? RoarAnim.Get() : IdleAnim.Get(), false);
+			if (CurrentAnim != RoarAnim)
+			{
+				RoarWait = 0.f;
+				Roar();
+			}
 		}
 		else if (IntroTime < TakeoffAt)
 		{
@@ -680,6 +761,7 @@ void ADragonPawn::TickGround(float Dt, float TurnIn, float Forward, float MouseX
 			Mode = EDragonMode::Grounded;
 			ModeTime = 0.f;
 			PlayAnim(IdleAnim, true);
+			PlayCue(TEXT("thud"));
 		}
 		break;
 	}
@@ -712,7 +794,7 @@ void ADragonPawn::TickGround(float Dt, float TurnIn, float Forward, float MouseX
 		{
 			PlayAnim(bRun ? RunAnim.Get() : WalkAnim.Get(), true, bRun ? 1.2f : 1.f);
 		}
-		else
+		else if (RoarWait < 0.4f) // lets a roar play out before going back to standing
 		{
 			PlayAnim(IdleAnim, true);
 		}

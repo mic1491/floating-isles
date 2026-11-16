@@ -1,7 +1,9 @@
 #include "DragonProps.h"
 #include "DragonPawn.h"
 #include "DragonWorld.h"
+#include "Components/AudioComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Kismet/GameplayStatics.h"
@@ -48,6 +50,10 @@ ADragonProps::ADragonProps()
 	Leaves = Make(TEXT("Leaves"));
 	Walls = Make(TEXT("Walls"));
 	Roofs = Make(TEXT("Roofs"));
+	BurnAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("BurnAudio"));
+	BurnAudio->SetupAttachment(RootComponent);
+	BurnAudio->bAutoActivate = false;
+	BurnAudio->bIsUISound = true;
 }
 
 FIntPoint ADragonProps::CellOf(const FVector& P)
@@ -76,6 +82,13 @@ void ADragonProps::BeginPlay()
 	Setup(Leaves, TEXT("/Engine/BasicShapes/Cone.Cone"), FLinearColor(0.035f, 0.13f, 0.03f));
 	Setup(Walls, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.50f, 0.42f, 0.30f));
 	Setup(Roofs, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.30f, 0.09f, 0.05f));
+
+	if (USoundBase* Crackle = LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/burn_loop.burn_loop"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		BurnAudio->SetSound(Crackle);
+		BurnAudio->SetVolumeMultiplier(0.01f);
+		BurnAudio->Play();
+	}
 
 	FRandomStream Rng(20261113);
 	const float R = ADragonWorld::PlayRadius;
@@ -274,6 +287,11 @@ void ADragonProps::Tick(float DeltaSeconds)
 					if (Dist < FireReach && (To | Dir) > Dist * 0.93f) // within about 21 degrees
 					{
 						Ignite(Index);
+						if (IgniteWait <= 0.f)
+						{
+							IgniteWait = 0.25f;
+							Dragon->PlayCue(TEXT("ignite"), 0.8f, FMath::FRandRange(0.85f, 1.15f));
+						}
 					}
 				}
 			}
@@ -281,6 +299,8 @@ void ADragonProps::Tick(float DeltaSeconds)
 	}
 
 	// ---- things on fire: glow, char, spread, throw flames ----
+	IgniteWait -= DeltaSeconds;
+	int32 NearFires = 0;
 	bool bChanged = false;
 	for (int32 b = Burning.Num() - 1; b >= 0; --b)
 	{
@@ -317,6 +337,7 @@ void ADragonProps::Tick(float DeltaSeconds)
 			}
 		}
 
+		NearFires += Glow > 0.1f && FVector::DistSquared(P.Pos, DragonPos) < FMath::Square(25000.f);
 		// Flames are only worth drawing near the dragon.
 		if (Glow > 0.1f && FVector::DistSquared(P.Pos, DragonPos) < FMath::Square(60000.f) && FMath::FRand() < DeltaSeconds * 5.f * Glow)
 		{
@@ -331,6 +352,7 @@ void ADragonProps::Tick(float DeltaSeconds)
 			Burning.RemoveAtSwap(b);
 		}
 	}
+	BurnAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(BurnAudio->VolumeMultiplier, FMath::Clamp(NearFires / 25.f, 0.f, 1.f), DeltaSeconds, 2.f), 0.01f));
 	if (bChanged)
 	{
 		for (UInstancedStaticMeshComponent* C : { Trunks.Get(), Leaves.Get(), Walls.Get(), Roofs.Get() })

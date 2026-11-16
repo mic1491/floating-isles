@@ -5,6 +5,8 @@
 #include "DragonPawn.generated.h"
 
 class UAnimSequence;
+class UAudioComponent;
+class USoundBase;
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
 class UPointLightComponent;
@@ -76,6 +78,10 @@ public:
 	 */
 	void SetCutsceneShot(int32 Shot);
 	bool InCutscene() const { return CutShot >= 0; }
+	/** Roars: Q or the gamepad's right bumper. On the ground the dragon rears up to do it. */
+	void Roar();
+	/** Plays one of the game's sounds by name (see Tools/build_audio.py); does nothing if it is missing. */
+	void PlayCue(const TCHAR* Name, float Volume = 1.f, float PitchScale = 1.f);
 	bool IsIntro() const { return bIntro; }
 	float GetIntroTime() const { return IntroTime; }
 
@@ -153,6 +159,18 @@ private:
 	TObjectPtr<UInstancedStaticMeshComponent> Flames;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UPointLightComponent> FireLight;
+
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UAudioComponent> WindAudio;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UAudioComponent> WingAudio;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UAudioComponent> FireAudio;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UAudioComponent> MusicAudio;
+	UPROPERTY()
+	TMap<FName, TObjectPtr<USoundBase>> Cues;
+	float RoarWait = 0.f;
 
 	UPROPERTY()
 	TObjectPtr<UAnimSequence> FlyAnim;
