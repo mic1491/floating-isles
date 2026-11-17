@@ -5,6 +5,8 @@
 #include "DragonProps.generated.h"
 
 class UAudioComponent;
+class UDecalComponent;
+class UMaterialInterface;
 class UHierarchicalInstancedStaticMeshComponent;
 class UInstancedStaticMeshComponent;
 
@@ -24,6 +26,11 @@ public:
 	ADragonProps();
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;
+
+	/** Leaves the ground black around a point; nearby patches are merged so the count stays modest. */
+	void ScorchAt(const FVector& Ground, float Radius);
+	/** Keeps a point smoking for a while after its fire is out. */
+	void AddSmoulder(const FVector& At, float Seconds, float Strength = 1.f);
 
 	/** The middle of each village, for whoever else wants to stand guard there. */
 	const TArray<FVector2D>& GetVillages() const { return VillageCentres; }
@@ -48,6 +55,7 @@ private:
 		int8 Kind = -1;          // which real tree model, or -1 for a house or a plain cone tree
 		float Scale = 1.f;
 		bool bBare = false;      // its leaves have burnt away
+		bool bScorched = false;  // the ground under it has been blackened
 	};
 
 	void AddTree(const FVector& Ground, float Height, float Yaw, float Shade);
@@ -120,6 +128,45 @@ private:
 	UPROPERTY()
 	TObjectPtr<UAudioComponent> BurnAudio;
 	float IgniteWait = 0.f;
+
+	// ---- smoke: puffs drawn in one batch, rising from what burns and drifting with the wind ----
+	struct FPuff
+	{
+		FVector Pos = FVector::ZeroVector;
+		FVector Vel = FVector::ZeroVector;
+		float Age = 0.f;
+		float Life = 0.f; // zero means the slot is free
+		float Size = 1.f;
+		float Heat = 0.f;
+	};
+	struct FSmokeSource
+	{
+		FVector At = FVector::ZeroVector;
+		float Strength = 0.f;
+		float Heat = 0.f;
+	};
+	struct FSmoulder
+	{
+		FVector At = FVector::ZeroVector;
+		float Left = 0.f;
+		float Total = 1.f;
+		float Strength = 1.f;
+	};
+	void UpdateSmoke(float DeltaSeconds, const FVector& DragonPos);
+	UPROPERTY()
+	TObjectPtr<UInstancedStaticMeshComponent> Smoke;
+	TArray<FPuff> Puffs;
+	TArray<FSmokeSource> SmokeSources;
+	TArray<FSmoulder> Smoulders;
+	int32 NextPuff = 0;
+	float SmokeDebt = 0.f;
+
+	// ---- burnt ground ----
+	UPROPERTY()
+	TObjectPtr<UMaterialInterface> ScorchMat;
+	UPROPERTY()
+	TArray<TObjectPtr<UDecalComponent>> Scorches;
+	TMap<FIntPoint, TArray<FVector>> ScorchCells;
 
 	TArray<FProp> Props;
 	TArray<FVector2D> VillageCentres;

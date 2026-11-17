@@ -67,7 +67,6 @@ void ADragonFoes::Build()
 	Setup(BoltMeshes, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), FLinearColor(0.9f, 0.5f, 0.15f));
 
 	// Two towers on opposite sides of each village, a little way out from the houses.
-	const ADragonProps* Props = nullptr;
 	for (TActorIterator<ADragonProps> It(GetWorld()); It; ++It) { Props = *It; }
 	FRandomStream Rng(771);
 	if (Props)
@@ -181,6 +180,11 @@ void ADragonFoes::Tick(float DeltaSeconds)
 				if (T.Health <= 0.f)
 				{
 					++TowersBurned;
+					if (Props)
+					{
+						Props->ScorchAt(T.Pos, 2200.f);
+						Props->AddSmoulder(Top, 60.f, 1.2f);
+					}
 					Dragon->FireBurst(Top);
 					Dragon->PlayCue(TEXT("ignite"), 1.f, 0.7f);
 				}

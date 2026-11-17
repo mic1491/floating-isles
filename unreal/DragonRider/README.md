@@ -14,6 +14,10 @@
 
 ![點燃森林](SourceArt/screenshot_forest.jpg)
 
+![濃煙](SourceArt/screenshot_smoke.jpg)
+
+![焦土](SourceArt/screenshot_scorch.jpg)
+
 ![營寨](SourceArt/screenshot_village.jpg)
 
 ![燒毀營寨](SourceArt/screenshot_village_fire.jpg)
@@ -71,6 +75,8 @@
 
 俯衝會加速，爬升會減速，太慢時龍頭會自己往下掉。
 
+燒著的東西會冒出往上翻滾、被風吹斜的濃煙，燒完後還會悶燒冒煙一陣子；燒過的地面會留下焦黑的痕跡，連成一片焦土。
+
 每座營寨旁有兩座弩砲塔，龍進入射程就會被弩箭瞄準射擊，轉向可以閃掉。龍有生命值，幾秒沒被打中會自己回復；歸零時會退回高空重整，進度不會丟。用龍焰持續燒一座塔約兩秒可以把它燒毀。
 
 每次啟動會先播一段開場：龍站在山腰上咆哮、噴火，然後起飛，接著才交給你操控。降落後龍會站著噴火，可以走到森林或村莊旁邊燒。
@@ -93,7 +99,7 @@
 
 - `-AutoFire`：持續噴火，不耗燃料
 - `-View=N`：以第 N 種視角開始（0 到 5）
-- `-BurnTest`：開場就點燃起點附近的森林和村莊
+- `-BurnTest`：開場就點燃起點附近的森林和村莊；和 `-TreeTest` 或 `-VillageTest` 一起用時，改成站在那裡、點燃眼前的森林或營寨
 - `-LandTest`：一開始就站在最近的平地上
 - `-NoIntro`：不播開場動畫
 - `-FoeTest`：一開始就飛在第一座弩砲塔前方

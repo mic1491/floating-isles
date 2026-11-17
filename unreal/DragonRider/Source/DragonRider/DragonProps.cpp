@@ -2,11 +2,13 @@
 #include "DragonPawn.h"
 #include "DragonWorld.h"
 #include "Components/AudioComponent.h"
+#include "Components/DecalComponent.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -24,6 +26,13 @@ namespace
 	const float BurnTime = 10.f;        // seconds until a thing is burnt out
 	const float FireReach = 9500.f;     // how far the dragon's breath sets things alight
 	const int32 MaxTrees = 30000;
+	const int32 MaxPuffs = 380;
+	const float MaxPuffsPerSecond = 40.f;  // what the pool can carry at the puffs' average life
+	const float SmokeRange = 150000.f;     // smoke is only made within 1.5 km of the dragon
+	const FVector Wind(320.f, 140.f, 0.f); // which way the smoke drifts, cm/s
+	const FVector Parked(0.f, 0.f, -5000000.f); // where unused puffs wait, far out of sight
+	const int32 MaxScorches = 2500;
+	const float ScorchCellSize = 2500.f;
 
 	/** Per-instance values read by the M_Prop material: how charred, how brightly glowing, and a shade. */
 	enum { DataChar = 0, DataGlow = 1, DataShade = 2 };
@@ -53,6 +62,13 @@ ADragonProps::ADragonProps()
 	Leaves = Make(TEXT("Leaves"));
 	Walls = Make(TEXT("Walls"));
 	Roofs = Make(TEXT("Roofs"));
+	Smoke = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Smoke"));
+	Smoke->SetupAttachment(RootComponent);
+	Smoke->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Smoke->SetCastShadow(false);
+	Smoke->SetUsingAbsoluteLocation(true);
+	Smoke->SetUsingAbsoluteRotation(true);
+	Smoke->SetUsingAbsoluteScale(true);
 	BurnAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("BurnAudio"));
 	BurnAudio->SetupAttachment(RootComponent);
 	BurnAudio->bAutoActivate = false;
@@ -152,6 +168,20 @@ void ADragonProps::BeginPlay()
 
 	LoadHouseKinds(Base);
 
+	// Smoke and scorch materials are made by Tools/setup_assets.py.
+	Smoke->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+	if (UMaterialInterface* SmokeMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Smoke.M_Smoke"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		Smoke->SetMaterial(0, SmokeMat);
+		Smoke->SetNumCustomDataFloats(3);
+		Puffs.SetNum(MaxPuffs);
+		for (int32 i = 0; i < MaxPuffs; ++i)
+		{
+			Smoke->AddInstance(FTransform(FRotator::ZeroRotator, Parked, FVector(0.01f)), true);
+		}
+	}
+	ScorchMat = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Scorch.M_Scorch"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+
 	FRandomStream Rng(20261113);
 	const float R = ADragonWorld::PlayRadius;
 
@@ -247,7 +277,7 @@ void ADragonProps::BeginPlay()
 		Cells.FindOrAdd(CellOf(Props[i].Pos)).Add(i);
 	}
 	// Starting the game with -BurnTest sets the nearest woods and houses alight at once, for checking the effect.
-	if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")))
+	if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")) && !FParse::Param(FCommandLine::Get(), TEXT("VillageTest")) && !FParse::Param(FCommandLine::Get(), TEXT("TreeTest")))
 	{
 		for (int32 i = 0; i < Props.Num(); ++i)
 		{
@@ -464,7 +494,7 @@ void ADragonProps::ShowBurn(FProp& P, float Char, float Glow)
 		}
 		for (const TPair<int32, int32>& C : H.Charred)
 		{
-			HouseParts[C.Key].Burnt->SetCustomDataValue(C.Value, DataGlow, Glow * 0.4f, false);
+			HouseParts[C.Key].Burnt->SetCustomDataValue(C.Value, DataGlow, Glow * 0.35f, false);
 			HouseParts[C.Key].Burnt->MarkRenderStateDirty();
 		}
 		return;
@@ -484,7 +514,7 @@ void ADragonProps::ShowBurn(FProp& P, float Char, float Glow)
 		}
 		if (P.bBare)
 		{
-			K.Burnt->SetCustomDataValue(P.High, DataGlow, Glow * 0.35f, false); // embers in the bark, not a lantern
+			K.Burnt->SetCustomDataValue(P.High, DataGlow, Glow * 0.6f, false); // embers in the bark
 			K.Burnt->MarkRenderStateDirty();
 		}
 		return;
@@ -513,6 +543,16 @@ void ADragonProps::Tick(float DeltaSeconds)
 	{
 		bVillageTest = false;
 		Dragon->StandAt(FVector2D(Props[0].Pos.X - 3800.f, Props[0].Pos.Y));
+		if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")))
+		{
+			for (int32 i = 0; i < Props.Num(); ++i)
+			{
+				if (FVector::Dist2D(Props[i].Pos, Props[0].Pos) < 9000.f)
+				{
+					Ignite(i);
+				}
+			}
+		}
 	}
 
 	// Starting the game with -TreeTest puts the dragon low in front of a tree in the middle of a wood, for a close look.
@@ -531,7 +571,22 @@ void ADragonProps::Tick(float DeltaSeconds)
 			}
 		}
 		const FVector Tree = Props[Best].Pos;
-		Dragon->FaceFrom(Tree + FVector(-16000.f, 0.f, 4500.f), Tree + FVector(0.f, 0.f, 1000.f));
+		if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")))
+		{
+			// With -BurnTest too: stand at the edge of the wood and set its middle alight.
+			Dragon->StandAt(FVector2D(Tree.X - 4500.f, Tree.Y));
+			for (int32 i = 0; i < Props.Num(); ++i)
+			{
+				if (!Props[i].bHouse && FVector::Dist2D(Props[i].Pos, Tree) < 5000.f)
+				{
+					Ignite(i);
+				}
+			}
+		}
+		else
+		{
+			Dragon->FaceFrom(Tree + FVector(-16000.f, 0.f, 4500.f), Tree + FVector(0.f, 0.f, 1000.f));
+		}
 	}
 	const FVector DragonPos = Dragon->GetActorLocation();
 
@@ -575,6 +630,7 @@ void ADragonProps::Tick(float DeltaSeconds)
 
 	// ---- things on fire: glow, char, spread, throw flames ----
 	IgniteWait -= DeltaSeconds;
+	SmokeSources.Reset();
 	int32 NearFires = 0;
 	bool bChanged = false;
 	for (int32 b = Burning.Num() - 1; b >= 0; --b)
@@ -612,6 +668,17 @@ void ADragonProps::Tick(float DeltaSeconds)
 			}
 		}
 
+		// Smoke boils up from everything alight; the ground goes black once the fire has a hold.
+		if (FVector::DistSquared(P.Pos, DragonPos) < FMath::Square(SmokeRange))
+		{
+			SmokeSources.Add({ P.Pos + FVector(0.f, 0.f, P.Height * 0.75f), 0.35f + Glow, Glow });
+		}
+		if (!P.bScorched && T > 0.35f)
+		{
+			P.bScorched = true;
+			ScorchAt(P.Pos, P.bHouse ? FMath::FRandRange(1900.f, 2300.f) : FMath::FRandRange(2600.f, 3400.f));
+		}
+
 		NearFires += Glow > 0.1f && FVector::DistSquared(P.Pos, DragonPos) < FMath::Square(25000.f);
 		// Flames are only worth drawing near the dragon.
 		if (Glow > 0.1f && FVector::DistSquared(P.Pos, DragonPos) < FMath::Square(60000.f) && FMath::FRand() < DeltaSeconds * 5.f * Glow)
@@ -624,9 +691,11 @@ void ADragonProps::Tick(float DeltaSeconds)
 		{
 			P.bDone = true;
 			ShowBurn(P, 1.f, 0.f);
+			AddSmoulder(P.Pos + FVector(0.f, 0.f, P.Height * 0.35f), P.bHouse ? 45.f : 25.f, P.bHouse ? 1.f : 0.5f);
 			Burning.RemoveAtSwap(b);
 		}
 	}
+	UpdateSmoke(DeltaSeconds, DragonPos);
 	BurnAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(BurnAudio->VolumeMultiplier, FMath::Clamp(NearFires / 25.f, 0.f, 1.f), DeltaSeconds, 2.f), 0.01f));
 	if (bChanged)
 	{
@@ -634,5 +703,135 @@ void ADragonProps::Tick(float DeltaSeconds)
 		{
 			C->MarkRenderStateDirty();
 		}
+	}
+}
+
+void ADragonProps::AddSmoulder(const FVector& At, float Seconds, float Strength)
+{
+	Smoulders.Add({ At, Seconds, Seconds, Strength });
+}
+
+void ADragonProps::ScorchAt(const FVector& Ground, float Radius)
+{
+	if (!ScorchMat || Scorches.Num() >= MaxScorches)
+	{
+		return;
+	}
+	// Skip it if a patch already covers most of this spot.
+	const FIntPoint Cell(FMath::FloorToInt32(Ground.X / ScorchCellSize), FMath::FloorToInt32(Ground.Y / ScorchCellSize));
+	for (int32 cy = -1; cy <= 1; ++cy)
+	{
+		for (int32 cx = -1; cx <= 1; ++cx)
+		{
+			if (const TArray<FVector>* Near = ScorchCells.Find(Cell + FIntPoint(cx, cy)))
+			{
+				for (const FVector& Other : *Near)
+				{
+					if (FVector::Dist2D(Other, Ground) < Radius * 0.6f)
+					{
+						return;
+					}
+				}
+			}
+		}
+	}
+	ScorchCells.FindOrAdd(Cell).Add(Ground);
+
+	UDecalComponent* D = NewObject<UDecalComponent>(this);
+	D->SetupAttachment(RootComponent);
+	D->SetDecalMaterial(ScorchMat);
+	// Projects straight down (the decal's X axis), deep enough to reach the ground on a slope.
+	D->DecalSize = FVector(1600.f, Radius, Radius);
+	D->SetFadeScreenSize(0.0004f);
+	D->RegisterComponent();
+	D->SetWorldLocationAndRotation(FVector(Ground.X, Ground.Y, ADragonWorld::HeightAt(Ground.X, Ground.Y) + 200.f), FRotator(-90.f, 0.f, FMath::FRandRange(0.f, 360.f)));
+	Scorches.Add(D);
+}
+
+void ADragonProps::UpdateSmoke(float Dt, const FVector& DragonPos)
+{
+	if (Puffs.Num() == 0)
+	{
+		return;
+	}
+	// Burnt-out things go on smoking for a while, more faintly as they cool.
+	for (int32 i = Smoulders.Num() - 1; i >= 0; --i)
+	{
+		FSmoulder& S = Smoulders[i];
+		S.Left -= Dt;
+		if (S.Left <= 0.f)
+		{
+			Smoulders.RemoveAtSwap(i);
+		}
+		else if (FVector::DistSquared(S.At, DragonPos) < FMath::Square(SmokeRange))
+		{
+			SmokeSources.Add({ S.At, 0.45f * S.Strength * (S.Left / S.Total), 0.f });
+		}
+	}
+
+	// New puffs, as many as the fires call for but never more than the pool can carry.
+	float Want = 0.f;
+	for (const FSmokeSource& Src : SmokeSources)
+	{
+		Want += Src.Strength;
+	}
+	SmokeDebt = FMath::Min(SmokeDebt + FMath::Min(Want * 1.2f, MaxPuffsPerSecond) * Dt, 30.f);
+	while (SmokeDebt >= 1.f && SmokeSources.Num() > 0)
+	{
+		SmokeDebt -= 1.f;
+		const FSmokeSource& Src = SmokeSources[FMath::RandRange(0, SmokeSources.Num() - 1)];
+		FPuff& P = Puffs[NextPuff];
+		NextPuff = (NextPuff + 1) % Puffs.Num();
+		P.Pos = Src.At + FVector(FMath::FRandRange(-300.f, 300.f), FMath::FRandRange(-300.f, 300.f), FMath::FRandRange(-100.f, 200.f));
+		P.Vel = FVector(FMath::FRandRange(-60.f, 60.f), FMath::FRandRange(-60.f, 60.f), FMath::FRandRange(380.f, 700.f));
+		P.Age = 0.f;
+		P.Life = FMath::FRandRange(6.f, 9.f);
+		P.Size = FMath::FRandRange(0.7f, 1.3f) * (0.6f + 0.4f * FMath::Min(Src.Strength, 1.f));
+		P.Heat = Src.Heat;
+	}
+	if (SmokeSources.Num() == 0)
+	{
+		SmokeDebt = 0.f;
+	}
+
+	// Each puff rises, slows, is caught by the wind and spreads out as it thins.
+	// Puffs around the camera are not drawn: seen from inside they would fill the whole picture,
+	// which costs far more than all the others together and only shows a grey veil.
+	FVector Eye = DragonPos;
+	if (const APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+	{
+		FRotator Unused;
+		PC->GetPlayerViewPoint(Eye, Unused);
+	}
+	bool bAny = false;
+	for (int32 i = 0; i < Puffs.Num(); ++i)
+	{
+		FPuff& P = Puffs[i];
+		if (P.Life <= 0.f)
+		{
+			continue;
+		}
+		bAny = true;
+		P.Age += Dt;
+		if (P.Age >= P.Life)
+		{
+			P.Life = 0.f;
+			Smoke->UpdateInstanceTransform(i, FTransform(FRotator::ZeroRotator, Parked, FVector(0.01f)), true, false, true);
+			continue;
+		}
+		const float T = P.Age / P.Life;
+		P.Vel.Z *= FMath::Max(0.f, 1.f - 0.18f * Dt);
+		P.Pos += (P.Vel + Wind * FMath::Min(T * 2.5f, 1.f)) * Dt;
+		const float Scale = FMath::Lerp(4.f, 21.f, FMath::Pow(T, 0.6f)) * P.Size; // the sphere is 1 m across
+		const float Alpha = FMath::SmoothStep(0.f, 0.1f, T) * (1.f - FMath::SmoothStep(0.45f, 1.f, T));
+		const bool bTooClose = FVector::DistSquared(P.Pos, Eye) < FMath::Square(Scale * 50.f + 1500.f);
+		Smoke->UpdateInstanceTransform(i, FTransform(FRotator::ZeroRotator, bTooClose ? Parked : P.Pos, FVector(Scale)), true, false, true);
+		Smoke->SetCustomDataValue(i, 0, Alpha, false);
+		Smoke->SetCustomDataValue(i, 1, P.Heat * FMath::Max(0.f, 1.f - T * 5.f), false);
+		Smoke->SetCustomDataValue(i, 2, FMath::SmoothStep(0.f, 0.7f, T), false);
+	}
+	if (bAny)
+	{
+		Smoke->MarkRenderStateDirty();
 	}
 }

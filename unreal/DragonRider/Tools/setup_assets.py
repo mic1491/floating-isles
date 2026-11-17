@@ -11,6 +11,8 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Fire      additive flame puff for the fire breath
        /Game/Materials/M_Prop      trees and houses, which char and glow as they burn
        /Game/Materials/M_Hidden    draws nothing; hides the leaves of a burnt tree
+       /Game/Materials/M_Smoke     a soft puff of smoke
+       /Game/Materials/M_Scorch    burnt ground, a decal
 
 The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
@@ -28,7 +30,7 @@ MP = unreal.MaterialProperty
 # ---- textures ---------------------------------------------------------------
 def import_textures():
     tasks = []
-    for name in ("noise_d", "noise_n", "macro_d", "water_n"):
+    for name in ("noise_d", "noise_n", "macro_d", "water_n", "scorch_d"):
         t = unreal.AssetImportTask()
         t.filename = os.path.join(ART, "tex", name + ".png")
         t.destination_path = "/Game/Textures"
@@ -42,7 +44,7 @@ def import_textures():
         tex.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
         tex.set_editor_property("srgb", False)
         eal.save_loaded_asset(tex)
-    for name in ("noise_d", "macro_d"):
+    for name in ("noise_d", "macro_d", "scorch_d"):
         tex = eal.load_asset("/Game/Textures/" + name)
         tex.set_editor_property("srgb", False)  # used as plain brightness, not colour
         eal.save_loaded_asset(tex)
@@ -199,8 +201,65 @@ def make_prop():
     mel.connect_material_expressions(char, "", base, "Alpha")
     ember = node(m, unreal.MaterialExpressionConstant3Vector, -900, 650, constant=unreal.LinearColor(1.0, 0.22, 0.02, 1.0))
     mel.connect_material_property(base, "", MP.MP_BASE_COLOR)
-    mel.connect_material_property(times(m, times(m, ember, glow, 650), 5.0, 700), "", MP.MP_EMISSIVE_COLOR)
+    # Embers glow in patches and cracks, not across a whole surface: the glow is cut by a fine
+    # noise laid over the world, raised to a high power so only its peaks light up.
+    # The noise is three-dimensional, so it breaks up walls as well as it does the ground.
+    pos = node(m, unreal.MaterialExpressionWorldPosition, -1300, 800)
+    grain = node(m, unreal.MaterialExpressionNoise, -1050, 800, scale=0.012, levels=3, output_min=0.0, output_max=1.0, turbulence=True)
+    mel.connect_material_expressions(pos, "", grain, "Position")
+    cracks = node(m, unreal.MaterialExpressionPower, -800, 800, const_exponent=10.0)
+    mel.connect_material_expressions(grain, "", cracks, "Base")
+    patchy = times(m, times(m, ember, glow, 650), cracks, 700)
+    mel.connect_material_property(times(m, patchy, 45.0, 750), "", MP.MP_EMISSIVE_COLOR)
     mel.connect_material_property(const(m, 0.85, 900), "", MP.MP_ROUGHNESS)
+    finish(m)
+
+
+def make_smoke():
+    """A soft puff of smoke. Each puff passes in how opaque it is now, how much fire-light is on it, and its age."""
+    m = new_material("M_Smoke")
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    alpha = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1300, 0, data_index=0, const_default_value=1.0)
+    heat = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1300, 150, data_index=1, const_default_value=0.0)
+    age = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1300, 300, data_index=2, const_default_value=0.5)
+    # Thick and dark where it boils up from the fire, thinning to a pale grey as it rises.
+    young = node(m, unreal.MaterialExpressionConstant3Vector, -1100, 450, constant=unreal.LinearColor(0.05, 0.045, 0.04, 1.0))
+    old = node(m, unreal.MaterialExpressionConstant3Vector, -1100, 600, constant=unreal.LinearColor(0.42, 0.40, 0.38, 1.0))
+    shade = node(m, unreal.MaterialExpressionLinearInterpolate, -850, 500)
+    mel.connect_material_expressions(young, "", shade, "A")
+    mel.connect_material_expressions(old, "", shade, "B")
+    mel.connect_material_expressions(age, "", shade, "Alpha")
+    ember = node(m, unreal.MaterialExpressionConstant3Vector, -1100, 750, constant=unreal.LinearColor(1.4, 0.38, 0.08, 1.0))
+    lit = node(m, unreal.MaterialExpressionAdd, -450, 550)
+    mel.connect_material_expressions(shade, "", lit, "A")
+    mel.connect_material_expressions(times(m, ember, heat, 700), "", lit, "B")
+    mel.connect_material_property(lit, "", MP.MP_EMISSIVE_COLOR)
+    # Dense in the middle of the puff and fading to nothing at its rim, so puffs blend into one plume.
+    rim = node(m, unreal.MaterialExpressionFresnel, -1300, 900, exponent=1.0, base_reflect_fraction=0.0)
+    core = node(m, unreal.MaterialExpressionOneMinus, -1100, 900)
+    mel.connect_material_expressions(rim, "", core, "")
+    soft = times(m, core, core, 900)
+    mel.connect_material_property(times(m, times(m, soft, alpha, 950), 0.7, 1000), "", MP.MP_OPACITY)
+    finish(m)
+
+
+def make_scorch():
+    """Burnt ground, projected down onto the terrain beneath whatever burned."""
+    m = new_material("M_Scorch")
+    m.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    tex = sample(m, "scorch_d", tiled_uv(m, 1.0, 0), 0)
+    mel.connect_material_property(times(m, tex, 0.5, 0), "", MP.MP_BASE_COLOR)
+    # The patch's alpha, strengthened so its middle covers the grass completely.
+    cover = node(m, unreal.MaterialExpressionSaturate, -250, 200)
+    strong = node(m, unreal.MaterialExpressionMultiply, -400, 200, const_b=1.8)
+    mel.connect_material_expressions(tex, "A", strong, "A")
+    mel.connect_material_expressions(strong, "", cover, "")
+    mel.connect_material_property(cover, "", MP.MP_OPACITY)
+    mel.connect_material_property(const(m, 1.0, 400), "", MP.MP_ROUGHNESS)
+    mel.connect_material_property(const(m, 0.0, 500), "", MP.MP_SPECULAR)  # charcoal has no shine
     finish(m)
 
 
@@ -404,6 +463,8 @@ make_water()
 make_fire()
 make_prop()
 make_hidden()
+make_smoke()
+make_scorch()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")

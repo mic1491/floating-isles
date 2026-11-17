@@ -5,6 +5,7 @@
 #include "DragonFoes.generated.h"
 
 class ADragonPawn;
+class ADragonProps;
 class UInstancedStaticMeshComponent;
 
 /**
@@ -51,6 +52,8 @@ private:
 	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> BoltMeshes;
 
+	UPROPERTY()
+	TObjectPtr<ADragonProps> Props;
 	TArray<FTower> Towers;
 	TArray<FBolt> Bolts;
 	FVector LastDragonPos = FVector::ZeroVector;

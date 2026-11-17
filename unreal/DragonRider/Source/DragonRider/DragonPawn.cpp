@@ -49,6 +49,7 @@ ADragonPawn::ADragonPawn()
 	Mesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(Body);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetReceivesDecals(false); // burnt ground is not painted onto the dragon
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> DragonMesh(TEXT("/Game/SakuraDragon/Meshes/SK_Dragon_Sakura.SK_Dragon_Sakura"));
 	static ConstructorHelpers::FObjectFinder<UAnimSequence> Fly(TEXT("/Game/SakuraDragon/Animations/A_Sakura_Fly_Forward.A_Sakura_Fly_Forward"));
 	if (DragonMesh.Succeeded())
@@ -69,6 +70,7 @@ ADragonPawn::ADragonPawn()
 	Rider = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Rider"));
 	Rider->SetupAttachment(Mesh);
 	Rider->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Rider->SetReceivesDecals(false);
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> RiderMesh(TEXT("/Game/Rider/SM_Rider.SM_Rider"));
 	if (RiderMesh.Succeeded())
 	{
