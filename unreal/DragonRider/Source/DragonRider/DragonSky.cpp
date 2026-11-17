@@ -99,7 +99,7 @@ void ADragonSky::Start()
 	};
 	Moon = Light(FLinearColor(0.55f, 0.65f, 1.f), false);
 	// The moon lights the land but not the air: lit by it, the atmosphere would glow daylight blue
-	// once the camera has adjusted to the dark, and the night sky would never be black enough for stars.
+	// once the camera has adjusted to the dark, and the night would never look like night.
 	if (UDirectionalLightComponent* M = Cast<UDirectionalLightComponent>(Moon->GetLightComponent()))
 	{
 		M->SetAtmosphereSunLight(false);
