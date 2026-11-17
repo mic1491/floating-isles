@@ -31,6 +31,9 @@ public:
 	void ScorchAt(const FVector& Ground, float Radius);
 	/** Keeps a point smoking for a while after its fire is out. */
 	void AddSmoulder(const FVector& At, float Seconds, float Strength = 1.f);
+	/** Whether a spot lies inside a patch of burnt ground. */
+	bool IsScorched(const FVector2D& At) const;
+	int32 NumScorches() const { return Scorches.Num(); }
 
 	/** The middle of each village, for whoever else wants to stand guard there. */
 	const TArray<FVector2D>& GetVillages() const { return VillageCentres; }

@@ -835,3 +835,25 @@ void ADragonProps::UpdateSmoke(float Dt, const FVector& DragonPos)
 		Smoke->MarkRenderStateDirty();
 	}
 }
+
+bool ADragonProps::IsScorched(const FVector2D& At) const
+{
+	const FIntPoint Cell(FMath::FloorToInt32(At.X / ScorchCellSize), FMath::FloorToInt32(At.Y / ScorchCellSize));
+	for (int32 cy = -1; cy <= 1; ++cy)
+	{
+		for (int32 cx = -1; cx <= 1; ++cx)
+		{
+			if (const TArray<FVector>* Near = ScorchCells.Find(Cell + FIntPoint(cx, cy)))
+			{
+				for (const FVector& P : *Near)
+				{
+					if (FVector2D::DistSquared(FVector2D(P.X, P.Y), At) < FMath::Square(2200.f))
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+	return false;
+}

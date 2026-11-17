@@ -14,6 +14,8 @@
 
 ![點燃森林](SourceArt/screenshot_forest.jpg)
 
+![草與蕨類](SourceArt/screenshot_grass.jpg)
+
 ![濃煙](SourceArt/screenshot_smoke.jpg)
 
 ![焦土](SourceArt/screenshot_scorch.jpg)
@@ -75,6 +77,8 @@
 
 俯衝會加速，爬升會減速，太慢時龍頭會自己往下掉。
 
+島上散佈著照片掃描的岩石：山坡和高地上的巨石、陡坡上的碎石、海岸邊的石塊。龍周圍約 150 公尺內會長出草叢、石楠、蕨類、野花和灌木，跟著龍移動；燒過的焦土上不長草。岩石和草也來自 Open World Demo Collection。
+
 燒著的東西會冒出往上翻滾、被風吹斜的濃煙，燒完後還會悶燒冒煙一陣子；燒過的地面會留下焦黑的痕跡，連成一片焦土。
 
 每座營寨旁有兩座弩砲塔，龍進入射程就會被弩箭瞄準射擊，轉向可以閃掉。龍有生命值，幾秒沒被打中會自己回復；歸零時會退回高空重整，進度不會丟。用龍焰持續燒一座塔約兩秒可以把它燒毀。
@@ -87,6 +91,7 @@
 - `Source/DragonRider/DragonAnimInstance.*`：播放飛行動畫，並在噴火時張開下顎
 - `Source/DragonRider/DragonStory.*`：章節、目標、台詞與過場
 - `Source/DragonRider/DragonFoes.*`：弩砲塔與弩箭
+- `Source/DragonRider/DragonGround.*`：岩石，以及龍周圍的草叢與地被
 - `Source/DragonRider/DragonProps.*`：森林、村莊，以及點燃、延燒、燒焦
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
 - `Source/DragonRider/DragonHUD.*`：中文介面、字幕、章節標題、電影黑邊

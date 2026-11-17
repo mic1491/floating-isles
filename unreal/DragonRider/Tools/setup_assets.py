@@ -380,6 +380,32 @@ def prepare_packs():
         finish(m)
 
 
+def prepare_ground():
+    """Lets the Open World Demo Collection's rock and plant materials be drawn in batches, which the
+    game does with thousands of them. Done once in the local copy of the pack; nothing without it."""
+    meshes = [
+        "Rocks/LargePlainsBoulder002/SM_LargePlainsBoulder002", "Rocks/Large_Volcanic_Rock_001/LargeVolcanicRock_001",
+        "Rocks/Large_Volcanic_Rock_001/LargeVolcanicRock_003", "Rocks/Mountain_RockFace_002/SM_MountainRock_Closed",
+        "Rocks/Medium_Boulder_001/Medium_Boulder_001", "Rocks/Scree002/SM_Scree002_NEW", "Rocks/Scree001/Scree_001",
+        "Rocks/River_Rock_01/SM_River_Rock_01", "Rocks/Boulder_05a/SM_Boulder05a", "Rocks/Medium_Boulder_002/Medium_Boulder_LowPoly",
+        "Foliage/Grass/FieldGrass/SM_FieldGrass_01", "Foliage/Flowers/Heather/SM_Heather_Mesh_Clumps2", "Foliage/Ferns/SM_Fern_01",
+        "Foliage/Flowers/Buttercup/SM_Buttercup_Patch_01", "Foliage/BogMyrtleBush_02/BogMyrtleBush_02"]
+    done = set()
+    for name in meshes:
+        path = "/Game/KiteDemo/Environments/" + name
+        if not eal.does_asset_exist(path):
+            continue
+        for slot in eal.load_asset(path).static_materials:
+            base = slot.material_interface.get_base_material() if slot.material_interface else None
+            if base and base.get_path_name() not in done:
+                done.add(base.get_path_name())
+                if not base.get_editor_property("used_with_instanced_static_meshes"):
+                    base.set_editor_property("used_with_instanced_static_meshes", True)
+                    mel.recompile_material(base)
+                    eal.save_loaded_asset(base, only_if_is_dirty=False)
+    unreal.log("ground materials prepared: %d" % len(done))
+
+
 def prepare_village():
     """Works out how the Faymere River Village pack builds a house, so the game can build its own.
 
@@ -457,6 +483,7 @@ def prepare_village():
 import_textures()
 import_audio()
 prepare_packs()
+prepare_ground()
 make_terrain()
 make_glow()
 make_water()
