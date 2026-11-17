@@ -12,6 +12,8 @@
 #include "Materials/MaterialInterface.h"
 #include "Math/RandomStream.h"
 #include "Misc/CommandLine.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Misc/Parse.h"
 
 namespace
@@ -148,6 +150,8 @@ void ADragonProps::BeginPlay()
 		BurnAudio->Play();
 	}
 
+	LoadHouseKinds(Base);
+
 	FRandomStream Rng(20261113);
 	const float R = ADragonWorld::PlayRadius;
 
@@ -183,7 +187,14 @@ void ADragonProps::BeginPlay()
 				const float G = ADragonWorld::HeightAt(P.X, P.Y);
 				if (G > 800.f && IsFlat(P.X, P.Y, 500.f, 260.f))
 				{
-					AddHouse(FVector(P.X, P.Y, G), FMath::RadiansToDegrees(A) + Rng.FRandRange(-20.f, 20.f), Rng.FRand());
+					if (HouseKinds.Num() > 0)
+					{
+						AddRealHouse(FVector(P.X, P.Y, G), FMath::RadiansToDegrees(A) + Rng.FRandRange(-20.f, 20.f));
+					}
+					else
+					{
+						AddHouse(FVector(P.X, P.Y, G), FMath::RadiansToDegrees(A) + Rng.FRandRange(-20.f, 20.f), Rng.FRand());
+					}
 				}
 			}
 		}
@@ -307,6 +318,112 @@ void ADragonProps::Ignite(int32 Index)
 	(P.bHouse ? HousesBurned : TreesBurned)++;
 }
 
+void ADragonProps::LoadHouseKinds(UMaterialInterface* SootBase)
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *(FPaths::ProjectContentDir() / TEXT("FaymereVillage/houses.txt"))))
+	{
+		return;
+	}
+	// One line per piece: P <mesh> <material or -> <x y z> <pitch yaw roll> <scale x y z>, under an H line for each kind of house.
+	TMap<FString, int32> Known;
+	TArray<FString> Lines;
+	Text.ParseIntoArrayLines(Lines);
+	for (const FString& Line : Lines)
+	{
+		TArray<FString> W;
+		Line.ParseIntoArray(W, TEXT(" "));
+		if (W.Num() >= 1 && W[0] == TEXT("H"))
+		{
+			HouseKinds.AddDefaulted();
+			continue;
+		}
+		if (W.Num() != 12 || W[0] != TEXT("P") || HouseKinds.Num() == 0)
+		{
+			continue;
+		}
+		const FString Key = W[1] + TEXT("|") + W[2];
+		int32 Part = INDEX_NONE;
+		if (const int32* Found = Known.Find(Key))
+		{
+			Part = *Found;
+		}
+		else
+		{
+			UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *W[1], nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (!Mesh)
+			{
+				continue;
+			}
+			FHousePart P;
+			P.bStone = W[1].Contains(TEXT("SM_Wall"));
+			P.bRoof = W[1].Contains(TEXT("400x400"));
+			P.Alive = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
+			P.Alive->SetupAttachment(RootComponent);
+			P.Alive->RegisterComponent();
+			P.Alive->SetStaticMesh(Mesh);
+			P.Alive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			P.Alive->SetCullDistances(500000, 700000);
+			if (W[2] != TEXT("-"))
+			{
+				if (UMaterialInterface* Over = LoadObject<UMaterialInterface>(nullptr, *W[2], nullptr, LOAD_NoWarn | LOAD_Quiet))
+				{
+					P.Alive->SetMaterial(0, Over);
+				}
+			}
+			if (!P.bStone && !P.bRoof)
+			{
+				P.Burnt = NewObject<UInstancedStaticMeshComponent>(this);
+				P.Burnt->SetupAttachment(RootComponent);
+				P.Burnt->RegisterComponent();
+				P.Burnt->SetStaticMesh(Mesh);
+				P.Burnt->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				P.Burnt->SetNumCustomDataFloats(3);
+				UMaterialInstanceDynamic* Soot = UMaterialInstanceDynamic::Create(SootBase, this);
+				Soot->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.035f, 0.028f, 0.022f));
+				for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); ++i)
+				{
+					P.Burnt->SetMaterial(i, Soot);
+				}
+			}
+			Part = HouseParts.Add(P);
+			Known.Add(Key, Part);
+		}
+		FHousePiece Piece;
+		Piece.Part = Part;
+		Piece.Rel = FTransform(FRotator(FCString::Atof(*W[6]), FCString::Atof(*W[7]), FCString::Atof(*W[8])),
+			FVector(FCString::Atof(*W[3]), FCString::Atof(*W[4]), FCString::Atof(*W[5])),
+			FVector(FCString::Atof(*W[9]), FCString::Atof(*W[10]), FCString::Atof(*W[11])));
+		HouseKinds.Last().Add(Piece);
+	}
+	HouseKinds.RemoveAll([](const TArray<FHousePiece>& K) { return K.Num() == 0; });
+}
+
+void ADragonProps::AddRealHouse(const FVector& Ground, float Yaw)
+{
+	FProp P;
+	P.Pos = Ground;
+	P.Height = 1300.f;
+	P.Yaw = Yaw;
+	P.bHouse = true;
+	P.Kind = -2; // a house built from the village pack's pieces
+	P.Low = Houses.AddDefaulted();
+	// Set a little into the ground, so the stone base meets a slope without a gap.
+	const FTransform Base(FRotator(0.f, Yaw, 0.f), Ground - FVector(0.f, 0.f, 150.f));
+	for (const FHousePiece& Piece : HouseKinds[NumHouses % HouseKinds.Num()])
+	{
+		const FHousePart& Part = HouseParts[Piece.Part];
+		const FTransform World = Piece.Rel * Base;
+		const int32 Instance = Part.Alive->AddInstance(World, true);
+		if (!Part.bStone)
+		{
+			Houses[P.Low].Timber.Add({ Piece.Part, Instance, World });
+		}
+	}
+	Props.Add(P);
+	++NumHouses;
+}
+
 void ADragonProps::AddRealTree(int32 Kind, const FVector& Ground, float Scale, float Yaw)
 {
 	FProp P;
@@ -324,6 +441,34 @@ void ADragonProps::AddRealTree(int32 Kind, const FVector& Ground, float Scale, f
 
 void ADragonProps::ShowBurn(FProp& P, float Char, float Glow)
 {
+	if (P.Kind == -2)
+	{
+		// A real house: once the fire has hold, its roof and some of its timber are gone and the rest stands charred.
+		FHouseBuilt& H = Houses[P.Low];
+		if (!P.bBare && Char > 0.45f)
+		{
+			P.bBare = true;
+			for (const FHouseTimber& T : H.Timber)
+			{
+				const FHousePart& Part = HouseParts[T.Part];
+				FTransform Gone = T.World;
+				Gone.SetScale3D(FVector(0.001f));
+				Part.Alive->UpdateInstanceTransform(T.Instance, Gone, true, true, true);
+				// The upper floors lose more than the lower.
+				const bool bStands = Part.Burnt && FMath::FRand() > (T.World.GetLocation().Z - P.Pos.Z > 700.f ? 0.5f : 0.15f);
+				if (bStands)
+				{
+					H.Charred.Add(TPair<int32, int32>(T.Part, Part.Burnt->AddInstance(T.World, true)));
+				}
+			}
+		}
+		for (const TPair<int32, int32>& C : H.Charred)
+		{
+			HouseParts[C.Key].Burnt->SetCustomDataValue(C.Value, DataGlow, Glow * 0.4f, false);
+			HouseParts[C.Key].Burnt->MarkRenderStateDirty();
+		}
+		return;
+	}
 	if (P.Kind >= 0)
 	{
 		// A real tree stands as it is while the fire takes hold, then its leaves are gone
@@ -362,6 +507,14 @@ void ADragonProps::Tick(float DeltaSeconds)
 	{
 		return;
 	}
+	// Starting the game with -VillageTest stands the dragon in front of the first house, for a close look.
+	static bool bVillageTest = FParse::Param(FCommandLine::Get(), TEXT("VillageTest"));
+	if (bVillageTest && NumHouses > 0)
+	{
+		bVillageTest = false;
+		Dragon->StandAt(FVector2D(Props[0].Pos.X - 3800.f, Props[0].Pos.Y));
+	}
+
 	// Starting the game with -TreeTest puts the dragon low in front of a tree in the middle of a wood, for a close look.
 	static bool bTreeTest = FParse::Param(FCommandLine::Get(), TEXT("TreeTest"));
 	if (bTreeTest && Props.Num() > NumHouses)

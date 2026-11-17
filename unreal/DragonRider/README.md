@@ -14,6 +14,10 @@
 
 ![點燃森林](SourceArt/screenshot_forest.jpg)
 
+![營寨](SourceArt/screenshot_village.jpg)
+
+![燒毀營寨](SourceArt/screenshot_village_fire.jpg)
+
 ## 劇情
 
 黑旗軍佔領群島的第七年，騎士「嵐」喚醒了最後一頭龍「燼」。共五章，每章完成後有一段帶台詞的過場，按空白鍵或 Enter 可跳到下一句。
@@ -40,6 +44,8 @@
 2. 對 `Play Dragon Rider.command` 按兩下直接開始玩。想進編輯器的話，從 Epic Games Launcher 的「資料庫 → 我的專案」開啟 DragonRider，再按 Play。
 
 3. 樹木來自 Epic 的免費素材 [Open World Demo Collection](https://www.fab.com/listings/3262ab8f-f64a-4124-8efd-82cb19df6249)，同樣不在 repo 裡。在 Launcher 的 Fab Library 按「加入專案」（勾「顯示所有專案」，版本選 5.2），它會出現在 `Content/KiteDemo/`，然後關掉編輯器執行一次 `Tools/rebuild_assets.sh`，替樹建立遊戲用的材質。沒有它的話森林會是圓錐。
+
+4. 房屋來自免費素材 [Faymere River Village](https://www.fab.com/listings/6e579cff-a28f-499b-a0ad-30649d40774a)，也不在 repo 裡。它是整個專案的形式：在 Launcher 的 Fab Library 按「建立專案」下載後，把它的 `Content/FaymereVillage` 資料夾複製到本專案的 `Content/` 底下，再執行一次 `Tools/rebuild_assets.sh`。腳本會讀它的關卡，把兩種房屋的零件配置寫成 `Content/FaymereVillage/houses.txt`，遊戲照著它拼出每一棟。沒有它的話營舍會是方塊。
 
 其餘的貼圖、材質、騎士都已放在 `Content/`。改了 `SourceArt/` 之後，關掉編輯器並執行 `Tools/rebuild_assets.sh` 重建。
 
@@ -91,4 +97,6 @@
 - `-LandTest`：一開始就站在最近的平地上
 - `-NoIntro`：不播開場動畫
 - `-FoeTest`：一開始就飛在第一座弩砲塔前方
+- `-TreeTest`：一開始就飛在最密的森林前方
+- `-VillageTest`：一開始就站在第一棟營舍前面
 - `-StoryTest`：每章目標視為已達成，連續播放所有過場

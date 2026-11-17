@@ -321,6 +321,80 @@ def prepare_packs():
         finish(m)
 
 
+def prepare_village():
+    """Works out how the Faymere River Village pack builds a house, so the game can build its own.
+
+    The pack has no whole house: its level stands each one up from wall, corner, gable and door
+    pieces on a stone base, with two tilted planes for a roof. This reads that level, picks one
+    house of each of its two timber styles and writes the pieces and where they go to
+    Content/FaymereVillage/houses.txt, which the game reads. It also lets those pieces' materials
+    be drawn in batches. It does nothing when the pack is not in the project, or was done before."""
+    level = "/Game/FaymereVillage/Maps/L_FaymereVillage"
+    target = os.path.join(PROJECT, "Content", "FaymereVillage", "houses.txt")
+    if not eal.does_asset_exist(level) or os.path.exists(target):
+        return
+    unreal.EditorLoadingAndSavingUtils.load_map(level)
+    pieces = []
+    for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors():
+        for comp in actor.get_components_by_class(unreal.StaticMeshComponent):
+            if comp.static_mesh:
+                t = comp.get_world_transform()
+                r = t.rotation.rotator()
+                pieces.append({"mesh": comp.static_mesh, "name": comp.static_mesh.get_name(), "mats": comp.get_materials(),
+                               "loc": (t.translation.x, t.translation.y, t.translation.z),
+                               "rot": (r.pitch, r.yaw, r.roll), "scale": (t.scale3d.x, t.scale3d.y, t.scale3d.z)})
+    frame = [p for p in pieces if "Medieval_Modular" in p["name"]]
+    # Timber pieces within 4.5 m of each other belong to the same house.
+    parent = list(range(len(frame)))
+
+    def find(i):
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for i in range(len(frame)):
+        for j in range(i + 1, len(frame)):
+            dx, dy = frame[i]["loc"][0] - frame[j]["loc"][0], frame[i]["loc"][1] - frame[j]["loc"][1]
+            if dx * dx + dy * dy < 450 * 450:
+                parent[find(i)] = find(j)
+    groups = {}
+    for i, p in enumerate(frame):
+        groups.setdefault(find(i), []).append(p)
+
+    lines, used = [], set()
+    for style in ("uebmdapdw", "uewibaydw"):  # the main wall piece of each timber style
+        # The smallest two-storey house of the style: enough pieces for two floors, few enough to stay cheap.
+        mine = sorted((g for g in groups.values() if any(style in p["name"] for p in g) and 30 <= len(g) <= 45), key=len)
+        if not mine:
+            continue
+        house = mine[0]
+        xs, ys, zs = [p["loc"][0] for p in house], [p["loc"][1] for p in house], [p["loc"][2] for p in house]
+        box = (min(xs) - 250, max(xs) + 250, min(ys) - 250, max(ys) + 250, min(zs) - 700, max(zs) + 900)
+        extra = [p for p in pieces if p not in house and p["name"] in ("SM_Wall", "SM_400x400")
+                 and box[0] <= p["loc"][0] <= box[1] and box[2] <= p["loc"][1] <= box[3] and box[4] <= p["loc"][2] <= box[5]]
+        every = house + extra
+        cx, cy = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+        z0 = min(p["loc"][2] for p in every)
+        lines.append("H %s %d" % (style, len(every)))
+        for p in every:
+            mat = p["mats"][0] if p["name"] == "SM_400x400" and p["mats"] and p["mats"][0] else None  # the roof's tiles
+            lines.append("P %s %s %.1f %.1f %.1f %.2f %.2f %.2f %.3f %.3f %.3f" % (
+                p["mesh"].get_path_name(), mat.get_path_name() if mat else "-",
+                p["loc"][0] - cx, p["loc"][1] - cy, p["loc"][2] - z0, *p["rot"], *p["scale"]))
+            for m in p["mats"]:
+                base = m.get_base_material() if m else None
+                if base and base.get_path_name() not in used:
+                    used.add(base.get_path_name())
+                    if not base.get_editor_property("used_with_instanced_static_meshes"):
+                        base.set_editor_property("used_with_instanced_static_meshes", True)
+                        mel.recompile_material(base)
+                        eal.save_loaded_asset(base, only_if_is_dirty=False)
+    with open(target, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    unreal.log("village layout written: %d lines" % len(lines))
+
+
 import_textures()
 import_audio()
 prepare_packs()
@@ -333,4 +407,5 @@ make_hidden()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")
+prepare_village()  # last: it opens the pack's level
 unreal.log("DragonRider assets ready")

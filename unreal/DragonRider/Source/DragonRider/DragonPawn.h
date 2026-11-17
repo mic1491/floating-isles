@@ -85,6 +85,8 @@ public:
 	void Hurt(float Amount);
 	/** Puts the dragon in the air at a point, flying towards another; used by test modes. */
 	void FaceFrom(const FVector& At, const FVector& Towards);
+	/** Stands the dragon on the ground at a spot, looking along +X; used by test modes. */
+	void StandAt(const FVector2D& Where) { Yaw = 0.f; PutOnGround(Where); }
 
 	/** Roars: Q or the gamepad's right bumper. On the ground the dragon rears up to do it. */
 	void Roar();

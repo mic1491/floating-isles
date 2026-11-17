@@ -69,6 +69,41 @@ private:
 		float Height = 0.f;
 	};
 	TArray<FTreeKind> Kinds;
+
+	/**
+	 * Real houses, built from the pieces of the Faymere River Village pack (Content/FaymereVillage,
+	 * not kept in the repository) as laid out in its houses.txt, which Tools/setup_assets.py writes.
+	 * A burning house keeps its stone base; its timber is swapped for charred pieces, some of them
+	 * fallen away, and its roof is gone. Without the pack the villages fall back to plain boxes.
+	 */
+	struct FHousePart
+	{
+		UHierarchicalInstancedStaticMeshComponent* Alive = nullptr;
+		UInstancedStaticMeshComponent* Burnt = nullptr;
+		bool bStone = false;
+		bool bRoof = false;
+	};
+	struct FHousePiece
+	{
+		int32 Part = 0;
+		FTransform Rel;
+	};
+	struct FHouseTimber
+	{
+		int32 Part = 0;
+		int32 Instance = 0;
+		FTransform World;
+	};
+	struct FHouseBuilt
+	{
+		TArray<FHouseTimber> Timber;          // the pieces that burn
+		TArray<TPair<int32, int32>> Charred;  // part and instance of what is left standing afterwards
+	};
+	void LoadHouseKinds(UMaterialInterface* SootBase);
+	void AddRealHouse(const FVector& Ground, float Yaw);
+	TArray<FHousePart> HouseParts;
+	TArray<TArray<FHousePiece>> HouseKinds;
+	TArray<FHouseBuilt> Houses;
 	FTransform HighTransform(const FProp& P, float Shrink) const;
 	static FIntPoint CellOf(const FVector& P);
 
