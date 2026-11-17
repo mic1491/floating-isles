@@ -7,6 +7,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkyLightComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Math/RandomStream.h"
 #include "Components/VolumetricCloudComponent.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/ExponentialHeightFog.h"
@@ -30,7 +32,7 @@ namespace
 	const float RainBox = 2400.f;           // rain falls in a 48 m box round the camera
 	const FVector RainWind(350.f, 160.f, -1300.f);
 	const float SunLux = 8.f;
-	const float MoonLux = 0.9f;
+	const float MoonLux = 1.0f;
 }
 
 ADragonSky::ADragonSky()
@@ -44,6 +46,13 @@ ADragonSky::ADragonSky()
 	Drops->SetUsingAbsoluteLocation(true);
 	Drops->SetUsingAbsoluteRotation(true);
 	Drops->SetUsingAbsoluteScale(true);
+	Stars = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Stars"));
+	Stars->SetupAttachment(RootComponent);
+	Stars->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Stars->SetCastShadow(false);
+	Stars->SetUsingAbsoluteLocation(true);
+	Stars->SetUsingAbsoluteScale(true);
+	Stars->SetVisibility(false);
 	RainAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("RainAudio"));
 	RainAudio->SetupAttachment(RootComponent);
 	RainAudio->bAutoActivate = false;
@@ -88,7 +97,6 @@ void ADragonSky::Start()
 	}
 	FogDensity0 = Fog ? Fog->GetComponent()->FogDensity : 0.f;
 
-	// The moon is a second light for the sky to scatter, so night has a moonlit blue rather than black.
 	auto Light = [W](const FLinearColor& Colour, bool bShadows)
 	{
 		ADirectionalLight* L = W->SpawnActor<ADirectionalLight>(FVector(0, 0, 100000), FRotator(-45.f, 0.f, 0.f));
@@ -99,13 +107,36 @@ void ADragonSky::Start()
 		return L;
 	};
 	Moon = Light(FLinearColor(0.55f, 0.65f, 1.f), false);
+	// The moon lights the land but not the air: lit by it, the atmosphere would glow daylight blue
+	// once the camera has adjusted to the dark, and the night sky would never be black enough for stars.
 	if (UDirectionalLightComponent* M = Cast<UDirectionalLightComponent>(Moon->GetLightComponent()))
 	{
-		M->SetAtmosphereSunLight(true);
-		M->SetAtmosphereSunLightIndex(1);
+		M->SetAtmosphereSunLight(false);
 	}
 	Flash = Light(FLinearColor(0.8f, 0.85f, 1.f), false);
 
+	// The stars: points scattered over a dome 30 km round, beyond every island, which moves with the camera.
+	// A few are bright and most are faint, as in a real sky; each is a small sphere a few pixels across.
+	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Stars.M_Stars"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		Stars->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+		StarMat = UMaterialInstanceDynamic::Create(M, this);
+		Stars->SetMaterial(0, StarMat);
+		Stars->SetNumCustomDataFloats(1);
+		FRandomStream Rng(1977);
+		const float Dome = 3000000.f;
+		for (int32 i = 0; i < 2600; ++i)
+		{
+			FVector Dir = Rng.GetUnitVector();
+			Dir.Z = FMath::Abs(Dir.Z) * 0.97f + 0.03f; // all above the horizon
+			Dir.Normalize();
+			const float Bright = FMath::Pow(Rng.FRand(), 3.f);  // mostly faint
+			const float Size = FMath::Lerp(90.f, 210.f, Bright); // metres across at 30 km: two to four pixels
+			const int32 Index = Stars->AddInstance(FTransform(FRotator::ZeroRotator, Dir * Dome, FVector(Size)), false);
+			Stars->SetCustomDataValue(Index, 0, FMath::Lerp(0.15f, 1.f, Bright), false);
+		}
+		Stars->MarkRenderStateDirty();
+	}
 	Drops->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));
 	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Rain.M_Rain"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
@@ -180,6 +211,15 @@ void ADragonSky::Tick(float DeltaSeconds)
 	RainNow = Rain;
 
 	UpdateLight(Dt);
+	if (StarMat)
+	{
+		// Out once the sun is well down, gone again before dawn, and hidden behind cloud.
+		const float SunUp = 45.f * FMath::Sin(2.f * PI * (Hour - 6.f) / 24.f);
+		const float Night = (1.f - FMath::SmoothStep(-12.f, -2.f, SunUp)) * (1.f - Overcast);
+		Stars->SetVisibility(Night > 0.01f);
+		Stars->SetWorldLocation(Eye);
+		StarMat->SetScalarParameterValue(TEXT("Night"), Night);
+	}
 	UpdateRain(Dt, Eye);
 	UpdateLightning(Dt);
 }
@@ -216,9 +256,13 @@ void ADragonSky::UpdateLight(float Dt)
 	{
 		if (UCameraComponent* Cam = Pawn->FindComponentByClass<UCameraComponent>())
 		{
-			Cam->PostProcessSettings.AutoExposureBias = -0.5f - 1.3f * Overcast;
+			// At night the camera must not brighten the moonlit land back to daylight, or it never looks dark.
+			const float Dark = (1.f - FMath::SmoothStep(-14.f, -2.f, SunUp));
+			// so through the night the exposure is held where it is by day, and the moonlit land is properly dim.
+			Cam->PostProcessSettings.AutoExposureBias = -0.5f - 1.3f * Overcast * (1.f - Dark);
+			Cam->PostProcessSettings.AutoExposureMinBrightness = FMath::Lerp(-0.6f, 0.9f, Dark);
 			Cam->PostProcessSettings.bOverride_ColorSaturation = true;
-			Cam->PostProcessSettings.ColorSaturation = FVector4(1.f, 1.f, 1.f, 1.f - 0.4f * Overcast);
+			Cam->PostProcessSettings.ColorSaturation = FVector4(1.f, 1.f, 1.f, 1.f - 0.4f * Overcast - 0.35f * Dark);
 		}
 	}
 	if (Clouds)

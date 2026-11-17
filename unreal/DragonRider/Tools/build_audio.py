@@ -53,7 +53,7 @@ def bump(t, centre, width):
 
 
 # ---- wind past the rider: steady rush with gusts ---------------------------
-save("wind_loop", noise(6, 90, 1800, 1.1) * wobble(6, 1.2, 0.35) + 0.5 * noise(6, 1500, 6000, 1.6) * wobble(6, 3.0, 0.5))
+save("wind_loop", noise(6, 60, 1100, 1.3) * wobble(6, 1.2, 0.35) + 0.08 * noise(6, 1100, 2600, 1.6) * wobble(6, 3.0, 0.5))  # a low rush, with little hiss
 
 # ---- wingbeats: a heavy downstroke and a lighter upstroke, 1.6 s like the flight animation
 t = times(1.6)

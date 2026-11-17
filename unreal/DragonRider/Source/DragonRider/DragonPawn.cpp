@@ -561,7 +561,8 @@ void ADragonPawn::Tick(float DeltaSeconds)
 	RoarWait = FMath::Max(RoarWait - Dt, 0.f);
 	const bool bAloft = Mode != EDragonMode::Grounded && Mode != EDragonMode::Landing;
 	const float Rush = bAloft ? FMath::Clamp(Speed / MaxSpeed, 0.f, 1.f) : 0.f;
-	WindAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(WindAudio->VolumeMultiplier, 0.15f + 0.85f * Rush, Dt, 3.f) * (bAloft ? 1.f : 0.6f), 0.01f));
+	// Barely there at cruising speed, a real rush only in a fast dive, and silent on the ground.
+	WindAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(WindAudio->VolumeMultiplier, bAloft ? 0.04f + 0.6f * Rush * Rush : 0.f, Dt, 3.f), 0.01f));
 	WindAudio->SetPitchMultiplier(0.8f + 0.7f * Rush);
 	const float Beat = FMath::Lerp(0.5f, 1.5f, FlapAmount);
 	WingAudio->SetVolumeMultiplier(FMath::Max(FMath::FInterpTo(WingAudio->VolumeMultiplier, bAloft ? 0.35f + 0.5f * FlapAmount : 0.f, Dt, 5.f), 0.01f));
