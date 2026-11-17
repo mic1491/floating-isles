@@ -7,8 +7,6 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/SkyLightComponent.h"
-#include "Components/StaticMeshComponent.h"
-#include "Math/RandomStream.h"
 #include "Components/VolumetricCloudComponent.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/ExponentialHeightFog.h"
@@ -46,13 +44,6 @@ ADragonSky::ADragonSky()
 	Drops->SetUsingAbsoluteLocation(true);
 	Drops->SetUsingAbsoluteRotation(true);
 	Drops->SetUsingAbsoluteScale(true);
-	Stars = CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("Stars"));
-	Stars->SetupAttachment(RootComponent);
-	Stars->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Stars->SetCastShadow(false);
-	Stars->SetUsingAbsoluteLocation(true);
-	Stars->SetUsingAbsoluteScale(true);
-	Stars->SetVisibility(false);
 	RainAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("RainAudio"));
 	RainAudio->SetupAttachment(RootComponent);
 	RainAudio->bAutoActivate = false;
@@ -115,28 +106,6 @@ void ADragonSky::Start()
 	}
 	Flash = Light(FLinearColor(0.8f, 0.85f, 1.f), false);
 
-	// The stars: points scattered over a dome 30 km round, beyond every island, which moves with the camera.
-	// A few are bright and most are faint, as in a real sky; each is a small sphere a few pixels across.
-	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Stars.M_Stars"), nullptr, LOAD_NoWarn | LOAD_Quiet))
-	{
-		Stars->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
-		StarMat = UMaterialInstanceDynamic::Create(M, this);
-		Stars->SetMaterial(0, StarMat);
-		Stars->SetNumCustomDataFloats(1);
-		FRandomStream Rng(1977);
-		const float Dome = 3000000.f;
-		for (int32 i = 0; i < 2600; ++i)
-		{
-			FVector Dir = Rng.GetUnitVector();
-			Dir.Z = FMath::Abs(Dir.Z) * 0.97f + 0.03f; // all above the horizon
-			Dir.Normalize();
-			const float Bright = FMath::Pow(Rng.FRand(), 3.f);  // mostly faint
-			const float Size = FMath::Lerp(90.f, 210.f, Bright); // metres across at 30 km: two to four pixels
-			const int32 Index = Stars->AddInstance(FTransform(FRotator::ZeroRotator, Dir * Dome, FVector(Size)), false);
-			Stars->SetCustomDataValue(Index, 0, FMath::Lerp(0.15f, 1.f, Bright), false);
-		}
-		Stars->MarkRenderStateDirty();
-	}
 	Drops->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));
 	if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Rain.M_Rain"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
@@ -211,15 +180,6 @@ void ADragonSky::Tick(float DeltaSeconds)
 	RainNow = Rain;
 
 	UpdateLight(Dt);
-	if (StarMat)
-	{
-		// Out once the sun is well down, gone again before dawn, and hidden behind cloud.
-		const float SunUp = 45.f * FMath::Sin(2.f * PI * (Hour - 6.f) / 24.f);
-		const float Night = (1.f - FMath::SmoothStep(-12.f, -2.f, SunUp)) * (1.f - Overcast);
-		Stars->SetVisibility(Night > 0.01f);
-		Stars->SetWorldLocation(Eye);
-		StarMat->SetScalarParameterValue(TEXT("Night"), Night);
-	}
 	UpdateRain(Dt, Eye);
 	UpdateLightning(Dt);
 }

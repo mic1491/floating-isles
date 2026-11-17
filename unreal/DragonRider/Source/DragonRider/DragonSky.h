@@ -62,10 +62,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialInstanceDynamic> Clouds;
 	UPROPERTY()
-	TObjectPtr<UInstancedStaticMeshComponent> Stars;
-	UPROPERTY()
-	TObjectPtr<UMaterialInstanceDynamic> StarMat;
-	UPROPERTY()
 	TObjectPtr<UInstancedStaticMeshComponent> Drops;
 	UPROPERTY()
 	TObjectPtr<UAudioComponent> RainAudio;

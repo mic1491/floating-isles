@@ -14,7 +14,6 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Smoke     a soft puff of smoke
        /Game/Materials/M_Scorch    burnt ground, a decal
        /Game/Materials/M_Rain      a falling raindrop
-       /Game/Materials/M_Stars     one star, a soft point of light
 
 The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
@@ -256,28 +255,6 @@ def make_rain():
     c = node(m, unreal.MaterialExpressionConstant3Vector, -400, 0, constant=unreal.LinearColor(0.55, 0.6, 0.68, 1.0))
     mel.connect_material_property(c, "", MP.MP_EMISSIVE_COLOR)
     mel.connect_material_property(const(m, 0.28, 200), "", MP.MP_OPACITY)
-    finish(m)
-
-
-def make_stars():
-    """One star: a small soft point of light. The game places thousands of them on a dome round the
-    camera; each passes in how bright it is, and "Night" fades them all in after sunset."""
-    m = new_material("M_Stars")
-    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
-    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    m.set_editor_property("use_translucency_vertex_fog", False)
-    m.set_editor_property("used_with_instanced_static_meshes", True)
-    bright = node(m, unreal.MaterialExpressionPerInstanceCustomData, -1100, 0, data_index=0, const_default_value=1.0)
-    night = node(m, unreal.MaterialExpressionScalarParameter, -1100, 150, parameter_name="Night", default_value=1.0)
-    # Brightest at the middle of the point, fading to nothing at its edge.
-    rim = node(m, unreal.MaterialExpressionFresnel, -1100, 300, exponent=1.0, base_reflect_fraction=0.0)
-    core = node(m, unreal.MaterialExpressionOneMinus, -900, 300)
-    mel.connect_material_expressions(rim, "", core, "")
-    soft = node(m, unreal.MaterialExpressionPower, -750, 300, const_exponent=3.0)
-    mel.connect_material_expressions(core, "", soft, "Base")
-    tint = node(m, unreal.MaterialExpressionConstant3Vector, -900, 450, constant=unreal.LinearColor(0.85, 0.9, 1.0, 1.0))
-    glow = times(m, times(m, times(m, soft, bright, 100), night, 200), 30.0, 300)
-    mel.connect_material_property(times(m, glow, tint, 400), "", MP.MP_EMISSIVE_COLOR)
     finish(m)
 
 
@@ -548,7 +525,6 @@ make_hidden()
 make_smoke()
 make_scorch()
 make_rain()
-make_stars()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")
