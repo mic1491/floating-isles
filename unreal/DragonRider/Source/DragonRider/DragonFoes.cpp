@@ -2,10 +2,13 @@
 #include "DragonPawn.h"
 #include "DragonProps.h"
 #include "DragonWorld.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
+#include "Camera/CameraActor.h"
+#include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -65,6 +68,11 @@ void ADragonFoes::Build()
 	Setup(Tops, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.16f, 0.10f, 0.06f));
 	Setup(Bows, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.05f, 0.04f, 0.04f));
 	Setup(BoltMeshes, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"), FLinearColor(0.9f, 0.5f, 0.15f));
+	bReal = BuildRealKinds(Base);
+	if (bReal)
+	{
+		TopZ = 1340.f;
+	}
 
 	// Two towers on opposite sides of each village, a little way out from the houses.
 	for (TActorIterator<ADragonProps> It(GetWorld()); It; ++It) { Props = *It; }
@@ -88,14 +96,31 @@ void ADragonFoes::Build()
 						T.Pos = FVector(P.X, P.Y, G);
 						T.Reload = Rng.FRandRange(0.f, ReloadTime);
 						Towers.Add(T);
-						Bases->AddInstance(FTransform(FRotator::ZeroRotator, T.Pos + FVector(0.f, 0.f, TowerHeight * 0.5f - 60.f), FVector(5.f, 5.f, TowerHeight / 100.f)), true);
-						Tops->AddInstance(FTransform(FRotator::ZeroRotator, T.Pos + FVector(0.f, 0.f, TowerHeight), FVector(7.f, 7.f, 1.6f)), true);
-						Bows->AddInstance(FTransform::Identity, true);
+						if (bReal)
+						{
+							AddRealTower(Towers.Num() - 1);
+						}
+						else
+						{
+							Bases->AddInstance(FTransform(FRotator::ZeroRotator, T.Pos + FVector(0.f, 0.f, TowerHeight * 0.5f - 60.f), FVector(5.f, 5.f, TowerHeight / 100.f)), true);
+							Tops->AddInstance(FTransform(FRotator::ZeroRotator, T.Pos + FVector(0.f, 0.f, TowerHeight), FVector(7.f, 7.f, 1.6f)), true);
+							Bows->AddInstance(FTransform::Identity, true);
+						}
 						ShowTower(Towers.Num() - 1);
 						break;
 					}
 				}
 			}
+		}
+	}
+
+	// The towers are added after the game has begun, so their batches' spatial trees are built now;
+	// until a tree is built its batch has no bounds and is never drawn.
+	for (FTowerMesh& M : TowerMeshes)
+	{
+		if (UHierarchicalInstancedStaticMeshComponent* H = Cast<UHierarchicalInstancedStaticMeshComponent>(M.Alive))
+		{
+			H->BuildTreeIfOutdated(false, true);
 		}
 	}
 
@@ -110,6 +135,33 @@ void ADragonFoes::Build()
 		C->MarkRenderStateDirty();
 	}
 
+	// Starting the game with -TowerTest looks at the first tower through a fixed camera outside the village, for a close look.
+	if (Towers.Num() > 0 && Props && Props->GetVillages().Num() > 0 && FParse::Param(FCommandLine::Get(), TEXT("TowerTest")))
+	{
+		FVector2D Nearest = Props->GetVillages()[0];
+		for (const FVector2D& V : Props->GetVillages())
+		{
+			if (FVector2D::DistSquared(V, FVector2D(Towers[0].Pos)) < FVector2D::DistSquared(Nearest, FVector2D(Towers[0].Pos))) { Nearest = V; }
+		}
+		const FVector Out = FVector(FVector2D(Towers[0].Pos) - Nearest, 0.f).GetSafeNormal();
+		FVector Eye = Towers[0].Pos + Out * 3600.f;
+		Eye.Z = FMath::Max(Towers[0].Pos.Z + 900.f, ADragonWorld::HeightAt(Eye.X, Eye.Y) + 800.f);
+		ACameraActor* Cam = GetWorld()->SpawnActor<ACameraActor>(Eye, (Towers[0].Pos + FVector(0.f, 0.f, 650.f) - Eye).Rotation());
+		if (APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0))
+		{
+			PC->SetViewTarget(Cam);
+		}
+		// With -BurnTest too, the tower starts burnt out.
+		if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")))
+		{
+			Towers[0].Health = 0.f;
+			++TowersBurned;
+			ShowTower(0);
+			Props->ScorchAt(Towers[0].Pos, 2200.f);
+			Props->AddSmoulder(Towers[0].Pos + FVector(0.f, 0.f, TopZ), 60.f, 1.2f);
+		}
+	}
+
 	// Starting the game with -FoeTest puts the dragon in the air facing the first tower, for checking the fight.
 	if (Towers.Num() > 0 && FParse::Param(FCommandLine::Get(), TEXT("FoeTest")))
 	{
@@ -117,13 +169,18 @@ void ADragonFoes::Build()
 		{
 			FVector At = Towers[0].Pos + FVector(-14000.f, 0.f, 5500.f);
 			At.Z = FMath::Max(At.Z, ADragonWorld::HeightAt(At.X, At.Y) + 3500.f); // not inside a hillside
-			Dragon->FaceFrom(At, Towers[0].Pos + FVector(0.f, 0.f, TowerHeight));
+			Dragon->FaceFrom(At, Towers[0].Pos + FVector(0.f, 0.f, TopZ));
 		}
 	}
 }
 
 void ADragonFoes::ShowTower(int32 Index)
 {
+	if (bReal)
+	{
+		ShowRealTower(Index);
+		return;
+	}
 	const FTower& T = Towers[Index];
 	const float Char = 1.f - FMath::Clamp(T.Health / 100.f, 0.f, 1.f);
 	const float Glow = T.Health <= 0.f ? 0.f : FMath::Min(Char * 2.5f, 1.f);
@@ -152,7 +209,8 @@ void ADragonFoes::Tick(float DeltaSeconds)
 	const FVector DragonPos = Dragon->GetActorLocation();
 	const FVector DragonVel = (DragonPos - LastDragonPos) / DeltaSeconds;
 	LastDragonPos = DragonPos;
-	const bool bPeace = Dragon->IsIntro() || Dragon->InCutscene(); // nothing shoots during scenes
+	static const bool bHoldFire = FParse::Param(FCommandLine::Get(), TEXT("TowerTest")); // towers only aim while being looked at
+	const bool bPeace = Dragon->IsIntro() || Dragon->InCutscene() || bHoldFire; // nothing shoots during scenes
 	const bool bFire = Dragon->IsBreathingFire();
 	const FVector Mouth = Dragon->GetMouthLocation(), FireDir = Dragon->GetFireDirection();
 
@@ -164,19 +222,27 @@ void ADragonFoes::Tick(float DeltaSeconds)
 		{
 			continue;
 		}
-		const FVector Top = T.Pos + FVector(0.f, 0.f, TowerHeight + 150.f);
+		const FVector Top = T.Pos + FVector(0.f, 0.f, TopZ);
 		const FVector To = DragonPos - Top;
 		const float Dist = To.Size();
 		bool bChanged = false;
 
 		if (bFire)
 		{
-			const FVector FromMouth = T.Pos + FVector(0.f, 0.f, TowerHeight * 0.6f) - Mouth;
+			const FVector FromMouth = T.Pos + FVector(0.f, 0.f, TopZ * 0.6f) - Mouth;
 			const float D = FromMouth.Size();
 			if (D < FireReach && (FromMouth | FireDir) > D * 0.93f)
 			{
 				T.Health -= BurnPerSecond * DeltaSeconds;
 				bChanged = true;
+				// Flames lick round the top while it burns.
+				FlameWait -= DeltaSeconds;
+				if (FlameWait <= 0.f)
+				{
+					FlameWait = 0.05f;
+					Dragon->FlamePuff(Top + FVector(FMath::FRandRange(-300.f, 300.f), FMath::FRandRange(-300.f, 300.f), FMath::FRandRange(-250.f, 100.f)),
+						FVector(FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(-150.f, 150.f), FMath::FRandRange(400.f, 900.f)), FMath::FRandRange(0.6f, 1.1f));
+				}
 				if (T.Health <= 0.f)
 				{
 					++TowersBurned;
@@ -252,4 +318,137 @@ void ADragonFoes::Tick(float DeltaSeconds)
 	{
 		C->MarkRenderStateDirty();
 	}
+}
+
+bool ADragonFoes::BuildRealKinds(UMaterialInterface* SootBase)
+{
+	const TCHAR* Paths[] = {
+		TEXT("/Game/FaymereVillage/Meshes/SM_Wall.SM_Wall"),
+		TEXT("/Game/FaymereVillage/Meshes/SM_floor_all_0.SM_floor_all_0"),
+		TEXT("/Game/FaymereVillage/Meshes/SM_Medieval_Modular_Wall_ueoqbdhdw_lod3_Var1.SM_Medieval_Modular_Wall_ueoqbdhdw_lod3_Var1"),
+		TEXT("/Game/FaymereVillage/Meshes/SM_Wooden_Bollard_tlttae1fa_lod3.SM_Wooden_Bollard_tlttae1fa_lod3"),
+		TEXT("/Game/FaymereVillage/Meshes/SM_Modular_Wooden_Ladder_xb4jcgtdw_lod3_Var1.SM_Modular_Wooden_Ladder_xb4jcgtdw_lod3_Var1") };
+	enum { Stone, Floor, Parapet, Beam, Ladder };
+	for (const TCHAR* Path : Paths)
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Mesh)
+		{
+			return false;
+		}
+		FTowerMesh M;
+		const bool bBeams = TowerMeshes.Num() == Beam;
+		M.Alive = bBeams ? NewObject<UInstancedStaticMeshComponent>(this) : NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
+		M.Alive->SetupAttachment(RootComponent);
+		M.Alive->RegisterComponent();
+		M.Alive->SetStaticMesh(Mesh);
+		M.Alive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		M.Burnt = NewObject<UInstancedStaticMeshComponent>(this);
+		M.Burnt->SetupAttachment(RootComponent);
+		M.Burnt->RegisterComponent();
+		M.Burnt->SetStaticMesh(Mesh);
+		M.Burnt->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		M.Burnt->SetNumCustomDataFloats(3);
+		UMaterialInstanceDynamic* Soot = UMaterialInstanceDynamic::Create(SootBase, this);
+		Soot->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.03f, 0.025f, 0.02f));
+		for (int32 i = 0; i < Mesh->GetStaticMaterials().Num(); ++i)
+		{
+			M.Burnt->SetMaterial(i, Soot);
+		}
+		TowerMeshes.Add(M);
+	}
+
+	auto Add = [this](int32 Mesh, const FRotator& Rot, const FVector& At, const FVector& Scale, bool bTurns, bool bTimber)
+	{
+		TowerPieces.Add({ Mesh, FTransform(Rot, At, Scale), bTurns, bTimber });
+	};
+	// The tower: six faces of stone wall, seven courses high, each course a little narrower than the one below.
+	const float Course = 158.f;
+	for (int32 Level = 0; Level < 7; ++Level)
+	{
+		const float Apothem = 285.f - Level * 4.f;
+		for (int32 k = 0; k < 6; ++k)
+		{
+			const float A = FMath::DegreesToRadians(60.f * k);
+			Add(Stone, FRotator(0.f, 60.f * k + 90.f, 0.f), FVector(Apothem * FMath::Cos(A), Apothem * FMath::Sin(A), 82.f + Level * Course), FVector(1.f, 1.f, 1.f), false, false);
+		}
+	}
+	const float Deck = 82.f + 6 * Course + 82.f;
+	// A timber deck on top, ringed by a low parapet.
+	Add(Floor, FRotator::ZeroRotator, FVector(0.f, 0.f, Deck), FVector(0.98f, 0.33f, 1.5f), false, true);
+	for (int32 k = 0; k < 6; ++k)
+	{
+		// Battlements: a low course of the same stone round the edge.
+		const float A = FMath::DegreesToRadians(60.f * k);
+		Add(Stone, FRotator(0.f, 60.f * k + 90.f, 0.f), FVector(300.f * FMath::Cos(A), 300.f * FMath::Sin(A), Deck + 55.f), FVector(1.07f, 0.8f, 0.65f), false, false);
+	}
+	// A ladder up the back.
+	for (int32 Rung = 0; Rung < 8; ++Rung)
+	{
+		Add(Ladder, FRotator(0.f, 90.f, 0.f), FVector(-310.f, 0.f, Rung * 140.f), FVector(1.f), false, true);
+	}
+	// The ballista, built of beams round a pivot post. A beam stands along its own Z; pitched down by 90 it lies along X.
+	const FVector Pivot(0.f, 0.f, Deck + 15.f);
+	Add(Beam, FRotator::ZeroRotator, Pivot, FVector(3.6f, 3.6f, 2.1f), true, true);                                    // pivot post
+	Add(Beam, FRotator(-90.f, 0.f, 0.f), Pivot + FVector(-260.f, 0.f, 175.f), FVector(3.f, 3.f, 6.8f), true, true);     // stock
+	Add(Beam, FRotator(-90.f, 100.f, 0.f), Pivot + FVector(250.f, 0.f, 190.f), FVector(2.2f, 2.2f, 4.8f), true, true);  // bow arms
+	Add(Beam, FRotator(-90.f, -100.f, 0.f), Pivot + FVector(250.f, 0.f, 190.f), FVector(2.2f, 2.2f, 4.8f), true, true);
+	Add(Beam, FRotator(-90.f, 0.f, 0.f), Pivot + FVector(-200.f, 0.f, 215.f), FVector(0.9f, 0.9f, 7.f), true, true);    // the bolt
+	return true;
+}
+
+void ADragonFoes::AddRealTower(int32 Index)
+{
+	const FTower& T = Towers[Index];
+	TArray<int32>& Inst = TowerInstances.AddDefaulted_GetRef();
+	const FTransform Base(FRotator(0.f, FMath::Fmod(T.Pos.X * 0.37f, 360.f), 0.f), T.Pos - FVector(0.f, 0.f, 120.f));
+	for (const FTowerPiece& P : TowerPieces)
+	{
+		Inst.Add(TowerMeshes[P.Mesh].Alive->AddInstance(P.Rel * Base, true));
+	}
+}
+
+void ADragonFoes::ShowRealTower(int32 Index)
+{
+	const FTower& T = Towers[Index];
+	TArray<int32>& Inst = TowerInstances[Index];
+	const FVector Ground = T.Pos - FVector(0.f, 0.f, 120.f);
+	if (T.Health > 0.f)
+	{
+		// Turn the ballista to its aim.
+		const FTransform Turn(FRotator(0.f, T.Aim, 0.f), Ground);
+		for (int32 i = 0; i < TowerPieces.Num(); ++i)
+		{
+			if (TowerPieces[i].bTurns)
+			{
+				TowerMeshes[TowerPieces[i].Mesh].Alive->UpdateInstanceTransform(Inst[i], TowerPieces[i].Rel * Turn, true, true, true);
+			}
+		}
+		return;
+	}
+	if (Inst.Num() == 0 || Inst[0] < 0)
+	{
+		return; // already burnt
+	}
+	// Burnt out: every timber piece is swapped for a charred one, a few fall away, and the ballista lies tipped over.
+	const FTransform Base(FRotator(0.f, FMath::Fmod(T.Pos.X * 0.37f, 360.f), 0.f), Ground);
+	const FTransform Fallen(FRotator(28.f, T.Aim, 8.f), Ground - FVector(0.f, 0.f, 60.f));
+	for (int32 i = 0; i < TowerPieces.Num(); ++i)
+	{
+		const FTowerPiece& P = TowerPieces[i];
+		if (!P.bTimber)
+		{
+			continue;
+		}
+		FTowerMesh& M = TowerMeshes[P.Mesh];
+		const FTransform Was = P.Rel * (P.bTurns ? FTransform(FRotator(0.f, T.Aim, 0.f), Ground) : Base);
+		FTransform Gone = Was;
+		Gone.SetScale3D(FVector(0.001f));
+		M.Alive->UpdateInstanceTransform(Inst[i], Gone, true, true, true);
+		if (FMath::FRand() < 0.8f)
+		{
+			M.Burnt->AddInstance(P.bTurns ? P.Rel * Fallen : Was, true);
+		}
+	}
+	Inst[0] = -1;
 }

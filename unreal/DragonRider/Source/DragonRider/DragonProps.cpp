@@ -278,7 +278,7 @@ void ADragonProps::BeginPlay()
 		Cells.FindOrAdd(CellOf(Props[i].Pos)).Add(i);
 	}
 	// Starting the game with -BurnTest sets the nearest woods and houses alight at once, for checking the effect.
-	if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")) && !FParse::Param(FCommandLine::Get(), TEXT("VillageTest")) && !FParse::Param(FCommandLine::Get(), TEXT("TreeTest")))
+	if (FParse::Param(FCommandLine::Get(), TEXT("BurnTest")) && !FParse::Param(FCommandLine::Get(), TEXT("VillageTest")) && !FParse::Param(FCommandLine::Get(), TEXT("TreeTest")) && !FParse::Param(FCommandLine::Get(), TEXT("TowerTest")))
 	{
 		for (int32 i = 0; i < Props.Num(); ++i)
 		{

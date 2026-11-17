@@ -419,6 +419,24 @@ def prepare_ground():
     unreal.log("ground materials prepared: %d" % len(done))
 
 
+def prepare_towers():
+    """Lets the village pack's pieces that the ballista towers are built from be drawn in batches."""
+    done = set()
+    for name in ("SM_Wall", "SM_floor_all_0", "SM_Medieval_Modular_Wall_ueoqbdhdw_lod3_Var1",
+                 "SM_Wooden_Bollard_tlttae1fa_lod3", "SM_Modular_Wooden_Ladder_xb4jcgtdw_lod3_Var1"):
+        path = "/Game/FaymereVillage/Meshes/" + name
+        if not eal.does_asset_exist(path):
+            continue
+        for slot in eal.load_asset(path).static_materials:
+            base = slot.material_interface.get_base_material() if slot.material_interface else None
+            if base and base.get_path_name() not in done:
+                done.add(base.get_path_name())
+                if not base.get_editor_property("used_with_instanced_static_meshes"):
+                    base.set_editor_property("used_with_instanced_static_meshes", True)
+                    mel.recompile_material(base)
+                    eal.save_loaded_asset(base, only_if_is_dirty=False)
+
+
 def prepare_village():
     """Works out how the Faymere River Village pack builds a house, so the game can build its own.
 
@@ -497,6 +515,7 @@ import_textures()
 import_audio()
 prepare_packs()
 prepare_ground()
+prepare_towers()
 make_terrain()
 make_glow()
 make_water()

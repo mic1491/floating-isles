@@ -144,6 +144,14 @@ void ADragonGround::PlaceRocks()
 	for (int32 i = 0; i < Boulders.Num(); ++i) { Boulders[i].Mesh->AddInstances(Out[0][i], false, true); }
 	for (int32 i = 0; i < Scree.Num(); ++i) { Scree[i].Mesh->AddInstances(Out[1][i], false, true); }
 	for (int32 i = 0; i < Shore.Num(); ++i) { Shore[i].Mesh->AddInstances(Out[2][i], false, true); }
+	// Added after the game has begun: build the batches' trees now, or they have no bounds and are not drawn.
+	for (TArray<FKind>* Kinds : { &Boulders, &Scree, &Shore })
+	{
+		for (FKind& K : *Kinds)
+		{
+			K.Mesh->BuildTreeIfOutdated(false, true);
+		}
+	}
 }
 
 void ADragonGround::PlaceGrass(const FIntPoint& Centre)
@@ -192,6 +200,7 @@ void ADragonGround::PlaceGrass(const FIntPoint& Centre)
 	{
 		Grass[i].Mesh->ClearInstances();
 		Grass[i].Mesh->AddInstances(Out[i], false, true);
+		Grass[i].Mesh->BuildTreeIfOutdated(true, true);
 	}
 }
 
