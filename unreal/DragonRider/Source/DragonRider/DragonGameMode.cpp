@@ -4,6 +4,7 @@
 #include "DragonHUD.h"
 #include "DragonPawn.h"
 #include "DragonProps.h"
+#include "DragonSky.h"
 #include "DragonStory.h"
 #include "DragonWorld.h"
 #include "Engine/World.h"
@@ -21,5 +22,6 @@ void ADragonGameMode::InitGame(const FString& MapName, const FString& Options, F
 	GetWorld()->SpawnActor<ADragonProps>(FVector::ZeroVector, FRotator::ZeroRotator);
 	GetWorld()->SpawnActor<ADragonFoes>(FVector::ZeroVector, FRotator::ZeroRotator);
 	GetWorld()->SpawnActor<ADragonGround>(FVector::ZeroVector, FRotator::ZeroRotator);
+	GetWorld()->SpawnActor<ADragonSky>(FVector::ZeroVector, FRotator::ZeroRotator);
 	GetWorld()->SpawnActor<ADragonStory>(FVector::ZeroVector, FRotator::ZeroRotator);
 }

@@ -103,6 +103,21 @@ save("thud", np.sin(2 * np.pi * np.cumsum(np.interp(t, [0, 0.7], [70, 30])) / SR
 t = times(0.45)
 save("hit", noise(0.45, 300, 5000, 0.6) * np.exp(-t * 22) + 0.6 * np.sin(2 * np.pi * 110 * t) * np.exp(-t * 12))
 
+# ---- rain: a steady hiss with drops ticking through it ----------------------
+t = times(8)
+drops = np.zeros(len(t))
+for _ in range(2600):
+    at = rng.integers(0, len(t) - 400)
+    length = rng.integers(60, 300)
+    drops[at:at + length] += rng.uniform(0.1, 0.6) * rng.standard_normal(length) * np.exp(-np.arange(length) / (length * 0.15))
+save("rain_loop", noise(8, 900, 9000, 0.6) * wobble(8, 0.8, 0.25) + 0.5 * noise(8, 150, 900, 1.0) * wobble(8, 0.5, 0.3) + 0.6 * drops)
+
+# ---- thunder: a sharp crack that rolls away into a long low rumble ---------
+t = times(6.0)
+crack = noise(6.0, 500, 6000, 0.5) * np.exp(-t * 14) * (t < 0.6)
+rumble = noise(6.0, 25, 260, 1.0) * np.interp(t, [0, 0.15, 1.2, 6.0], [0, 1.0, 0.75, 0.0]) * wobble(6.0, 3.0, 0.6)
+save("thunder", np.tanh(1.6 * (0.8 * crack + rumble)))
+
 # ---- music: slow minor chords under a high, lonely line ---------------------
 LENGTH = 48.0
 n = int(LENGTH * SR)

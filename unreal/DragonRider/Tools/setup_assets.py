@@ -13,6 +13,7 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Hidden    draws nothing; hides the leaves of a burnt tree
        /Game/Materials/M_Smoke     a soft puff of smoke
        /Game/Materials/M_Scorch    burnt ground, a decal
+       /Game/Materials/M_Rain      a falling raindrop
 
 The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
@@ -242,6 +243,18 @@ def make_smoke():
     mel.connect_material_expressions(rim, "", core, "")
     soft = times(m, core, core, 900)
     mel.connect_material_property(times(m, times(m, soft, alpha, 950), 0.7, 1000), "", MP.MP_OPACITY)
+    finish(m)
+
+
+def make_rain():
+    """A falling raindrop, drawn as a faint streak."""
+    m = new_material("M_Rain")
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    c = node(m, unreal.MaterialExpressionConstant3Vector, -400, 0, constant=unreal.LinearColor(0.55, 0.6, 0.68, 1.0))
+    mel.connect_material_property(c, "", MP.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(const(m, 0.28, 200), "", MP.MP_OPACITY)
     finish(m)
 
 
@@ -492,6 +505,7 @@ make_prop()
 make_hidden()
 make_smoke()
 make_scorch()
+make_rain()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")

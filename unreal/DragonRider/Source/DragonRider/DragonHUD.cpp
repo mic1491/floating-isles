@@ -2,6 +2,7 @@
 #include "DragonFoes.h"
 #include "DragonPawn.h"
 #include "DragonProps.h"
+#include "DragonSky.h"
 #include "DragonStory.h"
 #include "DragonWorld.h"
 #include "CanvasItem.h"
@@ -29,6 +30,7 @@ void ADragonHUD::DrawHUD()
 	}
 	if (!World) { TActorIterator<ADragonWorld> It(GetWorld()); World = It ? *It : nullptr; }
 	if (!Props) { TActorIterator<ADragonProps> It(GetWorld()); Props = It ? *It : nullptr; }
+	if (!Sky) { TActorIterator<ADragonSky> It(GetWorld()); Sky = It ? *It : nullptr; }
 	if (!Foes) { TActorIterator<ADragonFoes> It(GetWorld()); Foes = It ? *It : nullptr; }
 	if (!Story) { TActorIterator<ADragonStory> It(GetWorld()); Story = It ? *It : nullptr; }
 	const ADragonPawn* Dragon = Cast<ADragonPawn>(GetOwningPawn());
@@ -97,6 +99,11 @@ void ADragonHUD::DrawHUD()
 	}
 
 	Say(FString::Printf(TEXT("視角：%s"), Dragon->GetViewName()), W - 230.f, 36.f, 16, White);
+	if (Sky)
+	{
+		const int32 Minutes = FMath::FloorToInt32(Sky->GetHour() * 60.f);
+		Say(FString::Printf(TEXT("%02d:%02d　%s"), Minutes / 60, Minutes % 60, Sky->GetWeatherName()), W - 230.f, 62.f, 16, White);
+	}
 
 	// ---- story: what to do now, and the chapter's name when it begins ----
 	if (Story)
@@ -113,8 +120,8 @@ void ADragonHUD::DrawHUD()
 	}
 
 	const TCHAR* Help = Dragon->IsGrounded()
-		? TEXT("W 走　Shift 跑　A/D 或滑鼠 轉向　F/右鍵 噴火　空白鍵 起飛　Q 咆哮　C 視角　R 重來　Esc 離開")
-		: TEXT("W/S 或滑鼠 俯仰　A/D 或滑鼠 轉向　空白鍵 拍翅　F/右鍵 噴火　Shift 減速　G 降落　Q 咆哮　C 視角　R 重來　Esc 離開");
+		? TEXT("W 走　Shift 跑　A/D 或滑鼠 轉向　F/右鍵 噴火　空白鍵 起飛　Q 咆哮　C 視角　H 時間　Y 天氣　R 重來　Esc 離開")
+		: TEXT("W/S 或滑鼠 俯仰　A/D 或滑鼠 轉向　空白鍵 拍翅　F/右鍵 噴火　Shift 減速　G 降落　Q 咆哮　C 視角　H 時間　Y 天氣　R 重來　Esc 離開");
 	Say(Help, 40.f, H - 46.f, 14, White);
 
 	if (!Dragon->GetNotice().IsEmpty())

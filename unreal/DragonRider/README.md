@@ -16,6 +16,10 @@
 
 ![草與蕨類](SourceArt/screenshot_grass.jpg)
 
+![夜裡燒營寨](SourceArt/screenshot_night.jpg)
+
+![雷雨](SourceArt/screenshot_storm.jpg)
+
 ![濃煙](SourceArt/screenshot_smoke.jpg)
 
 ![焦土](SourceArt/screenshot_scorch.jpg)
@@ -72,10 +76,14 @@
 | 地面：起飛 | 空白鍵 | A |
 | 跳過開場動畫 | 空白鍵或 Enter | A |
 | 咆哮 | Q | RB |
+| 時間往後撥 3 小時 | H | — |
+| 換下一種天氣 | Y | — |
 | 重新開始 | R | Start |
 | 離開遊戲 | Esc | — |
 
 俯衝會加速，爬升會減速，太慢時龍頭會自己往下掉。
+
+遊戲裡的一天約 16 分鐘：太陽升起落下，夜裡有月光。天氣每隔幾分鐘在晴、陰、雨、雷雨之間變換，雲量、霧、光線和聲音都會跟著變；下雨時火比較難蔓延，雷雨會有閃電和雷聲。右上角顯示時間和天氣。
 
 島上散佈著照片掃描的岩石：山坡和高地上的巨石、陡坡上的碎石、海岸邊的石塊。龍周圍約 150 公尺內會長出草叢、石楠、蕨類、野花和灌木，跟著龍移動；燒過的焦土上不長草。岩石和草也來自 Open World Demo Collection。
 
@@ -91,6 +99,7 @@
 - `Source/DragonRider/DragonAnimInstance.*`：播放飛行動畫，並在噴火時張開下顎
 - `Source/DragonRider/DragonStory.*`：章節、目標、台詞與過場
 - `Source/DragonRider/DragonFoes.*`：弩砲塔與弩箭
+- `Source/DragonRider/DragonSky.*`：日夜、月光、天氣、雨、閃電
 - `Source/DragonRider/DragonGround.*`：岩石，以及龍周圍的草叢與地被
 - `Source/DragonRider/DragonProps.*`：森林、村莊，以及點燃、延燒、燒焦
 - `Source/DragonRider/DragonWorld.*`：天空、海、地形、光環賽道、火燈
@@ -107,6 +116,8 @@
 - `-BurnTest`：開場就點燃起點附近的森林和村莊；和 `-TreeTest` 或 `-VillageTest` 一起用時，改成站在那裡、點燃眼前的森林或營寨
 - `-LandTest`：一開始就站在最近的平地上
 - `-NoIntro`：不播開場動畫
+- `-Hour=N`：從第 N 點開始（例如 `-Hour=21.5`）
+- `-Weather=N`：從某種天氣開始（0 晴、1 陰、2 雨、3 雷雨）
 - `-FoeTest`：一開始就飛在第一座弩砲塔前方
 - `-TreeTest`：一開始就飛在最密的森林前方
 - `-VillageTest`：一開始就站在第一棟營舍前面

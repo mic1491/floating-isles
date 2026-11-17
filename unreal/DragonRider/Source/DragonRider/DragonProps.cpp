@@ -1,5 +1,6 @@
 #include "DragonProps.h"
 #include "DragonPawn.h"
+#include "DragonSky.h"
 #include "DragonWorld.h"
 #include "Components/AudioComponent.h"
 #include "Components/DecalComponent.h"
@@ -657,7 +658,8 @@ void ADragonProps::Tick(float DeltaSeconds)
 						for (int32 Other : *Cell)
 						{
 							// Houses catch more readily than trees, so a village goes up together.
-							const float Chance = Props[Other].bHouse ? 0.9f : 0.6f;
+							// Rain damps it down: in a downpour fire hardly spreads at all.
+							const float Chance = (Props[Other].bHouse ? 0.9f : 0.6f) * (1.f - 0.75f * ADragonSky::RainNow);
 							if (Props[Other].Burn <= 0.f && FVector::DistSquared(Props[Other].Pos, P.Pos) < SpreadRange * SpreadRange * (Props[Other].bHouse ? 4.f : 1.f) && FMath::FRand() < Chance)
 							{
 								Ignite(Other);
