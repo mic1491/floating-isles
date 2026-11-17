@@ -5,6 +5,7 @@
 #include "DragonProps.generated.h"
 
 class UAudioComponent;
+class UHierarchicalInstancedStaticMeshComponent;
 class UInstancedStaticMeshComponent;
 
 /**
@@ -44,12 +45,30 @@ private:
 		float Burn = 0.f;        // seconds on fire; 0 means untouched
 		bool bSpread = false;
 		bool bDone = false;
+		int8 Kind = -1;          // which real tree model, or -1 for a house or a plain cone tree
+		float Scale = 1.f;
+		bool bBare = false;      // its leaves have burnt away
 	};
 
 	void AddTree(const FVector& Ground, float Height, float Yaw, float Shade);
 	void AddHouse(const FVector& Ground, float Yaw, float Shade);
 	void Ignite(int32 Index);
-	void ShowBurn(const FProp& P, float Char, float Glow);
+	void ShowBurn(FProp& P, float Char, float Glow);
+	void AddRealTree(int32 Kind, const FVector& Ground, float Scale, float Yaw);
+
+	/**
+	 * One of the tree models from the Open World Demo Collection (Content/KiteDemo, not kept in
+	 * the repository). Living trees are drawn from Alive; when one's leaves have burnt off it is
+	 * drawn from Burnt instead, which shows only the trunk and branches, charred and glowing.
+	 * Without the collection the forest falls back to plain cones.
+	 */
+	struct FTreeKind
+	{
+		UHierarchicalInstancedStaticMeshComponent* Alive = nullptr;
+		UInstancedStaticMeshComponent* Burnt = nullptr;
+		float Height = 0.f;
+	};
+	TArray<FTreeKind> Kinds;
 	FTransform HighTransform(const FProp& P, float Shrink) const;
 	static FIntPoint CellOf(const FVector& P);
 

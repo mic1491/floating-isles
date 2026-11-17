@@ -2,6 +2,7 @@
 #include "DragonPawn.h"
 #include "DragonWorld.h"
 #include "Components/AudioComponent.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Sound/SoundBase.h"
 #include "Components/SceneComponent.h"
@@ -83,6 +84,63 @@ void ADragonProps::BeginPlay()
 	Setup(Walls, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.50f, 0.42f, 0.30f));
 	Setup(Roofs, TEXT("/Engine/BasicShapes/Cube.Cube"), FLinearColor(0.30f, 0.09f, 0.05f));
 
+	// ---- real tree models, when the Open World Demo Collection is in the project ----
+	UMaterialInterface* Hidden = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/M_Hidden.M_Hidden"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	for (const TCHAR* Path : {
+		TEXT("/Game/KiteDemo/Environments/Trees/HillTree_02/HillTree_02.HillTree_02"),
+		TEXT("/Game/KiteDemo/Environments/Trees/HillTree_Tall_02/HillTree_Tall_02.HillTree_Tall_02"),
+		TEXT("/Game/KiteDemo/Environments/Trees/ScotsPine_01/ScotsPine_01.ScotsPine_01"),
+		TEXT("/Game/KiteDemo/Environments/Trees/ScotsPineTall_01/ScotsPineTall_01.ScotsPineTall_01") })
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (!Mesh || !Hidden)
+		{
+			continue;
+		}
+		FTreeKind K;
+		K.Height = Mesh->GetBounds().BoxExtent.Z * 2.f;
+		K.Alive = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
+		K.Alive->SetupAttachment(RootComponent);
+		K.Alive->RegisterComponent();
+		K.Alive->SetStaticMesh(Mesh);
+		K.Alive->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		// Trees fade out between 6 and 8 km.
+		K.Alive->SetCullDistances(600000, 800000);
+
+		// The burnt version: bark and branches turned to glowing char, everything leafy not drawn at all.
+		K.Burnt = NewObject<UInstancedStaticMeshComponent>(this);
+		K.Burnt->SetupAttachment(RootComponent);
+		K.Burnt->RegisterComponent();
+		K.Burnt->SetStaticMesh(Mesh);
+		K.Burnt->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		K.Burnt->SetNumCustomDataFloats(3);
+		K.Burnt->SetForcedLodModel(3); // a middle level of detail that still has its branches, at any distance
+		const TArray<FStaticMaterial>& Slots = Mesh->GetStaticMaterials();
+		for (int32 i = 0; i < Slots.Num(); ++i)
+		{
+			// The pack's own materials do not draw close up when instanced; Tools/setup_assets.py makes these in their place.
+			if (Slots[i].MaterialInterface)
+			{
+				const FString Name = TEXT("M_") + Slots[i].MaterialInterface->GetName();
+				if (UMaterialInterface* Plain = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Materials/Trees/%s.%s"), *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet))
+				{
+					K.Alive->SetMaterial(i, Plain);
+				}
+			}
+			if (Slots[i].MaterialSlotName.ToString().Contains(TEXT("Branches")))
+			{
+				UMaterialInstanceDynamic* Soot = UMaterialInstanceDynamic::Create(Base, this);
+				Soot->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.03f, 0.024f, 0.02f));
+				K.Burnt->SetMaterial(i, Soot);
+			}
+			else
+			{
+				K.Burnt->SetMaterial(i, Hidden);
+			}
+		}
+		Kinds.Add(K);
+	}
+
 	if (USoundBase* Crackle = LoadObject<USoundBase>(nullptr, TEXT("/Game/Audio/burn_loop.burn_loop"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
 		BurnAudio->SetSound(Crackle);
@@ -159,7 +217,16 @@ void ADragonProps::BeginPlay()
 			}
 			if (bClear)
 			{
-				AddTree(FVector(PX, PY, G), Rng.FRandRange(1100.f, 2100.f), Rng.FRandRange(0.f, 360.f), Rng.FRand());
+				if (Kinds.Num() == 4)
+				{
+					// Pines keep to the higher ground and broadleaf trees to the lower, with some of each among the other.
+					const bool bPine = Rng.FRand() < (G > 11000.f ? 0.8f : 0.25f);
+					AddRealTree((bPine ? 2 : 0) + (Rng.FRand() < 0.5f ? 1 : 0), FVector(PX, PY, G), Rng.FRandRange(0.8f, 1.3f), Rng.FRandRange(0.f, 360.f));
+				}
+				else
+				{
+					AddTree(FVector(PX, PY, G), Rng.FRandRange(1100.f, 2100.f), Rng.FRandRange(0.f, 360.f), Rng.FRand());
+				}
 			}
 		}
 	}
@@ -240,8 +307,43 @@ void ADragonProps::Ignite(int32 Index)
 	(P.bHouse ? HousesBurned : TreesBurned)++;
 }
 
-void ADragonProps::ShowBurn(const FProp& P, float Char, float Glow)
+void ADragonProps::AddRealTree(int32 Kind, const FVector& Ground, float Scale, float Yaw)
 {
+	FProp P;
+	P.Pos = Ground;
+	P.Kind = int8(Kind);
+	P.Scale = Scale;
+	P.Yaw = Yaw;
+	P.Height = Kinds[Kind].Height * Scale;
+	const FTransform T(FRotator(0.f, Yaw, 0.f), Ground - FVector(0.f, 0.f, 40.f), FVector(Scale));
+	P.Low = Kinds[Kind].Alive->AddInstance(T, true);
+	// Its burnt form is only added when it burns: thousands of hidden spares would still cost the GPU every frame.
+	Props.Add(P);
+	++NumTrees;
+}
+
+void ADragonProps::ShowBurn(FProp& P, float Char, float Glow)
+{
+	if (P.Kind >= 0)
+	{
+		// A real tree stands as it is while the fire takes hold, then its leaves are gone
+		// and only the charred trunk and branches are left, glowing until they cool.
+		const FTreeKind& K = Kinds[P.Kind];
+		if (!P.bBare && Char > 0.45f)
+		{
+			P.bBare = true;
+			const FRotator Rot(0.f, P.Yaw, 0.f);
+			const FVector At = P.Pos - FVector(0.f, 0.f, 40.f);
+			K.Alive->UpdateInstanceTransform(P.Low, FTransform(Rot, At, FVector(0.001f)), true, true, true);
+			P.High = K.Burnt->AddInstance(FTransform(Rot, At, FVector(P.Scale)), true);
+		}
+		if (P.bBare)
+		{
+			K.Burnt->SetCustomDataValue(P.High, DataGlow, Glow * 0.35f, false); // embers in the bark, not a lantern
+			K.Burnt->MarkRenderStateDirty();
+		}
+		return;
+	}
 	UInstancedStaticMeshComponent* LowComp = P.bHouse ? Walls : Trunks;
 	UInstancedStaticMeshComponent* HighComp = P.bHouse ? Roofs : Leaves;
 	LowComp->SetCustomDataValue(P.Low, DataChar, Char, false);
@@ -259,6 +361,24 @@ void ADragonProps::Tick(float DeltaSeconds)
 	if (!Dragon)
 	{
 		return;
+	}
+	// Starting the game with -TreeTest puts the dragon low in front of a tree in the middle of a wood, for a close look.
+	static bool bTreeTest = FParse::Param(FCommandLine::Get(), TEXT("TreeTest"));
+	if (bTreeTest && Props.Num() > NumHouses)
+	{
+		bTreeTest = false;
+		// The thickest part of the woods: the cell holding the most trees.
+		int32 Best = NumHouses, Most = 0;
+		for (const TPair<FIntPoint, TArray<int32>>& Cell : Cells)
+		{
+			if (Cell.Value.Num() > Most && !Props[Cell.Value[0]].bHouse)
+			{
+				Most = Cell.Value.Num();
+				Best = Cell.Value[0];
+			}
+		}
+		const FVector Tree = Props[Best].Pos;
+		Dragon->FaceFrom(Tree + FVector(-16000.f, 0.f, 4500.f), Tree + FVector(0.f, 0.f, 1000.f));
 	}
 	const FVector DragonPos = Dragon->GetActorLocation();
 

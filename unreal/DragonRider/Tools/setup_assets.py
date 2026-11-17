@@ -10,6 +10,7 @@ Makes  /Game/Textures/*            from SourceArt/tex/*.png
        /Game/Materials/M_Water     rippling sea, with a "Color" parameter
        /Game/Materials/M_Fire      additive flame puff for the fire breath
        /Game/Materials/M_Prop      trees and houses, which char and glow as they burn
+       /Game/Materials/M_Hidden    draws nothing; hides the leaves of a burnt tree
 
 The dragon itself is not made here: it is the Sakura Dragon asset from Fab, in Content/SakuraDragon.
 """
@@ -203,6 +204,15 @@ def make_prop():
     finish(m)
 
 
+def make_hidden():
+    """Draws nothing at all. Put on the leafy parts of a tree model to leave just its trunk and branches."""
+    m = new_material("M_Hidden")
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    mel.connect_material_property(const(m, 0.0, 0), "", MP.MP_OPACITY_MASK)
+    finish(m)
+
+
 # ---- rider -----------------------------------------------------------------
 def plain(name, colour, rough):
     m = new_material(name)
@@ -266,13 +276,60 @@ def import_audio():
             eal.save_loaded_asset(wave, only_if_is_dirty=False)
 
 
+def prepare_packs():
+    """Makes the game's own materials for the tree models of the Open World Demo Collection.
+
+    The pack's materials are built on the old SpeedTree node, which in 5.8 draws nothing for the
+    close-up levels of detail when a tree is drawn thousands at a time. So for each of them a plain
+    replacement is made from the same textures: /Game/Materials/Trees/M_<original name>, which the
+    game puts on the trees. Bark is solid; anything leafy is cut out by its texture's alpha and
+    seen from both sides. It does nothing when the pack is not in the project."""
+    hill = "/Game/KiteDemo/Environments/Trees/HillTree_02/"
+    pine = "/Game/KiteDemo/Environments/Trees/ScotsPine_01/"
+    if not eal.does_asset_exist(pine + "ScotsPine_01"):
+        return
+    # original material: (colour texture, normal map, cut out by alpha)
+    table = {
+        "HillTree_01_Branches_Mat":    (hill + "T_Craghead_Oak_Tile_01_D_Tex", hill + "T_Craghead_Oak_Tile_01_N_Tex", False),
+        "HillTree_01_Branches_2_Mat":  (hill + "T_Craghead_Oak_LimbTile_02_D_Tex", hill + "T_Craghead_Oak_LimbTile_02_N_Tex", False),
+        "HillTree_01_Fronds_Mat":      (hill + "HillTree_01_Atlas_Tex", hill + "HillTree_01_Atlas_Normal_Tex", True),
+        "HillTree_01_Leaves_Mat":      (hill + "HillTree_01_Atlas_Tex", hill + "HillTree_01_Atlas_Normal_Tex", True),
+        "HillTree_01_Leaves_Mat2":     (hill + "HillTree_01_Atlas_Tex", hill + "HillTree_01_Atlas_Normal_Tex", True),
+        "ScotsPine_01_Branches_Mat":   (pine + "T_ScotsPine_Bark_01_Tex", pine + "T_ScotsPine_Bark_01_N_Tex", False),
+        "ScotsPine_01_Branches_2_Mat": (pine + "T_ScotsPine_Bark_03_D_Tex", pine + "T_ScotsPine_Bark_03_N", False),
+        "ScotsPine_01_Leaves_Mat":     (pine + "ScotsPine_01_Atlas_Tex", pine + "ScotsPine_01_Atlas_Normal_Tex", True),
+        "ScotsPine_01_Fronds_Mat":     (pine + "ScotsPine_01_Atlas_Tex", pine + "ScotsPine_01_Atlas_Normal_Tex", True),
+    }
+    for name, (colour_path, normal_path, leafy) in table.items():
+        colour, normal = eal.load_asset(colour_path), eal.load_asset(normal_path)
+        m = tools.create_asset("M_" + name, "/Game/Materials/Trees", unreal.Material, unreal.MaterialFactoryNew())
+        m.set_editor_property("used_with_instanced_static_meshes", True)
+        m.set_editor_property("two_sided", leafy)
+        if leafy:
+            m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+        c = node(m, unreal.MaterialExpressionTextureSample, -500, 0, texture=colour,
+                 sampler_type=(unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if colour.get_editor_property("srgb")
+                               else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR))
+        mel.connect_material_property(c, "RGB", MP.MP_BASE_COLOR)
+        if leafy:
+            mel.connect_material_property(c, "A", MP.MP_OPACITY_MASK)
+        if normal and normal.get_editor_property("compression_settings") == unreal.TextureCompressionSettings.TC_NORMALMAP:
+            nrm = node(m, unreal.MaterialExpressionTextureSample, -500, 300, texture=normal,
+                       sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+            mel.connect_material_property(nrm, "RGB", MP.MP_NORMAL)
+        mel.connect_material_property(const(m, 0.8, 600), "", MP.MP_ROUGHNESS)
+        finish(m)
+
+
 import_textures()
 import_audio()
+prepare_packs()
 make_terrain()
 make_glow()
 make_water()
 make_fire()
 make_prop()
+make_hidden()
 import_rider()
 eal.save_directory("/Game/Materials")
 eal.save_directory("/Game/Rider")
