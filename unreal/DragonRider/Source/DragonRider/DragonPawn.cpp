@@ -228,7 +228,7 @@ void ADragonPawn::BeginPlay()
 	FireLight->SetRelativeLocation(MouthOffset + FVector(1500.f, 0.f, 0.f));
 
 	// Sounds are made by Tools/build_audio.py; any that are missing are simply not heard.
-	for (const TCHAR* Name : { TEXT("wind_loop"), TEXT("wings_loop"), TEXT("fire_loop"), TEXT("music_loop"), TEXT("roar"), TEXT("ring"), TEXT("ignite"), TEXT("thud"), TEXT("hit") })
+	for (const TCHAR* Name : { TEXT("wind_loop"), TEXT("wings_loop"), TEXT("fire_loop"), TEXT("music_loop"), TEXT("roar"), TEXT("roar_hurt"), TEXT("ring"), TEXT("ignite"), TEXT("thud"), TEXT("hit") })
 	{
 		if (USoundBase* Sound = LoadObject<USoundBase>(nullptr, *FString::Printf(TEXT("/Game/Audio/%s.%s"), Name, Name), nullptr, LOAD_NoWarn | LOAD_Quiet))
 		{
@@ -336,8 +336,13 @@ void ADragonPawn::Hurt(float Amount)
 		NoticeTime = 4.f;
 		const FVector Loc = GetActorLocation();
 		FaceFrom(FVector(Loc.X, Loc.Y, FMath::Max(ADragonWorld::HeightAt(Loc.X, Loc.Y), 0.f) + 45000.f), FVector(0.f, 0.f, 45000.f));
-		RoarWait = 0.f;
-		Roar();
+		// A cry of pain rather than the roar, and the rearing-up animation with it.
+		RoarWait = 3.2f;
+		PlayCue(TEXT("roar_hurt"));
+		if (Mode == EDragonMode::Grounded)
+		{
+			PlayAnim(RoarAnim, false);
+		}
 	}
 }
 

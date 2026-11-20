@@ -72,20 +72,7 @@ for _ in range(140):
     crackle[at:at + length] += rng.uniform(0.3, 1.0) * rng.standard_normal(length) * np.exp(-np.arange(length) / (length * 0.22))
 save("burn_loop", 0.55 * noise(5, 80, 2500, 0.9) * wobble(5, 9.0, 0.4) + 0.5 * crackle)
 
-# ---- roar: a rough, falling growl ------------------------------------------
-t = times(3.0)
-f0 = np.interp(t, [0, 0.35, 1.6, 3.0], [88, 104, 74, 52]) * (1 + 0.025 * noise(3.0, 0.5, 12, 0.0))
-phase = 2 * np.pi * np.cumsum(f0) / SR
-voice = np.zeros(len(t))
-for h in range(1, 46):
-    freq = h * 80.0
-    # throat resonances around 320, 760 and 1500 Hz give it a mouth rather than a buzz
-    shape = 0.25 + bump(freq, 320, 140) + 0.8 * bump(freq, 760, 220) + 0.5 * bump(freq, 1500, 400)
-    voice += shape / h ** 0.6 * np.sin(h * phase + rng.uniform(0, 6.28))
-rough = 1 + 0.55 * np.sin(2 * np.pi * 33 * t + 2.0 * noise(3.0, 1, 20, 0.0))
-env = np.interp(t, [0, 0.12, 0.5, 2.0, 3.0], [0, 1.0, 0.9, 0.6, 0.0])
-roar = np.tanh(1.8 * (voice / np.abs(voice).max() * rough + 0.35 * noise(3.0, 400, 3200, 0.8))) * env
-save("roar", roar)
+# The roar is made from recordings, by Tools/build_roar.py.
 
 # ---- ring passed: a bright bell --------------------------------------------
 t = times(1.4)
