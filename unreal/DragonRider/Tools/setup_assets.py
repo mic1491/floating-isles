@@ -493,6 +493,44 @@ def prepare_packs():
         finish(m)
 
 
+def make_field_grass():
+    """The pack's field grass, lit as if it were the ground it grows from: its own material shades
+    the thin blades by their facing, which from above turns patches of them nearly black. Cut out by
+    the alpha of its colour texture and seen from both sides, like the tree leaves. Nothing without the pack."""
+    folder = "/Game/KiteDemo/Environments/Foliage/Grass/FieldGrass/"
+    if not eal.does_asset_exist(folder + "T_FieldGrass_01_D"):
+        return
+    m = tools.create_asset("M_FieldGrass", "/Game/Materials/Trees", unreal.Material, unreal.MaterialFactoryNew())
+    m.set_editor_property("used_with_instanced_static_meshes", True)
+    m.set_editor_property("two_sided", True)
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    m.set_editor_property("tangent_space_normal", False)
+    colour = eal.load_asset(folder + "T_FieldGrass_01_D")
+    c = node(m, unreal.MaterialExpressionTextureSample, -700, 0, texture=colour,
+             sampler_type=(unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if colour.get_editor_property("srgb")
+                           else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR))
+    # The texture is very dark (the pack's material lifts it a great deal): brought up to the
+    # brightness of the ground around it, a little darker toward the roots.
+    uv = node(m, unreal.MaterialExpressionTextureCoordinate, -1000, 150)
+    v = node(m, unreal.MaterialExpressionComponentMask, -850, 150, r=False, g=True, b=False, a=False)
+    mel.connect_material_expressions(uv, "", v, "")
+    shade = node(m, unreal.MaterialExpressionLinearInterpolate, -450, 150)
+    mel.connect_material_expressions(node(m, unreal.MaterialExpressionConstant3Vector, -650, 100, constant=unreal.LinearColor(5.2, 5.4, 3.0, 1)), "", shade, "A")
+    mel.connect_material_expressions(node(m, unreal.MaterialExpressionConstant3Vector, -650, 200, constant=unreal.LinearColor(2.6, 2.6, 1.4, 1)), "", shade, "B")
+    mel.connect_material_expressions(v, "", shade, "Alpha")
+    rgb = node(m, unreal.MaterialExpressionComponentMask, -550, 0, r=True, g=True, b=True, a=False)
+    mel.connect_material_expressions(c, "", rgb, "")
+    mel.connect_material_property(times(m, rgb, shade, 0), "", MP.MP_BASE_COLOR)
+    # the blades' outline is in the colour texture's alpha (the _M texture is shading, not a cut-out)
+    mel.connect_material_property(c, "A", MP.MP_OPACITY_MASK)
+    # Straight up, on both faces: the engine turns a two-sided material's normal over for the back
+    # face, which would light half the blades from below, so it is turned over first to cancel that.
+    up = node(m, unreal.MaterialExpressionConstant3Vector, -450, 450, constant=unreal.LinearColor(0, 0, 1, 1))
+    mel.connect_material_property(times(m, up, node(m, unreal.MaterialExpressionTwoSidedSign, -650, 500), 450), "", MP.MP_NORMAL)
+    mel.connect_material_property(const(m, 0.9, 600), "", MP.MP_ROUGHNESS)
+    finish(m)
+
+
 def prepare_ground():
     """Lets the Open World Demo Collection's rock and plant materials be drawn in batches, which the
     game does with thousands of them. Done once in the local copy of the pack; nothing without it."""
@@ -502,7 +540,9 @@ def prepare_ground():
         "Rocks/Medium_Boulder_001/Medium_Boulder_001", "Rocks/Scree002/SM_Scree002_NEW", "Rocks/Scree001/Scree_001",
         "Rocks/River_Rock_01/SM_River_Rock_01", "Rocks/Boulder_05a/SM_Boulder05a", "Rocks/Medium_Boulder_002/Medium_Boulder_LowPoly",
         "Foliage/Grass/FieldGrass/SM_FieldGrass_01", "Foliage/Flowers/Heather/SM_Heather_Mesh_Clumps2", "Foliage/Ferns/SM_Fern_01",
-        "Foliage/Flowers/Buttercup/SM_Buttercup_Patch_01", "Foliage/BogMyrtleBush_02/BogMyrtleBush_02"]
+        "Foliage/Flowers/Buttercup/SM_Buttercup_Patch_01", "Foliage/BogMyrtleBush_02/BogMyrtleBush_02",
+        "Foliage/Ferns/SM_Fern_02", "Foliage/Ferns/SM_Fern_03", "Foliage/Flowers/FieldScabious/SM_FieldScabious_01",
+        "Foliage/Flowers/Yarrow/SM_Yarrow", "Foliage/Flowers/Yarrow/SM_Yarrow3", "Foliage/BogMyrtleBush_01/BogMyrtleBush_01"]
     done = set()
     for name in meshes:
         path = "/Game/KiteDemo/Environments/" + name
@@ -615,6 +655,7 @@ import_textures()
 import_audio()
 prepare_packs()
 prepare_ground()
+make_field_grass()
 prepare_towers()
 make_terrain()
 make_glow()

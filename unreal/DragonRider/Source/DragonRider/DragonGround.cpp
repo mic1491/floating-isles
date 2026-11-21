@@ -5,6 +5,7 @@
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
 #include "Math/RandomStream.h"
@@ -14,6 +15,11 @@ namespace
 	const float GrassCell = 3000.f;     // grass is laid out in 30 m squares
 	const int32 GrassReach = 5;         // this many squares out from the dragon's
 	const int32 GrassPerCell = 110;
+	// Close to the ground the squares nearest the dragon grow far thicker, so the land it walks on
+	// is covered; from higher up only the thin outer layer is kept, which is quicker to lay out.
+	const int32 ThickReach = 3;         // squares out from the dragon's that grow thick
+	const int32 ThickPerCell = 650;
+	const float ThickMaxAltitude = 6000.f;
 	const float GrassMaxAltitude = 30000.f; // above this height over the ground it would not be seen
 	const FString Kite(TEXT("/Game/KiteDemo/Environments/"));
 
@@ -51,6 +57,15 @@ bool ADragonGround::AddKind(TArray<FKind>& Into, const TCHAR* Path, float MinSca
 	K.Mesh->SetStaticMesh(Mesh);
 	K.Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	K.Mesh->SetCastShadow(bShadow);
+	if (!bShadow)
+	{
+		// Thin plants packed close would otherwise block the sky's light from one another and from
+		// the ground, and whole meadows turn nearly black.
+		K.Mesh->bAffectDistanceFieldLighting = false;
+		K.Mesh->bAffectDynamicIndirectLighting = false;
+		K.Mesh->bAffectIndirectLightingWhileHidden = false;
+		K.Mesh->SetVisibleInRayTracing(false);
+	}
 	K.Mesh->SetCullDistances(CullFrom, CullTo);
 	Into.Add(K);
 	return true;
@@ -154,15 +169,17 @@ void ADragonGround::PlaceRocks()
 	}
 }
 
-void ADragonGround::PlaceGrass(const FIntPoint& Centre)
+void ADragonGround::PlaceGrass(const FIntPoint& Centre, bool bThick)
 {
 	TArray<TArray<FTransform>> Out;
 	Out.SetNum(Grass.Num());
+	auto Any = [](const TArray<int32>& Of, float R) { return Of.Num() ? Of[FMath::Min(int32(R * Of.Num()), Of.Num() - 1)] : INDEX_NONE; };
 	for (int32 cy = -GrassReach; cy <= GrassReach; ++cy)
 	{
 		for (int32 cx = -GrassReach; cx <= GrassReach; ++cx)
 		{
-			if (cx * cx + cy * cy > GrassReach * GrassReach)
+			const int32 Ring = cx * cx + cy * cy;
+			if (Ring > GrassReach * GrassReach)
 			{
 				continue;
 			}
@@ -173,23 +190,28 @@ void ADragonGround::PlaceGrass(const FIntPoint& Centre)
 			{
 				continue;
 			}
-			for (int32 i = 0; i < GrassPerCell; ++i)
+			const int32 Count = bThick && Ring <= ThickReach * ThickReach ? ThickPerCell : GrassPerCell;
+			for (int32 i = 0; i < Count; ++i)
 			{
 				const float X = (Cell.X + Rng.FRand()) * GrassCell, Y = (Cell.Y + Rng.FRand()) * GrassCell;
-				const float Pick = Rng.FRand(), Scale = Rng.FRand(), Yaw = Rng.FRandRange(0.f, 360.f);
+				const float Pick = Rng.FRand(), Scale = Rng.FRand(), Yaw = Rng.FRandRange(0.f, 360.f), Which = Rng.FRand();
 				const float G = ADragonWorld::HeightAt(X, Y);
 				if (G < 700.f || G > 52000.f || Flatness(X, Y, 150.f) < 0.82f || (Props && Props->IsScorched(FVector2D(X, Y))))
 				{
 					continue;
 				}
-				// Mostly grass; heather on the higher moors, ferns where the woods are, now and then flowers or a bush.
-				const float Wood = FMath::PerlinNoise2D(FVector2D(X, Y) / 90000.f + FVector2D(5.3f, 9.1f));
-				int32 K = 0;
-				if (Pick > 0.95f) { K = 4; }
-				else if (Pick > 0.88f) { K = 3; }
-				else if (Pick > 0.78f && Wood > 0.15f) { K = 2; }
-				else if (Pick > 0.62f && G > 9000.f) { K = 1; }
-				K = FMath::Min(K, Grass.Num() - 1);
+				// Mostly grass. Ferns and bushes gather where the woods are, heather on the higher moors,
+				// and flowers grow in drifts rather than one here and one there.
+				const FVector2D P(X, Y);
+				const float Wood = FMath::PerlinNoise2D(P / 90000.f + FVector2D(5.3f, 9.1f));
+				const float Meadow = FMath::PerlinNoise2D(P / 14000.f + FVector2D(1.7f, 3.3f));
+				int32 K = GrassKind;
+				if (Pick > 0.965f || (Pick > 0.90f && Wood > 0.25f)) { K = Any(BushKinds, Which); }
+				else if (Pick > 0.80f && Wood > 0.1f) { K = Any(FernKinds, Which); }
+				else if (Pick > 0.70f && Meadow > 0.2f) { K = Any(FlowerKinds, Which); }
+				else if (Pick > 0.60f && G > 9000.f) { K = HeatherKind; }
+				if (K == INDEX_NONE) { K = GrassKind; }
+				if (K == INDEX_NONE) { continue; }
 				const FKind& Kind = Grass[K];
 				const float S = FMath::Lerp(Kind.MinScale, Kind.MaxScale, Scale);
 				Out[K].Add(FTransform(FRotator(0.f, Yaw, 0.f), FVector(X, Y, G - 40.f), FVector(S)));
@@ -213,11 +235,39 @@ void ADragonGround::Tick(float DeltaSeconds)
 		bStarted = true;
 		for (TActorIterator<ADragonProps> It(GetWorld()); It; ++It) { Props = *It; }
 		PlaceRocks();
-		AddKind(Grass, TEXT("Foliage/Grass/FieldGrass/SM_FieldGrass_01.SM_FieldGrass_01"), 1.6f, 2.8f, 0.f, false, 11000, 15000);
-		AddKind(Grass, TEXT("Foliage/Flowers/Heather/SM_Heather_Mesh_Clumps2.SM_Heather_Mesh_Clumps2"), 1.4f, 2.4f, 0.f, false, 11000, 15000);
-		AddKind(Grass, TEXT("Foliage/Ferns/SM_Fern_01.SM_Fern_01"), 1.f, 1.7f, 0.f, false, 11000, 15000);
-		AddKind(Grass, TEXT("Foliage/Flowers/Buttercup/SM_Buttercup_Patch_01.SM_Buttercup_Patch_01"), 1.f, 1.6f, 0.f, false, 11000, 15000);
-		AddKind(Grass, TEXT("Foliage/BogMyrtleBush_02/BogMyrtleBush_02.BogMyrtleBush_02"), 1.3f, 2.2f, 0.f, true, 11000, 15000);
+		auto Plant = [this](const TCHAR* Path, float MinScale, float MaxScale, bool bShadow)
+		{
+			return AddKind(Grass, Path, MinScale, MaxScale, 0.f, bShadow, 11000, 15000) ? Grass.Num() - 1 : INDEX_NONE;
+		};
+		GrassKind = Plant(TEXT("Foliage/Grass/FieldGrass/SM_FieldGrass_01.SM_FieldGrass_01"), 2.f, 3.4f, false);
+		// The game's own grass material (Tools/setup_assets.py), lit like the ground beneath it.
+		if (UMaterialInterface* Lit = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Materials/Trees/M_FieldGrass.M_FieldGrass"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			if (GrassKind != INDEX_NONE)
+			{
+				for (int32 i = 0; i < Grass[GrassKind].Mesh->GetNumMaterials(); ++i)
+				{
+					Grass[GrassKind].Mesh->SetMaterial(i, Lit);
+				}
+			}
+		}
+		HeatherKind = Plant(TEXT("Foliage/Flowers/Heather/SM_Heather_Mesh_Clumps2.SM_Heather_Mesh_Clumps2"), 1.4f, 2.4f, false);
+		for (const TCHAR* Fern : { TEXT("Foliage/Ferns/SM_Fern_01.SM_Fern_01"), TEXT("Foliage/Ferns/SM_Fern_02.SM_Fern_02"), TEXT("Foliage/Ferns/SM_Fern_03.SM_Fern_03") })
+		{
+			const int32 K = Plant(Fern, 1.f, 1.8f, false);
+			if (K != INDEX_NONE) { FernKinds.Add(K); }
+		}
+		for (const TCHAR* Flower : { TEXT("Foliage/Flowers/Buttercup/SM_Buttercup_Patch_01.SM_Buttercup_Patch_01"), TEXT("Foliage/Flowers/FieldScabious/SM_FieldScabious_01.SM_FieldScabious_01"),
+			TEXT("Foliage/Flowers/Yarrow/SM_Yarrow.SM_Yarrow"), TEXT("Foliage/Flowers/Yarrow/SM_Yarrow3.SM_Yarrow3") })
+		{
+			const int32 K = Plant(Flower, 1.f, 1.7f, false);
+			if (K != INDEX_NONE) { FlowerKinds.Add(K); }
+		}
+		for (const TCHAR* Bush : { TEXT("Foliage/BogMyrtleBush_01/BogMyrtleBush_01.BogMyrtleBush_01"), TEXT("Foliage/BogMyrtleBush_02/BogMyrtleBush_02.BogMyrtleBush_02") })
+		{
+			const int32 K = Plant(Bush, 1.3f, 2.2f, true);
+			if (K != INDEX_NONE) { BushKinds.Add(K); }
+		}
 	}
 	const APawn* Dragon = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (!Dragon || Grass.Num() == 0)
@@ -240,11 +290,13 @@ void ADragonGround::Tick(float DeltaSeconds)
 	}
 	const FIntPoint Centre(FMath::FloorToInt32(At.X / GrassCell), FMath::FloorToInt32(At.Y / GrassCell));
 	const int32 Scorched = Props ? Props->NumScorches() : 0;
-	if (Centre != GrassCentre || (Scorched != GrassScorchCount && FMath::FRand() < DeltaSeconds)) // regrow about once a second while the ground is burning
+	const bool bThick = At.Z - FMath::Max(ADragonWorld::HeightAt(At.X, At.Y), 0.f) < ThickMaxAltitude;
+	if (Centre != GrassCentre || bThick != bGrassThick || (Scorched != GrassScorchCount && FMath::FRand() < DeltaSeconds)) // regrow about once a second while the ground is burning
 	{
 		GrassCentre = Centre;
 		GrassScorchCount = Scorched;
+		bGrassThick = bThick;
 		bHasGrass = true;
-		PlaceGrass(Centre);
+		PlaceGrass(Centre, bThick);
 	}
 }

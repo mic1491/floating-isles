@@ -37,7 +37,7 @@ private:
 
 	bool AddKind(TArray<FKind>& Into, const TCHAR* Path, float MinScale, float MaxScale, float Sink, bool bShadow, int32 CullFrom, int32 CullTo);
 	void PlaceRocks();
-	void PlaceGrass(const FIntPoint& Centre);
+	void PlaceGrass(const FIntPoint& Centre, bool bThick);
 	bool NearVillage(const FVector2D& P, float Radius) const;
 
 	UPROPERTY()
@@ -46,6 +46,11 @@ private:
 	TArray<FKind> Boulders, Scree, Shore, Grass;
 	bool bStarted = false;
 	bool bHasGrass = false;
+	bool bGrassThick = false;
+	// Which of Grass is which plant; INDEX_NONE when it is missing from the pack.
+	int32 GrassKind = INDEX_NONE;
+	int32 HeatherKind = INDEX_NONE;
+	TArray<int32> FernKinds, FlowerKinds, BushKinds;
 	FIntPoint GrassCentre = FIntPoint(INT32_MAX, INT32_MAX);
 	int32 GrassScorchCount = -1;
 };
