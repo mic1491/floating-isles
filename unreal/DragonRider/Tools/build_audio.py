@@ -105,7 +105,7 @@ crack = noise(6.0, 500, 6000, 0.5) * np.exp(-t * 14) * (t < 0.6)
 rumble = noise(6.0, 25, 260, 1.0) * np.interp(t, [0, 0.15, 1.2, 6.0], [0, 1.0, 0.75, 0.0]) * wobble(6.0, 3.0, 0.6)
 save("thunder", np.tanh(1.6 * (0.8 * crack + rumble)))
 
-# ---- music: slow minor chords under a high, lonely line ---------------------
+# ---- music: slow minor chords and a deep drum --------------------------------
 LENGTH = 48.0
 n = int(LENGTH * SR)
 t = np.arange(n) / SR
@@ -135,9 +135,7 @@ chords = [(-31, -24, -19, -16, -12), (-35, -28, -23, -19, -16), (-28, -21, -16, 
 for i, chord in enumerate(chords):
     for k, note in enumerate(chord):
         add_note(hz(note), i * 12.0 - 1.0, 14.5, 0.5 if k == 0 else 0.3)
-# the line above them: one long note every 6 s
-for i, note in enumerate((5, 3, 0, -2, 5, 8, 7, 3)):
-    add_note(hz(note), i * 6.0 + 1.0, 5.5, 0.16, harmonics=3, vibrato=0.004)
+# (no high line above them: on small speakers, where the low chords are hardly heard, it was a lone whistle)
 # a deep drum at the start of each chord and a softer one halfway
 for i in range(8):
     dt = (t - i * 6.0) % LENGTH
