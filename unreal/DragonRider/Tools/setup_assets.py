@@ -118,7 +118,73 @@ def finish(mat):
 
 
 # ---- materials --------------------------------------------------------------
+KITE_GROUND = "/Game/KiteDemo/Environments/GroundTiles/"
+# The photographed ground of the Open World Demo Collection, used for the terrain when the pack
+# is in the project: name in the shader -> texture.
+GROUND_TEXTURES = {
+    "Grass": KITE_GROUND + "Grass/T_GDC_Grass01_D_NoisyAlpha",
+    "GrassN": KITE_GROUND + "Grass/T_Ground_Grass_N",
+    "Moss": KITE_GROUND + "Grass/T_ground_Moss_D",
+    "Alpine": KITE_GROUND + "AlpinePatch001/T_AlpinePatch001_D_R",
+    "AlpineN": KITE_GROUND + "AlpinePatch001/T_AlpinePatch001_N",
+    "Rock": KITE_GROUND + "RockFace003/T_GDC_RockFace003_D_R",
+    "RockN": KITE_GROUND + "RockFace003/T_GDC_RockFace003_N",
+    "Shore": KITE_GROUND + "PebblyRiverbank/T_Tile_PebblyRiverbank_D_R",
+    "ShoreN": KITE_GROUND + "PebblyRiverbank/T_Tile_PebblyRiverbank_N",
+    "Macro": "/Game/Textures/macro_d",
+}
+
+# Shared by the three outputs of the terrain shader. Each layer is sampled at two sizes, the larger
+# taking over with distance so the repeat does not show from the air; the cliff is projected from
+# the side so it is not stretched down steep slopes.
+TERRAIN_HLSL = """
+float3 N = normalize(Nrm);
+float D = length(Pos - Cam);
+float Far = smoothstep(1500.0, 20000.0, D);
+float Mac = Macro.Sample(MacroSampler, Pos.xy / 90000.0).r;
+float Mac2 = Macro.Sample(MacroSampler, Pos.xy / 23000.0 + 0.37).r;
+float Steep = 1.0 - smoothstep(0.64, 0.86, N.z + (Mac - 0.5) * 0.14);
+float H = Pos.z + (Mac2 - 0.5) * 9000.0;
+float Beach = 1.0 - smoothstep(500.0, 1800.0, Pos.z + (Mac2 - 0.5) * 1200.0);
+float High = smoothstep(30000.0, 60000.0, H);
+float Snow = smoothstep(95000.0, 118000.0, H) * (1.0 - 0.7 * Steep);
+float2 A = Pos.xy / 500.0, B = Pos.xy / 4200.0;
+#define TWO(T, S) lerp(T.Sample(S, A), T.Sample(S, B), Far)
+float4 G = TWO(Grass, GrassSampler);
+float4 M = TWO(Moss, MossSampler);
+float4 L = TWO(Alpine, AlpineSampler);
+float4 S = TWO(Shore, ShoreSampler);
+float Wx = abs(N.x) + 0.001, Wy = abs(N.y) + 0.001;
+float2 RA = Pos.yz / 1400.0, RB = Pos.xz / 1400.0;
+float2 RA2 = Pos.yz / 9000.0, RB2 = Pos.xz / 9000.0;
+float4 R = (lerp(Rock.Sample(RockSampler, RA), Rock.Sample(RockSampler, RA2), Far) * Wx
+          + lerp(Rock.Sample(RockSampler, RB), Rock.Sample(RockSampler, RB2), Far) * Wy) / (Wx + Wy);
+float MossMix = smoothstep(0.35, 0.75, Mac);
+float3 Ground = lerp(G.rgb * float3(0.78, 0.88, 0.62), M.rgb * 0.9, MossMix * 0.7);
+Ground = lerp(Ground, L.rgb, High);
+float3 Col = lerp(Ground, R.rgb, Steep);
+Col = lerp(Col, S.rgb * float3(1.25, 1.15, 0.95), Beach);
+Col = lerp(Col, float3(0.78, 0.80, 0.86), Snow);
+Col *= lerp(0.7, 1.12, Mac2);
+float Rough = lerp(lerp(0.92, L.a, High), R.a, Steep);
+Rough = lerp(Rough, S.a, Beach);
+Rough = lerp(Rough, 0.55, Snow);
+#define NRM(T, S, uv) float3(T.Sample(S, uv).xy * 2.0 - 1.0, 0.0)
+float3 NG = lerp(NRM(GrassN, GrassNSampler, A), NRM(GrassN, GrassNSampler, B), Far);
+float3 NL = lerp(NRM(AlpineN, AlpineNSampler, A), NRM(AlpineN, AlpineNSampler, B), Far);
+float3 NS = lerp(NRM(ShoreN, ShoreNSampler, A), NRM(ShoreN, ShoreNSampler, B), Far);
+float3 NR = (NRM(RockN, RockNSampler, RA) * Wx + NRM(RockN, RockNSampler, RB) * Wy) / (Wx + Wy);
+float3 Nt = lerp(lerp(NG, NL, High), NR * 1.5, Steep);
+Nt = lerp(Nt, NS, Beach);
+Nt *= (1.0 - Snow) * lerp(1.0, 0.35, Far);
+Nt.z = sqrt(saturate(1.0 - dot(Nt.xy, Nt.xy)));
+"""
+
+
 def make_terrain():
+    if all(eal.does_asset_exist(p) for p in GROUND_TEXTURES.values()):
+        make_real_terrain()
+        return
     m = new_material("M_Terrain", two_sided=True)
     colour = node(m, unreal.MaterialExpressionVertexColor, -700, -300)
     near = world_uv(m, 4000, 0)
@@ -131,6 +197,40 @@ def make_terrain():
     mel.connect_material_property(sample(m, "noise_n", near, 500), "", MP.MP_NORMAL)
     mel.connect_material_property(const(m, 0.92, 700), "", MP.MP_ROUGHNESS)
     finish(m)
+
+
+def make_real_terrain():
+    """The terrain painted with photographed grass, moss, alpine turf, cliff and pebbly shore,
+    chosen by slope and height, with snow on the peaks."""
+    m = new_material("M_Terrain", two_sided=True)
+    pos = node(m, unreal.MaterialExpressionWorldPosition, -1400, 0)
+    cam = node(m, unreal.MaterialExpressionCameraPositionWS, -1400, 150)
+    nrm = node(m, unreal.MaterialExpressionVertexNormalWS, -1400, 300)
+    objects = {}
+    for i, (name, path) in enumerate(GROUND_TEXTURES.items()):
+        tex = eal.load_asset(path)
+        is_normal = name.endswith("N")
+        objects[name] = node(m, unreal.MaterialExpressionTextureObject, -1400, 450 + 120 * i, texture=tex,
+                             sampler_type=(unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL if is_normal
+                                           else unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if tex.get_editor_property("srgb")
+                                           else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR))
+    for k, (ret, out_type, prop) in enumerate((("Col", unreal.CustomMaterialOutputType.CMOT_FLOAT3, MP.MP_BASE_COLOR),
+                                               ("Nt", unreal.CustomMaterialOutputType.CMOT_FLOAT3, MP.MP_NORMAL),
+                                               ("Rough", unreal.CustomMaterialOutputType.CMOT_FLOAT1, MP.MP_ROUGHNESS))):
+        c = node(m, unreal.MaterialExpressionCustom, -600, 300 * k, output_type=out_type,
+                 description="Terrain" + ret, code=TERRAIN_HLSL + "return " + ret + ";")
+        names = ["Pos", "Cam", "Nrm"] + list(GROUND_TEXTURES)
+        inputs = []
+        for n in names:
+            ci = unreal.CustomInput()
+            ci.set_editor_property("input_name", n)
+            inputs.append(ci)
+        c.set_editor_property("inputs", inputs)
+        for n, src in [("Pos", pos), ("Cam", cam), ("Nrm", nrm)] + list(objects.items()):
+            mel.connect_material_expressions(src, "", c, n)
+        mel.connect_material_property(c, "", prop)
+    finish(m)
+    unreal.log("terrain: photographed ground")
 
 
 def make_glow():

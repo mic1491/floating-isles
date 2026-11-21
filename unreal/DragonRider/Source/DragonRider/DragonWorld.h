@@ -28,6 +28,8 @@ public:
 	static FVector StartLocation();
 	/** Beyond this distance from the centre the dragon is turned back. */
 	static constexpr float PlayRadius = 1000000.f;
+	/** The haze's density in clear weather; the sky thickens it for cloud and rain. */
+	static const float FogDensity;
 
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaSeconds) override;

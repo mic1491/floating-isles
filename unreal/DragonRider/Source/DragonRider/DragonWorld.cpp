@@ -119,10 +119,24 @@ void ADragonWorld::BuildSky()
 	}
 	if (AExponentialHeightFog* Fog = W->SpawnActor<AExponentialHeightFog>(FVector(0, 0, 0), FRotator::ZeroRotator))
 	{
-		Fog->GetComponent()->SetFogDensity(0.0006f);
-		Fog->GetComponent()->SetFogHeightFalloff(0.05f);
+		// Haze that softens the far islands into the sky, a thicker mist lying low in the valleys and
+		// over the sea, and a warm glow in it towards the sun.
+		UExponentialHeightFogComponent* F = Fog->GetComponent();
+		F->SetFogDensity(FogDensity);
+		F->SetFogHeightFalloff(0.035f);
+		F->SetStartDistance(3000.f);
+		F->SetFogInscatteringColor(FLinearColor(0.32f, 0.42f, 0.58f));
+		F->SetDirectionalInscatteringExponent(6.f);
+		F->SetDirectionalInscatteringStartDistance(8000.f);
+		F->SetDirectionalInscatteringColor(FLinearColor(0.55f, 0.42f, 0.28f));
+		F->SecondFogData.FogDensity = 0.02f;
+		F->SecondFogData.FogHeightFalloff = 0.5f;
+		F->SecondFogData.FogHeightOffset = 0.f;
+		F->MarkRenderStateDirty();
 	}
 }
+
+const float ADragonWorld::FogDensity = 0.004f;
 
 void ADragonWorld::BuildOcean()
 {

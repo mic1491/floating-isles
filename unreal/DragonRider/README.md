@@ -57,7 +57,7 @@
 1. 龍的模型是 Fab 上的免費素材 [Sakura Dragon](https://www.fab.com/listings/4af98b46-6e54-4d22-93dc-0404cc4dc2d2)，授權不允許放進這個 repo。請在 Fab 加入資料庫，再從 Epic Games Launcher 的「Fab Library」按「加入專案」選這個專案，它會出現在 `Content/SakuraDragon/`。沒有它也能玩，龍會是一個圓錐。
 2. 對 `Play Dragon Rider.command` 按兩下直接開始玩。想進編輯器的話，從 Epic Games Launcher 的「資料庫 → 我的專案」開啟 DragonRider，再按 Play。
 
-3. 樹木來自 Epic 的免費素材 [Open World Demo Collection](https://www.fab.com/listings/3262ab8f-f64a-4124-8efd-82cb19df6249)，同樣不在 repo 裡。在 Launcher 的 Fab Library 按「加入專案」（勾「顯示所有專案」，版本選 5.2），它會出現在 `Content/KiteDemo/`，然後關掉編輯器執行一次 `Tools/rebuild_assets.sh`，替樹建立遊戲用的材質。沒有它的話森林會是圓錐。
+3. 樹木來自 Epic 的免費素材 [Open World Demo Collection](https://www.fab.com/listings/3262ab8f-f64a-4124-8efd-82cb19df6249)，同樣不在 repo 裡。在 Launcher 的 Fab Library 按「加入專案」（勾「顯示所有專案」，版本選 5.2），它會出現在 `Content/KiteDemo/`，然後關掉編輯器執行一次 `Tools/rebuild_assets.sh`，替樹建立遊戲用的材質，並把地面換成這個素材包的實拍草地、苔蘚、高山草甸、岩壁與卵石灘（依坡度和高度分布，山頂積雪）。沒有它的話森林會是圓錐，地面是單色。
 
 4. 房屋來自免費素材 [Faymere River Village](https://www.fab.com/listings/6e579cff-a28f-499b-a0ad-30649d40774a)，也不在 repo 裡。它是整個專案的形式：在 Launcher 的 Fab Library 按「建立專案」下載後，把它的 `Content/FaymereVillage` 資料夾複製到本專案的 `Content/` 底下，再執行一次 `Tools/rebuild_assets.sh`。腳本會讀它的關卡，把兩種房屋的零件配置寫成 `Content/FaymereVillage/houses.txt`，遊戲照著它拼出每一棟。沒有它的話營舍會是方塊。
 
