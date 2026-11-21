@@ -7,6 +7,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -35,6 +36,17 @@ namespace
 	const FName SaddleBone(TEXT("spine_02"));
 	// The standing, walking and landing animations hold the chest this high above the asset's origin.
 	const float GroundCentreZ = 250.f;
+	// The knight's seat, as directions in his own space (+Y forward, +X his left, +Z up), each
+	// from one bone to the next; the legs are given for his left side and mirrored.
+	const FVector KnightThigh(0.55f, 0.75f, -0.45f);
+	const FVector KnightShin(0.15f, -0.15f, -1.f);
+	const FVector KnightUpperArmL(0.3f, 0.35f, -0.9f);
+	const FVector KnightForeArmL(-0.2f, 1.f, -0.1f);
+	const FVector KnightUpperArmR(-0.35f, 0.3f, -0.9f);
+	const FVector KnightForeArmR(0.1f, 1.f, 0.2f);
+	const FVector KnightSword(0.f, 0.6f, 1.f);
+	// How far below the hip bone he sits.
+	const FVector KnightSeatDrop(0.f, 0.f, -8.f);
 }
 
 ADragonPawn::ADragonPawn()
@@ -75,6 +87,15 @@ ADragonPawn::ADragonPawn()
 	if (RiderMesh.Succeeded())
 	{
 		Rider->SetStaticMesh(RiderMesh.Object);
+	}
+	Knight = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("Knight"));
+	Knight->SetupAttachment(Mesh);
+	Knight->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Knight->SetReceivesDecals(false);
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> KnightMesh(TEXT("/Game/ParagonGreystone/Characters/Heroes/Greystone/Meshes/Greystone.Greystone"));
+	if (KnightMesh.Succeeded())
+	{
+		Knight->SetSkinnedAssetAndUpdate(KnightMesh.Object);
 	}
 
 	// Shown only when the dragon asset is not in the project.
@@ -253,29 +274,114 @@ void ADragonPawn::BeginPlay()
 void ADragonPawn::SeatRider()
 {
 	USkeletalMesh* Asset = Mesh->GetSkeletalMeshAsset();
-	if (!Asset || !Rider->GetStaticMesh())
+	const bool bKnight = Knight->GetSkinnedAsset() != nullptr;
+	if (!Asset || (!bKnight && !Rider->GetStaticMesh()))
 	{
-		Rider->SetVisibility(false);
+		ShowRider(false);
 		return;
 	}
 	// The seat is given in the dragon's rest pose; riding on a spine bone makes the rider
 	// rise and fall with the wingbeat instead of floating at a fixed spot.
 	const FReferenceSkeleton& Skel = Asset->GetRefSkeleton();
 	const int32 Bone = Skel.FindBoneIndex(SaddleBone);
-	if (Bone == INDEX_NONE)
-	{
-		Rider->SetRelativeLocation(SaddlePoint);
-		return;
-	}
 	FTransform BoneRest = FTransform::Identity;
 	for (int32 i = Bone; i != INDEX_NONE; i = Skel.GetParentIndex(i))
 	{
 		BoneRest = BoneRest * Skel.GetRefBonePose()[i];
 	}
-	// The rider model faces +X and has its origin at the hips; the dragon faces +Y.
-	const FTransform Seat(FRotator(0.f, 90.f, 0.f), SaddlePoint, FVector(1.f / DragonScale));
-	Rider->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, SaddleBone);
-	Rider->SetRelativeTransform(Seat.GetRelativeTransform(BoneRest));
+	UPrimitiveComponent* Seated = Rider;
+	FTransform Seat;
+	if (bKnight)
+	{
+		// The knight faces +Y like the dragon; his hips go on the seat.
+		PoseKnight();
+		const FReferenceSkeleton& KSkel = Knight->GetSkinnedAsset()->GetRefSkeleton();
+		const int32 Pelvis = KSkel.FindBoneIndex(TEXT("pelvis"));
+		const FVector Hips = Pelvis == INDEX_NONE ? FVector::ZeroVector : KSkel.GetRefBonePose()[Pelvis].GetLocation();
+		Seat = FTransform(-Hips - KnightSeatDrop) * FTransform(FQuat::Identity, SaddlePoint, FVector(1.f / DragonScale));
+		Seated = Knight;
+		Rider->SetVisibility(false);
+	}
+	else
+	{
+		// The simple rider faces +X and has its origin at the hips.
+		Seat = FTransform(FRotator(0.f, 90.f, 0.f), SaddlePoint, FVector(1.f / DragonScale));
+		Knight->SetVisibility(false);
+	}
+	if (Bone == INDEX_NONE)
+	{
+		Seated->SetRelativeTransform(Seat);
+		return;
+	}
+	Seated->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, SaddleBone);
+	Seated->SetRelativeTransform(Seat.GetRelativeTransform(BoneRest));
+}
+
+void ADragonPawn::PoseKnight()
+{
+	const FReferenceSkeleton& Skel = Knight->GetSkinnedAsset()->GetRefSkeleton();
+	TArray<FTransform> Local = Skel.GetRefBonePose();
+	auto ToComponent = [&](int32 i)
+	{
+		FTransform T = FTransform::Identity;
+		for (; i != INDEX_NONE; i = Skel.GetParentIndex(i))
+		{
+			T = T * Local[i];
+		}
+		return T;
+	};
+	// Turns a bone so that the next bone along lies in the given direction (knight's space:
+	// +Y forward, +X his left, +Z up). Bones are aimed parents first, so children follow.
+	auto Aim = [&](const TCHAR* BoneName, const TCHAR* NextName, FVector Dir)
+	{
+		const int32 B = Skel.FindBoneIndex(BoneName), N = Skel.FindBoneIndex(NextName);
+		if (B == INDEX_NONE || N == INDEX_NONE)
+		{
+			return;
+		}
+		const FTransform BT = ToComponent(B);
+		const FVector Now = (ToComponent(N).GetLocation() - BT.GetLocation()).GetSafeNormal();
+		const FQuat Turned = FQuat::FindBetweenNormals(Now, Dir.GetSafeNormal()) * BT.GetRotation();
+		const int32 P = Skel.GetParentIndex(B);
+		const FQuat ParentRot = P == INDEX_NONE ? FQuat::Identity : ToComponent(P).GetRotation();
+		Local[B].SetRotation(ParentRot.Inverse() * Turned);
+	};
+	for (int32 Side = -1; Side <= 1; Side += 2)
+	{
+		const bool bLeft = Side > 0;
+		auto Name = [bLeft](const TCHAR* Base) { return FString::Printf(TEXT("%s_%s"), Base, bLeft ? TEXT("l") : TEXT("r")); };
+		const float S = float(Side);
+		// legs astride the back: thighs forward and wide, shins hanging down, toes forward
+		Aim(*Name(TEXT("thigh")), *Name(TEXT("calf")), KnightThigh * FVector(S, 1.f, 1.f));
+		Aim(*Name(TEXT("calf")), *Name(TEXT("foot")), KnightShin * FVector(S, 1.f, 1.f));
+		Aim(*Name(TEXT("foot")), *Name(TEXT("ball")), FVector(0.1f * S, 1.f, -0.25f));
+		// the back cloths would go into the dragon: lay them back along it
+		Aim(*FString::Printf(TEXT("butt_cloth_%s_01"), bLeft ? TEXT("l") : TEXT("r")), *FString::Printf(TEXT("butt_cloth_%s_02"), bLeft ? TEXT("l") : TEXT("r")), FVector(0.2f * S, -1.f, -0.15f));
+		Aim(*FString::Printf(TEXT("rear_cloth_1_%s"), bLeft ? TEXT("l") : TEXT("r")), *FString::Printf(TEXT("rear_cloth_2_%s"), bLeft ? TEXT("l") : TEXT("r")), FVector(0.2f * S, -1.f, -0.15f));
+	}
+	// a slight lean into the wind
+	Aim(TEXT("spine_03"), TEXT("neck_01"), FVector(0.f, 0.18f, 1.f));
+	Aim(TEXT("neck_01"), TEXT("head"), FVector(0.f, 0.05f, 1.f));
+	// shield arm (left) low and forward, holding the reins; sword arm (right) forward with the blade up
+	Aim(TEXT("upperarm_l"), TEXT("lowerarm_l"), KnightUpperArmL);
+	Aim(TEXT("lowerarm_l"), TEXT("hand_l"), KnightForeArmL);
+	Aim(TEXT("upperarm_r"), TEXT("lowerarm_r"), KnightUpperArmR);
+	Aim(TEXT("lowerarm_r"), TEXT("hand_r"), KnightForeArmR);
+	Aim(TEXT("hand_r"), TEXT("sword_top"), KnightSword);
+	// the cloth hanging in front lies over his lap
+	Aim(TEXT("loin_cloth_01"), TEXT("loin_cloth_02"), FVector(0.f, 1.f, -0.2f));
+	Aim(TEXT("loin_cloth_02"), TEXT("loin_cloth_03"), FVector(0.f, 0.8f, -0.6f));
+	Aim(TEXT("loin_cloth_03"), TEXT("loin_cloth_04"), FVector(0.f, 0.2f, -1.f));
+	Knight->BoneSpaceTransforms = Local;
+	Knight->MarkRefreshTransformDirty();
+}
+
+void ADragonPawn::ShowRider(bool bShow)
+{
+	const bool bKnight = Knight->GetSkinnedAsset() != nullptr;
+	const bool bDragon = Mesh->GetSkeletalMeshAsset() != nullptr;
+	Knight->SetVisibility(bShow && bDragon && bKnight);
+	Rider->SetVisibility(bShow && bDragon && !bKnight && Rider->GetStaticMesh() != nullptr);
 }
 
 void ADragonPawn::SetView(int32 NewView)
@@ -298,6 +404,7 @@ void ADragonPawn::SetView(int32 NewView)
 		{ TEXT("正面"),       FVector(560.f, 0.f, 150.f), 160.f, 1500.f, 0.f,    0.f,  false, false },
 		{ TEXT("側面"),        FVector(0.f, 0.f, 100.f),   90.f,  3000.f, 0.f,    0.f,  false, false },
 		{ TEXT("俯視"),  FVector(0.f, 0.f, 0.f),     0.f,   600.f,  3800.f, -72.f, false, false },
+		{ TEXT("騎士特寫"), FVector(0.f, 0.f, 250.f), 105.f, 620.f, 90.f, -8.f, false, false },
 	};
 	View = ((NewView % UE_ARRAY_COUNT(Views)) + UE_ARRAY_COUNT(Views)) % UE_ARRAY_COUNT(Views);
 	const FViewSetup& V = Views[View];
@@ -310,7 +417,7 @@ void ADragonPawn::SetView(int32 NewView)
 	Arm->bEnableCameraLag = V.bLag;
 	Arm->bEnableCameraRotationLag = V.bLag;
 	Camera->SetRelativeRotation(FRotator(V.Tilt, 0.f, 0.f));
-	Rider->SetVisibility(!V.bHideRider && Rider->GetStaticMesh() != nullptr && Mesh->GetSkeletalMeshAsset() != nullptr);
+	ShowRider(!V.bHideRider);
 }
 
 void ADragonPawn::FlamePuff(const FVector& Location, const FVector& Velocity, float Life)
@@ -682,7 +789,7 @@ void ADragonPawn::StartIntro()
 				PutOnGround(P);
 				bIntro = true;
 				IntroTime = 0.f;
-				Rider->SetVisibility(Rider->GetStaticMesh() != nullptr);
+				ShowRider(true);
 				return;
 			}
 		}

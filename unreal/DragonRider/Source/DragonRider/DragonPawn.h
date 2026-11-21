@@ -10,6 +10,7 @@ class USoundBase;
 class UCameraComponent;
 class UInstancedStaticMeshComponent;
 class UPointLightComponent;
+class UPoseableMeshComponent;
 class USkeletalMesh;
 class USkeletalMeshComponent;
 class USphereComponent;
@@ -143,6 +144,10 @@ private:
 	void EmitFlame(const FVector& Pos, const FVector& Vel, float Life);
 	void UpdateFire(float DeltaSeconds, bool bWantsFire);
 	void SeatRider();
+	/** Bends the knight's reference pose into a rider's seat: legs astride the back, hands forward. */
+	void PoseKnight();
+	/** Shows or hides whichever rider is in use: the knight, or the simple figure if the knight is not installed. */
+	void ShowRider(bool bShow);
 	void StartIntro();
 	void TickCutCamera();
 	void TickIntro(float Dt, bool bSkip);
@@ -159,6 +164,9 @@ private:
 	TObjectPtr<USkeletalMeshComponent> Mesh;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Rider;
+	/** Greystone, from Epic's free Paragon: Greystone pack on Fab, posed once and carried on the dragon's back. */
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<UPoseableMeshComponent> Knight;
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<UStaticMeshComponent> Placeholder;
 	UPROPERTY(VisibleAnywhere)

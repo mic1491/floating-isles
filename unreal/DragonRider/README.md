@@ -61,7 +61,9 @@
 
 4. 房屋來自免費素材 [Faymere River Village](https://www.fab.com/listings/6e579cff-a28f-499b-a0ad-30649d40774a)，也不在 repo 裡。它是整個專案的形式：在 Launcher 的 Fab Library 按「建立專案」下載後，把它的 `Content/FaymereVillage` 資料夾複製到本專案的 `Content/` 底下，再執行一次 `Tools/rebuild_assets.sh`。腳本會讀它的關卡，把兩種房屋的零件配置寫成 `Content/FaymereVillage/houses.txt`，遊戲照著它拼出每一棟。沒有它的話營舍會是方塊。
 
-其餘的貼圖、材質、騎士都已放在 `Content/`。改了 `SourceArt/` 之後，關掉編輯器並執行 `Tools/rebuild_assets.sh` 重建。
+5. 騎士是 Epic 的免費角色 [Paragon: Greystone](https://www.fab.com/listings/122fd7bf-6f12-4304-a930-cccbbacdaebc)，也不在 repo 裡。在 Fab 加入資料庫，再從 Launcher 的 Fab Library「加入專案」選這個專案，它會出現在 `Content/ParagonGreystone/`。遊戲會把他擺成坐在龍背上的姿勢（`DragonPawn::PoseKnight`）。沒有它的話騎士是披藍色斗篷的簡單人形。依授權，遊戲名稱與宣傳不能使用「Paragon」字樣。
+
+其餘的貼圖、材質，以及備用的簡單騎士，都已放在 `Content/`。改了 `SourceArt/` 之後，關掉編輯器並執行 `Tools/rebuild_assets.sh` 重建。
 
 龍的顏色在 `DragonPawn` 的 `BodyTint`、`WingTint`、`GlowTint` 調整；設成白色就是素材原本的珍珠白配櫻花粉。
 
@@ -74,7 +76,7 @@
 | 拍翅加速 | 空白鍵或滑鼠左鍵 | A |
 | 噴火（會耗燃料，放開後回復） | F 或滑鼠右鍵 | RT |
 | 減速 | 左 Shift | LT |
-| 切換視角（追尾、遠追尾、騎士、正面、側面、俯視） | C | Y |
+| 切換視角（追尾、遠追尾、騎士、正面、側面、俯視、騎士特寫） | C | Y |
 | 降落（要在島嶼上空、地面不能太陡） | G | X |
 | 地面：走路 / 跑步 / 轉向 | W / Shift+W / A、D | 左搖桿 / LT |
 | 地面：起飛 | 空白鍵 | A |
