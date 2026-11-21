@@ -14,7 +14,8 @@ class UHierarchicalInstancedStaticMeshComponent;
  * Rocks are laid out once over the whole map: big boulders on the slopes and high ground, scree on
  * the steepest faces and stones along the shore. Grass, heather, ferns, flowers and bushes are far
  * too many for the whole map, so they grow only in a ring round the dragon and are laid out afresh
- * as it moves, always the same at the same spot. Nothing grows on burnt ground.
+ * as it moves, always the same at the same spot. Nothing grows on burnt ground, nor where the dragon
+ * has walked: it treads the plants down as it goes.
  */
 UCLASS()
 class ADragonGround : public AActor
@@ -39,6 +40,9 @@ private:
 	void PlaceRocks();
 	void PlaceGrass(const FIntPoint& Centre, bool bThick);
 	bool NearVillage(const FVector2D& P, float Radius) const;
+	/** Treads down the plants round a point, and keeps them from growing there again. */
+	void Trample(const FVector& Where);
+	static bool Trodden(const FVector2D& P, const TArray<FVector2D>& Spots);
 
 	UPROPERTY()
 	TObjectPtr<ADragonProps> Props;
@@ -51,6 +55,9 @@ private:
 	int32 GrassKind = INDEX_NONE;
 	int32 HeatherKind = INDEX_NONE;
 	TArray<int32> FernKinds, FlowerKinds, BushKinds;
+	// Spots the dragon has walked over, oldest first.
+	TArray<FVector2D> Trampled;
+	FVector2D LastTrodden = FVector2D(1e12, 1e12);
 	FIntPoint GrassCentre = FIntPoint(INT32_MAX, INT32_MAX);
 	int32 GrassScorchCount = -1;
 };

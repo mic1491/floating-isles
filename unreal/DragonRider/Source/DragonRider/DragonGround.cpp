@@ -20,6 +20,10 @@ namespace
 	const int32 ThickReach = 3;         // squares out from the dragon's that grow thick
 	const int32 ThickPerCell = 650;
 	const float ThickMaxAltitude = 6000.f;
+	// Plants the dragon walks over are trodden flat and stay so: within this distance of its path.
+	const float TrampleRadius = 520.f;
+	const float TrampleStep = 220.f;      // a new spot on the path each time it has gone this far
+	const int32 MaxTrampled = 800;        // the oldest spots grow back after this many
 	const float GrassMaxAltitude = 30000.f; // above this height over the ground it would not be seen
 	const FString Kite(TEXT("/Game/KiteDemo/Environments/"));
 
@@ -173,6 +177,16 @@ void ADragonGround::PlaceGrass(const FIntPoint& Centre, bool bThick)
 {
 	TArray<TArray<FTransform>> Out;
 	Out.SetNum(Grass.Num());
+	// only the trodden spots inside the area being grown need checking
+	TArray<FVector2D> Near;
+	const FVector2D Mid((Centre.X + 0.5f) * GrassCell, (Centre.Y + 0.5f) * GrassCell);
+	for (const FVector2D& T : Trampled)
+	{
+		if (FVector2D::Distance(T, Mid) < (GrassReach + 1) * GrassCell + TrampleRadius)
+		{
+			Near.Add(T);
+		}
+	}
 	auto Any = [](const TArray<int32>& Of, float R) { return Of.Num() ? Of[FMath::Min(int32(R * Of.Num()), Of.Num() - 1)] : INDEX_NONE; };
 	for (int32 cy = -GrassReach; cy <= GrassReach; ++cy)
 	{
@@ -203,6 +217,10 @@ void ADragonGround::PlaceGrass(const FIntPoint& Centre, bool bThick)
 				// Mostly grass. Ferns and bushes gather where the woods are, heather on the higher moors,
 				// and flowers grow in drifts rather than one here and one there.
 				const FVector2D P(X, Y);
+				if (Trodden(P, Near))
+				{
+					continue;
+				}
 				const float Wood = FMath::PerlinNoise2D(P / 90000.f + FVector2D(5.3f, 9.1f));
 				const float Meadow = FMath::PerlinNoise2D(P / 14000.f + FVector2D(1.7f, 3.3f));
 				int32 K = GrassKind;
@@ -223,6 +241,37 @@ void ADragonGround::PlaceGrass(const FIntPoint& Centre, bool bThick)
 		Grass[i].Mesh->ClearInstances();
 		Grass[i].Mesh->AddInstances(Out[i], false, true);
 		Grass[i].Mesh->BuildTreeIfOutdated(true, true);
+	}
+}
+
+bool ADragonGround::Trodden(const FVector2D& P, const TArray<FVector2D>& Spots)
+{
+	for (const FVector2D& T : Spots)
+	{
+		if (FVector2D::DistSquared(T, P) < TrampleRadius * TrampleRadius)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void ADragonGround::Trample(const FVector& Where)
+{
+	const FVector2D P(Where.X, Where.Y);
+	Trampled.Add(P);
+	if (Trampled.Num() > MaxTrampled)
+	{
+		Trampled.RemoveAt(0, Trampled.Num() - MaxTrampled);
+	}
+	const FVector Ground(P.X, P.Y, ADragonWorld::HeightAt(P.X, P.Y));
+	for (const FKind& K : Grass)
+	{
+		TArray<int32> Hit = K.Mesh->GetInstancesOverlappingSphere(Ground, TrampleRadius, true);
+		if (Hit.Num())
+		{
+			K.Mesh->RemoveInstances(Hit);
+		}
 	}
 }
 
@@ -287,6 +336,18 @@ void ADragonGround::Tick(float DeltaSeconds)
 			}
 		}
 		return;
+	}
+	// Where the dragon stands or walks, under its chest and its hind legs.
+	const ADragonPawn* Walker = Cast<ADragonPawn>(Dragon);
+	if (Walker && Walker->IsGrounded() && bHasGrass)
+	{
+		const FVector Hind = At - Dragon->GetActorForwardVector() * 480.f;
+		if (FVector2D::Distance(FVector2D(At), LastTrodden) > TrampleStep)
+		{
+			LastTrodden = FVector2D(At);
+			Trample(At);
+			Trample(Hind);
+		}
 	}
 	const FIntPoint Centre(FMath::FloorToInt32(At.X / GrassCell), FMath::FloorToInt32(At.Y / GrassCell));
 	const int32 Scorched = Props ? Props->NumScorches() : 0;
